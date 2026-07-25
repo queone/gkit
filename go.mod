@@ -14,6 +14,7 @@ require (
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/spf13/cobra v1.10.2
 	github.com/vaughan0/go-ini v0.0.0-20130923145212-a98ad7ee00ec
+	github.com/yuin/goldmark v1.8.2
 	golang.org/x/image v0.40.0
 	golang.org/x/net v0.54.0
 	golang.org/x/text v0.37.0

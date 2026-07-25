@@ -21,6 +21,7 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 - [`git-remotev`](cmd/git-remotev/main.go): Print each local repository with its `origin` remote URL.
 - [`git-statall`](cmd/git-statall/main.go): Show git status across local repositories.
 - [`jy`](cmd/jy/README.md): A lightweight JSON and YAML converter utility.
+- [`mdview`](cmd/mdview/README.md): Render GitHub Flavored Markdown in a browser or write it as HTML.
 - [`pgen`](cmd/pgen/README.md): A simple generator of memorable passwords.
 - [`pman`](cmd/pman/main.go): Run authenticated Microsoft Graph and Azure REST API requests.
 - [`retotal`](cmd/retotal/README.md): Recalculate TOTALS in a signed financial summary; also consolidates CSV/aligned input into a signed summary.
@@ -77,4 +78,3 @@ To build in Windows you have to have a BASH shell such as [GitBASH](https://www.
 ## Governance
 
 This repo is governed by an explicit session-entry contract for AI coding agents — see [`governa/operator-contract-rationale.md`](governa/operator-contract-rationale.md) for the design reasoning and [`AGENTS.md`](AGENTS.md) for the operational rules.
-

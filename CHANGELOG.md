@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.47.0 | AC55: add mdview GFM browser and HTML output utility |
 | 0.46.0 | AC54: add vjoin with orientation-aware video concatenation |
 | 0.45.0 | AC53: show beginning-of-clip vkeep/vdrop Cheatsheet forms |
 | 0.44.1 | AC52: retire Go build tooling; adopt shell build.sh |
