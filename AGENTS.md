@@ -71,10 +71,11 @@ Note: prefer wording that is easiest for an LLM to follow, while staying simple 
 - Require explicit approval for: create, delete, rename, publish, release, or any destructive change.
 - Require explicit approval for: governance files, CI/release config, secrets handling, external integrations.
 - Edit only the files listed in the AC's `## In Scope` section, even after the user has authorized implementation.
+- Apply the drift-scan effective-scope exception in `### Drift-Scan Adoption` when a Director resolves an `ambiguity` item as `sync`.
 - Stop and ask when a request is ambiguous, or when the change is hard to reverse.
 - Wait for explicit user request before preparing, executing, publishing, deploying, or distributing — including drafting commit messages, commit commands, version bumps, or release notes.
 - **Leave every `git commit` for the user to execute. No EXCEPTION.**
-- Treat an explicit "prep for release" request as the trigger for release-prep bookkeeping (CHANGELOG row insertion, release-tag drafting, commit-command drafting, release-command presentation).
+- Treat an explicit standalone `Package`, `package`, `pack`, or `prep` request in an active Ratified AC context as the trigger for release-prep bookkeeping (CHANGELOG row insertion, release-tag drafting, commit-command drafting, release-command presentation).
 - Follow the Pre-Release Checklist in `governa/build-release.md` when executing release-prep bookkeeping.
 
 ### AC-First Workflow
@@ -82,6 +83,53 @@ Note: prefer wording that is easiest for an LLM to follow, while staying simple 
 - Treat every non-trivial change as AC-first work.
 - Draft `governa/ac<N>-<slug>.md` before implementation using `governa/ac-template.md`; define scope, out-of-scope, and acceptance tests.
 - Wait for explicit user confirmation that the AC is implementation-ready before starting implementation.
+
+### Four-Phase Workflow
+
+- Start each governed AC cycle in Scan when the AC is ready for adversarial review.
+- Challenge the AC, repository behavior, referenced documentation, scope, edge cases, omissions, and testability during Scan.
+- Keep Scan non-mutating; do not edit the AC or repository during Scan.
+- Pause after Scan and await explicit Director instruction to Shape.
+- Resolve Scan findings and incorporate settled Director decisions during Shape.
+- Pause Shape when a Director-specific decision remains unresolved.
+- Edit the AC during Shape; do not begin implementation during Shape.
+- Pause after Shape and await explicit Director implementation-ready confirmation to Forge.
+- Implement only the settled AC scope during Forge.
+- Return to Shape when Forge reveals a contract, scope, or Director decision change; return to Forge for implementation-only corrections.
+- Include tests, adversarial verification, and defect correction in Forge.
+- Pause after Forge and await Ratify.
+- Treat Ratify as the Director's final review of the delivered AC.
+- Return Ratify feedback to Shape for contract or scope changes.
+- Return Ratify feedback to Forge for implementation-only corrections.
+- Keep Ratify complete only after the Director accepts the delivered work.
+- Treat `Package` as the separate post-Ratify name for release preparation, not as a fifth AC phase.
+- Start `Package` only after an explicit Director request; do not infer it from Ratify acceptance.
+- Treat standalone `Package`, `package`, `pack`, and `prep` as equivalent names for `Package` only after Ratify acceptance.
+- Preserve the existing release-prep implementation, behavior, commands, ordering, and approval boundaries during `Package`.
+
+### Phase-Advancement Rules
+
+- Treat only explicit Director phase-advancement language as authorization to enter the named next phase.
+- Start an AC cycle only when the Director identifies the active AC and explicitly requests Scan.
+- Apply an unnumbered phase instruction to the sole AC under `governa/`; require the AC number when multiple ACs are present.
+- Treat a compound request as authorization for only the named phase.
+- Pause before entering any phase not explicitly named by the Director.
+- Treat ambiguous, unrelated, or implicit replies as non-advancing feedback.
+- Interpret Scan, Shape, Forge, and Ratify as workflow phases only in the context of the active AC cycle.
+- Interpret `Package` as the post-Ratify release-preparation action only after Ratify acceptance and an explicit Director request.
+- Interpret standalone `Package`, `package`, `pack`, and `prep` as equivalent Package instructions only in that context.
+- Do not interpret `run ./build.sh prep ...`, `pack the binary`, `prepare the build`, or non-standalone `prep` as workflow advancement.
+- Treat ordinary coding language such as `build`, `package the binary`, or a package-manager command as unrelated to phase advancement.
+- Require explicit operational wording such as `run ./build.sh` before executing a repository command; never infer a shell command from a phase name.
+
+### Primary And Ancillary Scope
+
+- Capture the resolved current working directory as the primary repository at session entry.
+- Keep the primary repository and current phase visible in every phase report.
+- Label work in another repository or path as `Ancillary work` only after the Director explicitly requests it.
+- Report the ancillary repository or path and authorization separately from the primary phase.
+- Prevent ancillary work from satisfying primary-repository scope, tests, validation, or phase gates.
+- Restate the primary repository and paused phase when returning from ancillary work.
 
 ### AC Critique Gate
 
@@ -98,6 +146,8 @@ Note: prefer wording that is easiest for an LLM to follow, while staying simple 
 ### Drift-Scan Adoption
 
 - Apply these rules whenever implementing a drift-scan-emitted AC.
+- Treat the named target as effective implementation scope when the Director resolves an `ambiguity` item as `sync`, even when it is absent from `## In Scope`.
+- Apply the resolved sync to the target file while leaving the emitted AC stub unchanged.
 - Render canon into a scratch directory using `governa render-canon <scratch>`.
 - Inspect changes per `## In Scope` item by running `diff -ru <scratch>/<path> <path>`.
 - Record preserve decisions in the `| Unreleased | |` row's Summary column of `CHANGELOG.md` before re-running `governa drift-scan`.
@@ -140,21 +190,35 @@ Note: mixed-content files (AGENTS.md, `governa/development-guidelines.md`, `gove
 - Treat AC-document ceremony issues as nits after implementation starts and the AC is expected to be deleted at release prep; prioritize defects that affect the delivered contract, implementation scope, tests, or release safety.
 - Report "no issues" directly when none are found; note any residual risk or verification gaps.
 - Keep completions terse — what changed, flat bullets, and a final `Awaiting <specific Director-initiated next>.` line; skip "What's in it" / "Main conclusion" / "Next steps" headers unless asked.
-- Never prescribe commit, push, or release actions in the sign-off; the Director triggers those — the sign-off names what's pending, not what to do.
+- Never prescribe commit, push, or release actions in Ratify; the Director triggers those — Ratify names what's pending, not what to do.
 - Skip settled repo mechanics in completions, including symlink behavior, mirror mechanics, governance structure, and contract conventions.
 - Default to plain text and simple bullets; reach for tables or richer structure only when content clearly benefits.
 - Note skipped checks only when the omission is unusual or affects confidence.
 - Run required validation gates, but report successful routine gates only when they materially affect confidence; always report failures and skipped required gates.
 - Present architectural decisions to the director as: a recommendation when one viable option exists; two bounded options plus a recommendation when two exist; the best two plus a one-line note on the rest when more than two exist.
 - Include the three-part self-review structure (Verified / Red-teamed / Not checked) defined in `governa/roles.md` in every substantial completion report, even when the default is terse.
+- Start every Package completion report with the plain, unbulleted, unindented line `Package complete.`.
+- Insert exactly one blank line after `Package complete.` before `Verified:`.
+- Keep `Verified:`, `Red-teamed:`, `Not checked:`, and `Run below to release:` in the Package completion report; state `No commit or release command executed.` and present the exact drafted release command.
 
 ## Base Rules
 
 ### Build Verification
 
-- **Run `./build.sh` for every "is the repo green" check — never substitute direct `go test`, `go vet`, `go fmt`, `go fix`, or `staticcheck` invocations.**
-- Use direct `go` and `staticcheck` calls only for debugging a single failure (`go test -run <Name>`), inspecting code (`go list`, `go doc`), or smoking one binary (`go run ./cmd/<tool>/` or `go build -o /tmp/<name> ./cmd/<tool>/`) — never `go build ./cmd/<tool>/` from repo root, which drops a stray binary.
-- Complete the repo's canonical validation before preparing any commit handoff.
+- Start a validation cycle when an authorized change pass is ready for validation.
+- Run `./build.sh` as the first validation command in every validation cycle.
+- Use `./build.sh` for repository-wide formatting validation, testing, vetting, linting, static analysis, and compilation checks.
+- Do not invoke direct formatter, test, vet, lint, static-analysis, or repository-wide compilation commands before the first canonical build.
+- Run prerequisite implementation commands such as code generation, dependency maintenance, and migrations before validation as needed.
+- Use read-only inspection commands before validation when they do not claim repository health.
+- Use isolated binary smoke commands before validation only when they do not claim repository health.
+- Use a direct validation tool only to diagnose or correct a corresponding failure reported by the latest `./build.sh`.
+- Scope each direct diagnostic or corrective command to the reported failure.
+- Rerun `./build.sh` after any diagnostic or corrective command that changes files.
+- Rerun `./build.sh` before running an unrelated direct validation command.
+- Complete the validation cycle only after the final `./build.sh` succeeds.
+- Treat work as unverified until the final `./build.sh` succeeds.
+- Build smoke-test binaries with an explicit output path outside the repository.
 
 ### Versioning and Dependencies
 
