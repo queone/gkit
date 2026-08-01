@@ -32,6 +32,8 @@ With `-o`, `mdview` writes the named file and does not open a browser. The paren
 
 `mdview` supports GitHub Flavored Markdown tables, strikethrough, task lists, and autolinks. It embeds `github-markdown-css`, follows the system light or dark color scheme, and needs no network connection or local server at runtime.
 
+`<details>` and `<summary>` are the only supported raw HTML disclosure elements. They are rendered as collapsed-by-default controls, and Markdown—including GFM tables—continues to render inside them. Disclosure attributes are discarded, so an input `open` attribute does not open the control. Other raw HTML elements, disclosure markup outside a `<details>` block, malformed disclosure markup, event-handler and style attributes, and unsafe URLs are omitted or neutralized. Disclosure tags inside code fences and inline code remain code literals.
+
 Relative links and images resolve from the Markdown source's directory. For a symlinked input, they resolve from the target file's directory. Linked resources remain separate files and are not copied into the HTML output.
 
 Raw HTML is omitted. GitHub-specific server features such as Mermaid diagrams, issue references, emoji expansion, and repository-aware links are not supported. Code fences are styled but do not receive syntax highlighting.

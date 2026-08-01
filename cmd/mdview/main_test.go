@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 type fakeFileInfo struct {
@@ -108,6 +110,191 @@ https://example.com
 	}
 	if !strings.Contains(got, "raw HTML omitted") {
 		t.Errorf("rendered body missing inert omission comment:\n%s", got)
+	}
+}
+
+func parseRenderedFragment(t *testing.T, rendered []byte) *goquery.Selection {
+	t.Helper()
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader("<div id=\"root\">" + string(rendered) + "</div>"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return doc.Find("#root")
+}
+
+func TestRenderDetailsWithNestedGFM(t *testing.T) {
+	source := []byte(`<details>
+<summary>Raw samples</summary>
+
+| A | B |
+| --- | --- |
+| 1 | 2 |
+
+</details>`)
+	body, err := renderMarkdown(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := parseRenderedFragment(t, body)
+	details := root.ChildrenFiltered("details")
+	if details.Length() != 1 {
+		t.Fatalf("details count = %d, want 1: %s", details.Length(), body)
+	}
+	detail := details.First()
+	if _, ok := detail.Attr("open"); ok {
+		t.Fatalf("details unexpectedly has open attribute: %s", body)
+	}
+	if got := detail.ChildrenFiltered("summary").First().Text(); got != "Raw samples" {
+		t.Fatalf("summary = %q, want %q", got, "Raw samples")
+	}
+	if detail.Find("table").Length() != 1 {
+		t.Fatalf("nested table missing from details: %s", body)
+	}
+}
+
+func TestRenderDetailsStripsAttributesAndUnsafeHTML(t *testing.T) {
+	source := []byte(`<script>alert("unsafe")</script>
+<div>raw</div>
+<iframe src="https://example.com"></iframe>
+<style>.x{}</style>
+<details open onclick="alert('unsafe')"><summary style="color:red">Label</summary>
+content
+</details>
+[unsafe](javascript:alert("unsafe link"))`)
+	body, err := renderMarkdown(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := parseRenderedFragment(t, body)
+	for _, selector := range []string{"script", "div", "iframe", "style", "[onclick]", "[style]", "[href^=javascript]"} {
+		if root.Find(selector).Length() != 0 {
+			t.Fatalf("unsafe selector %q survived: %s", selector, body)
+		}
+	}
+	details := root.Find("details")
+	if details.Length() != 1 {
+		t.Fatalf("details count = %d, want 1: %s", details.Length(), body)
+	}
+	details.Each(func(_ int, selection *goquery.Selection) {
+		if len(selection.Nodes[0].Attr) != 0 {
+			t.Errorf("details attributes survived: %s", body)
+		}
+	})
+}
+
+func TestRenderDetailsRemainIndependent(t *testing.T) {
+	source := []byte(`<details><summary>Raw samples</summary>
+
+| A |
+| --- |
+| 1 |
+
+</details>
+
+<details><summary>Artifact identity</summary>
+
+| B |
+| --- |
+| 2 |
+
+</details>`)
+	body, err := renderMarkdown(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := parseRenderedFragment(t, body)
+	details := root.ChildrenFiltered("details")
+	if details.Length() != 2 {
+		t.Fatalf("sibling details count = %d, want 2: %s", details.Length(), body)
+	}
+	wantLabels := []string{"Raw samples", "Artifact identity"}
+	details.Each(func(i int, selection *goquery.Selection) {
+		if _, ok := selection.Attr("open"); ok {
+			t.Errorf("details %d unexpectedly open: %s", i, body)
+		}
+		summary := selection.ChildrenFiltered("summary")
+		if summary.Length() != 1 || summary.Text() != wantLabels[i] {
+			t.Errorf("details %d summary = %q, want %q", i, summary.Text(), wantLabels[i])
+		}
+		if selection.Find("table").Length() != 1 {
+			t.Errorf("details %d table missing: %s", i, body)
+		}
+	})
+}
+
+func TestRenderDetailsEdgeCases(t *testing.T) {
+	mixed := []byte(`<DETAILS data-x="discard"><SUMMARY>Repeated</SUMMARY>
+body
+<summary>Repeated</summary>
+<details class="nested"><summary>Nested</summary>nested body</details>
+</DETAILS>
+
+<summary>Orphan</summary>`)
+	body, err := renderMarkdown(mixed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := parseRenderedFragment(t, body)
+	details := root.Find("details")
+	if details.Length() != 2 {
+		t.Fatalf("mixed-case nested details count = %d, want 2: %s", details.Length(), body)
+	}
+	if details.First().ChildrenFiltered("summary").Text() != "Repeated" ||
+		details.Last().ChildrenFiltered("summary").Text() != "Nested" {
+		t.Fatalf("summary labels changed: %s", body)
+	}
+	if root.Find("details[open], details[*]").Length() != 0 {
+		t.Fatalf("details attributes survived: %s", body)
+	}
+
+	unclosed, err := renderMarkdown([]byte(`<details><summary>Lost</summary>body`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if root := parseRenderedFragment(t, unclosed); root.Find("details,summary").Length() != 0 {
+		t.Fatalf("unclosed disclosure emitted HTML: %s", unclosed)
+	}
+}
+
+func TestRenderDetailsDoesNotRewriteCode(t *testing.T) {
+	source := []byte("```html\n<details open><summary>literal</summary></details>\n```\n\n" +
+		"    <details><summary>indented</summary></details>\n\n" +
+		"Inline `<details open>` remains literal.")
+	body, err := renderMarkdown(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := parseRenderedFragment(t, body)
+	if root.Find("details").Length() != 0 {
+		t.Fatalf("code sample became a disclosure: %s", body)
+	}
+	if !strings.Contains(string(body), "&lt;details open&gt;") ||
+		!strings.Contains(string(body), "&lt;details&gt;") ||
+		!strings.Contains(string(body), "<code>&lt;details open&gt;</code>") {
+		t.Fatalf("literal disclosure markup was changed: %s", body)
+	}
+}
+
+func TestRenderDetailsDoesNotRewriteRawContainersOrComments(t *testing.T) {
+	source := []byte(`<!-- <details><summary>comment</summary></details> -->
+<script><details><summary>script</summary></details></script>
+<style><details><summary>style</summary></details></style>`)
+	body, err := renderMarkdown(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if root := parseRenderedFragment(t, body); root.Find("details, script, style").Length() != 0 {
+		t.Fatalf("raw container content became active HTML: %s", body)
+	}
+}
+
+func TestRenderDetailsRejectsMalformedClosingTag(t *testing.T) {
+	body, err := renderMarkdown([]byte(`<details><summary>Label</summary>body</details data-x="unsafe">`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if root := parseRenderedFragment(t, body); root.Find("details, summary").Length() != 0 {
+		t.Fatalf("malformed disclosure emitted HTML: %s", body)
 	}
 }
 

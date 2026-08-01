@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"html"
 	"html/template"
 	"io"
 	"net/url"
@@ -212,10 +213,336 @@ func fileBaseURL(path string) (template.URL, error) {
 }
 
 func renderMarkdown(source []byte) ([]byte, error) {
+	nodes := parseDisclosureNodes(string(source))
+	return renderDisclosureNodes(nodes)
+}
+
+type disclosureNode struct {
+	details  bool
+	summary  bool
+	text     string
+	children []disclosureNode
+}
+
+func parseDisclosureNodes(source string) []disclosureNode {
+	nodes, _, _ := parseDisclosureContainer(source, 0, "")
+	return nodes
+}
+
+func parseDisclosureContainer(source string, start int, stopName string) ([]disclosureNode, int, bool) {
+	var nodes []disclosureNode
+	var text strings.Builder
+	summarySeen := false
+	flushText := func() {
+		if text.Len() > 0 {
+			nodes = append(nodes, disclosureNode{text: text.String()})
+			text.Reset()
+		}
+	}
+	for i := start; i < len(source); {
+		if end, ok := markdownRawContainerEnd(source, i); ok {
+			text.WriteString(source[i:end])
+			i = end
+			continue
+		}
+		if end, ok := markdownProtectedEnd(source, i); ok {
+			text.WriteString(source[i:end])
+			i = end
+			continue
+		}
+		if source[i] != '<' {
+			text.WriteByte(source[i])
+			i++
+			continue
+		}
+		tag, next, ok := disclosureTag(source, i)
+		if !ok {
+			text.WriteByte(source[i])
+			i++
+			continue
+		}
+		if tag.closing && tag.name == stopName {
+			flushText()
+			return nodes, next, true
+		}
+		if tag.name == "details" && !tag.closing {
+			flushText()
+			children, after, closed := parseDisclosureContainer(source, next, "details")
+			if !closed {
+				for _, child := range children {
+					if child.details {
+						nodes = append(nodes, child.children...)
+					} else {
+						child.summary = false
+						nodes = append(nodes, child)
+					}
+				}
+				i = after
+				continue
+			}
+			nodes = append(nodes, disclosureNode{details: true, children: children})
+			i = after
+			continue
+		}
+		if tag.name == "summary" && !tag.closing && stopName == "details" && !summarySeen {
+			flushText()
+			inner, after, found := disclosureSummary(source, next)
+			if found {
+				nodes = append(nodes, disclosureNode{summary: true, text: strings.TrimSpace(stripDisclosureTags(inner))})
+				summarySeen = true
+				i = after
+				continue
+			}
+		}
+		// Drop raw HTML tags, including orphan summaries and unmatched closing tags.
+		i = next
+	}
+	flushText()
+	return nodes, len(source), false
+}
+
+func markdownRawContainerEnd(source string, start int) (int, bool) {
+	if strings.HasPrefix(source[start:], "<!--") {
+		if end := strings.Index(source[start+4:], "-->"); end >= 0 {
+			return start + 4 + end + 3, true
+		}
+		return len(source), true
+	}
+	lower := strings.ToLower(source[start:])
+	for _, name := range []string{"script", "style", "textarea", "title"} {
+		prefix := "<" + name
+		if !strings.HasPrefix(lower, prefix) ||
+			(start+len(prefix) < len(source) && !isHTMLTagBoundary(source[start+len(prefix)])) {
+			continue
+		}
+		closeStart := strings.Index(lower[len(prefix):], "</"+name)
+		if closeStart < 0 {
+			return len(source), true
+		}
+		closeStart += start + len(prefix)
+		if end := strings.IndexByte(source[closeStart:], '>'); end >= 0 {
+			return closeStart + end + 1, true
+		}
+		return len(source), true
+	}
+	return start, false
+}
+
+func isHTMLTagBoundary(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '>' || c == '/'
+}
+
+func markdownProtectedEnd(source string, start int) (int, bool) {
+	if start >= len(source) {
+		return start, false
+	}
+	if source[start] == '`' {
+		runEnd := start
+		for runEnd < len(source) && source[runEnd] == '`' {
+			runEnd++
+		}
+		marker := source[start:runEnd]
+		if end := strings.Index(source[runEnd:], marker); end >= 0 {
+			return runEnd + end + len(marker), true
+		}
+		return len(source), true
+	}
+	if start != 0 && source[start-1] != '\n' {
+		return start, false
+	}
+	lineEnd := strings.IndexByte(source[start:], '\n')
+	if lineEnd < 0 {
+		lineEnd = len(source)
+	} else {
+		lineEnd += start
+	}
+	line := source[start:lineEnd]
+	indent := 0
+	for indent < len(line) && indent < 3 && line[indent] == ' ' {
+		indent++
+	}
+	if indent == 3 && len(line) > indent && line[indent] == ' ' {
+		end := lineEnd
+		for end < len(source) {
+			lineStart := end + 1
+			if lineStart >= len(source) {
+				return len(source), true
+			}
+			lineEnd := strings.IndexByte(source[lineStart:], '\n')
+			if lineEnd < 0 {
+				lineEnd = len(source)
+			} else {
+				lineEnd += lineStart
+			}
+			candidate := source[lineStart:lineEnd]
+			spaces := 0
+			for spaces < len(candidate) && candidate[spaces] == ' ' {
+				spaces++
+			}
+			if spaces < 4 && strings.TrimSpace(candidate) != "" {
+				break
+			}
+			end = lineEnd
+		}
+		return end, true
+	}
+	if indent == len(line) || (line[indent] != '`' && line[indent] != '~') {
+		return start, false
+	}
+	marker := line[indent]
+	markerEnd := indent
+	for markerEnd < len(line) && line[markerEnd] == marker {
+		markerEnd++
+	}
+	if markerEnd-indent < 3 {
+		return start, false
+	}
+	for cursor := lineEnd; cursor < len(source); {
+		if cursor < len(source) && source[cursor] == '\n' {
+			cursor++
+		}
+		end := strings.IndexByte(source[cursor:], '\n')
+		if end < 0 {
+			end = len(source)
+		} else {
+			end += cursor
+		}
+		candidate := source[cursor:end]
+		spaces := 0
+		for spaces < len(candidate) && spaces < 3 && candidate[spaces] == ' ' {
+			spaces++
+		}
+		count := spaces
+		for count < len(candidate) && candidate[count] == marker {
+			count++
+		}
+		if count-spaces >= markerEnd-indent {
+			if end < len(source) {
+				return end + 1, true
+			}
+			return end, true
+		}
+		if end == len(source) {
+			return len(source), true
+		}
+		cursor = end
+	}
+	return len(source), true
+}
+
+type disclosureTagInfo struct {
+	name    string
+	closing bool
+}
+
+func disclosureTag(source string, start int) (disclosureTagInfo, int, bool) {
+	if start >= len(source) || source[start] != '<' {
+		return disclosureTagInfo{}, start, false
+	}
+	quote := byte(0)
+	end := start + 1
+	for end < len(source) {
+		c := source[end]
+		if quote != 0 {
+			if c == quote {
+				quote = 0
+			}
+		} else if c == '\'' || c == '"' {
+			quote = c
+		} else if c == '>' {
+			break
+		}
+		end++
+	}
+	if end == len(source) || quote != 0 {
+		return disclosureTagInfo{}, start, false
+	}
+	content := strings.TrimSpace(source[start+1 : end])
+	closing := strings.HasPrefix(content, "/")
+	if closing {
+		content = strings.TrimSpace(content[1:])
+	}
+	nameEnd := 0
+	for nameEnd < len(content) && ((content[nameEnd] >= 'a' && content[nameEnd] <= 'z') ||
+		(content[nameEnd] >= 'A' && content[nameEnd] <= 'Z')) {
+		nameEnd++
+	}
+	if nameEnd == 0 {
+		return disclosureTagInfo{}, start, false
+	}
+	name := strings.ToLower(content[:nameEnd])
+	if name != "details" && name != "summary" {
+		return disclosureTagInfo{}, start, false
+	}
+	if closing && strings.TrimSpace(content[nameEnd:]) != "" {
+		return disclosureTagInfo{}, start, false
+	}
+	return disclosureTagInfo{name: name, closing: closing}, end + 1, true
+}
+
+func disclosureSummary(source string, start int) (string, int, bool) {
+	for i := start; i < len(source); {
+		tag, next, ok := disclosureTag(source, i)
+		if ok && tag.name == "summary" && tag.closing {
+			return source[start:i], next, true
+		}
+		if i < len(source) && source[i] == '<' {
+			i++
+		} else {
+			i++
+		}
+	}
+	return "", start, false
+}
+
+func stripDisclosureTags(source string) string {
+	var clean strings.Builder
+	for i := 0; i < len(source); {
+		if source[i] == '<' {
+			if _, next, ok := disclosureTag(source, i); ok {
+				i = next
+				continue
+			}
+		}
+		clean.WriteByte(source[i])
+		i++
+	}
+	return clean.String()
+}
+
+func renderDisclosureNodes(nodes []disclosureNode) ([]byte, error) {
 	var body bytes.Buffer
 	md := goldmark.New(goldmark.WithExtensions(extension.GFM))
-	if err := md.Convert(source, &body); err != nil {
-		return nil, fmt.Errorf("rendering Markdown: %w; verify the input content", err)
+	for _, node := range nodes {
+		if node.details {
+			body.WriteString("<details>\n")
+			for _, child := range node.children {
+				if child.details {
+					childBody, err := renderDisclosureNodes([]disclosureNode{child})
+					if err != nil {
+						return nil, err
+					}
+					body.Write(childBody)
+					continue
+				}
+				if child.summary {
+					body.WriteString("<summary>")
+					body.WriteString(html.EscapeString(child.text))
+					body.WriteString("</summary>\n")
+				} else {
+					childBody, err := renderDisclosureNodes([]disclosureNode{child})
+					if err != nil {
+						return nil, err
+					}
+					body.Write(childBody)
+				}
+			}
+			body.WriteString("</details>\n")
+			continue
+		}
+		if err := md.Convert([]byte(node.text), &body); err != nil {
+			return nil, fmt.Errorf("rendering Markdown: %w; verify the input content", err)
+		}
 	}
 	return body.Bytes(), nil
 }
