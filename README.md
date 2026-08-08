@@ -1,6 +1,12 @@
 # utils
 A collection of small CLI utilities written in Go.
 
+## Archived
+
+utils is frozen at `v0.52.0` and superseded by [`rkit`](https://github.com/queone/rkit), its maintained Rust successor. The four Git helpers—`git-cloneall`, `git-pullall`, `git-remotev`, and `git-statall`—are consolidated into `repoctl`; the other utilities retain their existing names in rkit. This repository takes no new features going forward.
+
+The remaining README is historical documentation for the frozen Go implementations.
+
 ## Why
 Go's tool chain is the ideal way to maintain a set of commonly used CLI utilities. They can be quickly compiled and installed whether you're in Windows, macOS, or Linux. This provides a unified and portable solution to many a scripting needs. With this setup, Go turns into a quasi-package manager for these utilities.
 

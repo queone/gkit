@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.52.0 | AC60: freeze utils and point users to rkit |
 | 0.51.0 | AC59: register govna divergences and fix README link |
 | 0.50.0 | AC58: migrate governance from Governa to govna v0.13.0 |
 | 0.49.0 | AC57: adopt Governa v0.153.0 canon and four-phase workflow |
