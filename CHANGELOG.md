@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.50.0 | AC58: migrate governance from Governa to govna v0.13.0 |
 | 0.49.0 | AC57: adopt Governa v0.153.0 canon and four-phase workflow |
 | 0.48.0 | AC56: support safe collapsible details disclosures in mdview |
 | 0.47.0 | AC55: add mdview GFM browser and HTML output utility |

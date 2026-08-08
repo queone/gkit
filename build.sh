@@ -23,16 +23,15 @@ _prep_vtargets=''
 _prep_ctargets=''
 
 # ── color ────────────────────────────────────────────────────────────────────
-# Mirrors governa-color: a sequence is emitted only when color is both enabled
-# (NO_COLOR unset, TERM != dumb, stdout a TTY) and 256-color capable (COLORTERM
+# A sequence is emitted only when color is both enabled (NO_COLOR unset, TERM != dumb, stdout a TTY) and 256-color capable (COLORTERM
 # truecolor/24bit, or TERM containing 256color). Computed once. The TTY signal
-# is injectable via GOVERNA_FORCE_TTY (1/0) for tests, since no PTY is used.
+# is injectable via GOVNA_FORCE_TTY (1/0) for tests, since no PTY is used.
 _color_init() {
   _color_on=1
   [ -n "${NO_COLOR:-}" ] && _color_on=0
   [ "${TERM:-}" = "dumb" ] && _color_on=0
-  if [ -n "${GOVERNA_FORCE_TTY:-}" ]; then
-    [ "${GOVERNA_FORCE_TTY}" = "1" ] || _color_on=0
+  if [ -n "${GOVNA_FORCE_TTY:-}" ]; then
+    [ "${GOVNA_FORCE_TTY}" = "1" ] || _color_on=0
   elif [ ! -t 1 ]; then
     _color_on=0
   fi
@@ -60,7 +59,7 @@ red3() { _wrap '38;5;124' "$1"; }
 whi5() { _wrap '38;5;231' "$1"; }
 
 # bold rewrites every inner reset so the attribute survives nested color, then
-# wraps — matching governa-color Bold. Quoted pattern => literal match (no glob).
+# wraps. Quoted pattern => literal match (no glob).
 bold() {
   if [ "$_color_on" = 1 ] && [ "$_color256" = 1 ]; then
     local reset bold1
@@ -148,7 +147,7 @@ _byte_len() { LC_ALL=C printf '%s' "$1" | LC_ALL=C wc -c | tr -d ' '; }
 # Processed in LC_ALL=C so iteration is per byte. NUL cannot occur in a CLI
 # argument, so byte 0 need not be handled.
 #
-# Bounded output-parity exception (AC147 Part F): invalid-UTF-8 high bytes
+# Bounded output-parity exception: invalid-UTF-8 high bytes
 # (e.g. 0xff) and non-printable Unicode runes (e.g. U+200B) are passed through
 # rather than \xHH/\uXXXX-escaped, because full strconv.Quote Unicode
 # classification is not portable in Bash 3.2. This affects only the %q *display*
@@ -992,11 +991,11 @@ _prep_parse_ac_refs() { # $1=message -> sorted unique AC numbers, one per line
   printf '%s' "$1" | grep -oE 'AC[0-9]+' | sed 's/^AC//' | LC_ALL=C sort -n -u || true
 }
 
-_prep_find_ac_files() { # $1=root $2=acnums -> sorted governa/ac<N>-*.md paths
+_prep_find_ac_files() { # $1=root $2=acnums -> sorted govna/ac<N>-*.md paths
   local root="$1" acnums="$2"
   [ -n "$acnums" ] || return 0
   local f name num
-  for f in "$root"/governa/ac*.md; do
+  for f in "$root"/govna/ac*.md; do
     [ -f "$f" ] || continue
     name=$(basename "$f")
     [ "$name" = "ac-template.md" ] && continue
@@ -1017,7 +1016,7 @@ _prep_find_ie_lines() { # $1=root $2=acnums -> matching plan.md lines
   local line num
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
-    *"→ governa/ac"[0-9]*-*) num=$(printf '%s' "$line" | sed -E 's/.*→[[:space:]]+governa\/ac([0-9]+)-.*/\1/') ;;
+    *"→ govna/ac"[0-9]*-*) num=$(printf '%s' "$line" | sed -E 's/.*→[[:space:]]+govna\/ac([0-9]+)-.*/\1/') ;;
     *) continue ;;
     esac
     if printf '%s\n' "$acnums" | grep -qx "$num"; then
