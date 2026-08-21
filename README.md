@@ -1,4 +1,4 @@
-# utils
+# gkit
 A collection of small CLI utilities written in Go.
 
 ## Archived
