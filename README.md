@@ -49,10 +49,10 @@ Or install a single utility:
 go install github.com/queone/gkit/cmd/fr@latest
 ```
 
-Binaries are placed in `$GOPATH/bin` (typically `~/go/bin`), which should be in your `$PATH`.
+Binaries are placed in `$GOPATH/bin` (typically `~/.go/bin`), which should be in your `$PATH`.
 
 ## Getting Started
-To compile the entire collection, you obviously need to have GoLang installed and properly setup in your system, with `$GOPATH` set up correctly (typically at `$HOME/go`). Also setup `$GOPATH/bin/` in your `$PATH`, since that is where all executable binaries will be placed.
+To compile the entire collection, you obviously need to have GoLang installed and properly setup in your system, with `$GOPATH` set up correctly (typically at `$HOME/.go`). Also setup `$GOPATH/bin/` in your `$PATH`, since that is where all executable binaries will be placed.
 
 To compile for the first time do: 
 
