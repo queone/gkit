@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.53.1 | AC62: adopt govna v0.26.0 canon |
 | 0.53.0 | AC61: rename repository from utils to gkit |
 | 0.52.0 | AC60: freeze utils and point users to rkit |
 | 0.51.0 | AC59: register govna divergences and fix README link |
