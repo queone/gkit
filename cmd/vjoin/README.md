@@ -40,4 +40,4 @@ brew install ffmpeg
 
 ### Getting Started
 
-This utility is part of a collection of Go utilities. To compile and install, follow the **Getting Started** instructions at the [utils repo](https://github.com/queone/utils).
+This utility is part of a collection of Go utilities. To compile and install, follow the **Getting Started** instructions at the [gkit repo](https://github.com/queone/gkit).

@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/queone/utils/internal/vedit"
+	"github.com/queone/gkit/internal/vedit"
 )
 
 const (

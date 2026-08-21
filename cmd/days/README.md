@@ -31,14 +31,14 @@ days +90
 - All calculations are based on UTC timezone.
 
 ### Getting Started
-This utility is part of a collection of Go utilities. To compile and install follow the **Getting Started** instructions at the [utils repo](https://github.com/queone/utils).
+This utility is part of a collection of Go utilities. To compile and install follow the **Getting Started** instructions at the [gkit repo](https://github.com/queone/gkit).
 
 ### Usage
 
 ```bash
 $ days
 days v1.1.0
-Calendar days calculator — https://github.com/queone/utils/blob/main/cmd/days/README.md
+Calendar days calculator — https://github.com/queone/gkit/blob/main/cmd/days/README.md
 Overview
   This utility works with calendar dates expressed as YYYY-MM-DD (or the equivalent
   YYYY-MMM-DD format), and reports the relationship between today's date and the supplied

@@ -1,4 +1,4 @@
-module github.com/queone/utils
+module github.com/queone/gkit
 
 go 1.26.0
 

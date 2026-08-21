@@ -19,7 +19,7 @@ func printUsage() {
 	n := color.Whi10(programName)
 	v := programVersion
 	usage := fmt.Sprintf("%s v%s\n"+
-		"Directory tree printer — https://github.com/queone/utils/blob/main/cmd/tree/README.md\n"+
+		"Directory tree printer — https://github.com/queone/gkit/blob/main/cmd/tree/README.md\n"+
 		"%s\n"+
 		"  %s [options] [directory]\n"+
 		"\n"+

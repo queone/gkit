@@ -20,7 +20,7 @@ func printUsage() {
 	n := icolor.Whi10(programName)
 	v := programVersion
 	usage := fmt.Sprintf("%s v%s\n"+
-		"Text decolorizer - https://github.com/queone/utils/blob/main/cmd/decolor/README.md\n"+
+		"Text decolorizer - https://github.com/queone/gkit/blob/main/cmd/decolor/README.md\n"+
 		"%s\n"+
 		"  %s [options] [file]\n"+
 		"\n"+

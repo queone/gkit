@@ -1,4 +1,4 @@
-# utils Architecture
+# gkit Architecture
 
 ## Purpose
 

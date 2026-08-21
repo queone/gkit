@@ -56,4 +56,4 @@ The `<FILE>` token in the signature is a literal placeholder, so the same signat
 Rows containing "total" in TYPE or DESCRIPTION are skipped from input. All numeric values are normalized to 2 decimal places with thousand separators for values >= 1,000.
 
 ### Getting Started
-This utility is part of a collection of Go utilities. To compile and install follow the **Getting Started** instructions at the [utils repo](https://github.com/queone/utils).
+This utility is part of a collection of Go utilities. To compile and install follow the **Getting Started** instructions at the [gkit repo](https://github.com/queone/gkit).

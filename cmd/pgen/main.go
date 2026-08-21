@@ -26,7 +26,7 @@ func printUsage() {
 	n := color.Whi10(programName)
 	v := programVersion
 	usageHeader := fmt.Sprintf("%s v%s\n"+
-		"Memorable password generator - https://github.com/queone/utils/blob/main/cmd/pgen/README.md\n"+
+		"Memorable password generator - https://github.com/queone/gkit/blob/main/cmd/pgen/README.md\n"+
 		"%s\n"+
 		"  %s [option]\n\n"+
 		"%s\n"+

@@ -33,7 +33,7 @@ func printUsage() {
 	n := color.Whi10(programName)
 	v := programVersion
 	usage := fmt.Sprintf("%s v%s\n"+
-		"Calendar days calculator — https://github.com/queone/utils/blob/main/cmd/days/README.md\n"+
+		"Calendar days calculator — https://github.com/queone/gkit/blob/main/cmd/days/README.md\n"+
 		"%s\n"+
 		"  This utility works with calendar dates expressed as YYYY-MM-DD (or the equivalent\n"+
 		"  YYYY-MMM-DD format), and reports the relationship between today's date and the supplied\n"+

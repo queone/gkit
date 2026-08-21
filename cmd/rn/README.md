@@ -6,7 +6,7 @@ It replaces all occurrences of a specified string in filenames with another stri
 
 ```bash
 rn v1.5.0
-Bulk file re-namer — https://github.com/queone/utils/blob/main/cmd/rn/README.md
+Bulk file re-namer — https://github.com/queone/gkit/blob/main/cmd/rn/README.md
 
 Usage
   rn "OldString" "NewString" [-f]

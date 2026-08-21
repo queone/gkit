@@ -3,7 +3,7 @@ A collection of small CLI utilities written in Go.
 
 ## Archived
 
-utils is frozen at `v0.52.0` and superseded by [`rkit`](https://github.com/queone/rkit), its maintained Rust successor. The four Git helpers—`git-cloneall`, `git-pullall`, `git-remotev`, and `git-statall`—are consolidated into `repoctl`; the other utilities retain their existing names in rkit. This repository takes no new features going forward.
+gkit is frozen at `v0.52.0` and superseded by [`rkit`](https://github.com/queone/rkit), its maintained Rust successor. The four Git helpers—`git-cloneall`, `git-pullall`, `git-remotev`, and `git-statall`—are consolidated into `repoctl`; the other utilities retain their existing names in rkit. This repository takes no new features going forward.
 
 The remaining README is historical documentation for the frozen Go implementations.
 
@@ -45,13 +45,13 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 With Go installed, install all utilities at once:
 
 ```bash
-go install github.com/queone/utils/cmd/...@latest
+go install github.com/queone/gkit/cmd/...@latest
 ```
 
 Or install a single utility:
 
 ```bash
-go install github.com/queone/utils/cmd/fr@latest
+go install github.com/queone/gkit/cmd/fr@latest
 ```
 
 Binaries are placed in `$GOPATH/bin` (typically `~/go/bin`), which should be in your `$PATH`.
@@ -62,9 +62,9 @@ To compile the entire collection, you obviously need to have GoLang installed an
 To compile for the first time do: 
 
 ```bash
-git clone https://github.com/queone/utils
-cd utils
-go mod init utils
+git clone https://github.com/queone/gkit
+cd gkit
+go mod init gkit
 go mod tidy
 ./build.sh
 ```
@@ -72,7 +72,7 @@ go mod tidy
 For subsequent compilation just: 
 
 ```bash
-cd utils
+cd gkit
 git pull
 ./build.sh
 ```

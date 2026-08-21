@@ -3,7 +3,7 @@
 
 ### 1.0.3
 Release Date: 2025-oct-27
-- Moved to **utils** repo collection <github.com/queone/utils>
+- Moved to **gkit** repo collection <github.com/queone/gkit>
 
 ---
 

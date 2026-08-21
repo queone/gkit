@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -37,7 +38,7 @@ type row struct {
 func usageText() string {
 	n := color.Whi10(programName)
 	return fmt.Sprintf("%s v%s\n"+
-		"Financial TOTALS consolidator and re-tallier — https://github.com/queone/utils/blob/main/cmd/retotal/README.md\n"+
+		"Financial TOTALS consolidator and re-tallier — https://github.com/queone/gkit/blob/main/cmd/retotal/README.md\n"+
 		"%s\n"+
 		"  retotal reads CSV or space-aligned financial data and writes an aligned summary with computed\n"+
 		"  TOTALS, signed with a recalculation note; it then re-tallies that signed output file in place\n"+
@@ -326,8 +327,8 @@ func readRetotalOutput(path string) ([]row, error) {
 // line (trailing whitespace tolerated).
 func hasSignature(content string) bool {
 	lines := strings.Split(content, "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		t := strings.TrimRight(lines[i], " \t\r")
+	for _, line := range slices.Backward(lines) {
+		t := strings.TrimRight(line, " \t\r")
 		if strings.TrimSpace(t) == "" {
 			continue
 		}

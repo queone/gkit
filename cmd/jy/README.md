@@ -11,13 +11,13 @@ Why another YAML / JSON converter utility?
 - **Learning Opportunity**: A great way to practice coding in Go.
 
 ### Getting Started
-This utility is part of a collection of Go utilities. To compile and install follow the **Getting Started** instructions at the [utils repo](https://github.com/queone/utils).
+This utility is part of a collection of Go utilities. To compile and install follow the **Getting Started** instructions at the [gkit repo](https://github.com/queone/gkit).
 
 ### Usage
 
 ```bash
 jy v1.6.0
-JSON / YAML converter - https://github.com/queone/utils/blob/main/cmd/jy/README.md
+JSON / YAML converter - https://github.com/queone/gkit/blob/main/cmd/jy/README.md
 Usage
   jy [options] [file]
 

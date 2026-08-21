@@ -65,7 +65,7 @@ func printUsage() {
 	n := icolor.Whi10(programName)
 	v := programVersion
 	usage := fmt.Sprintf("%s v%s\n"+
-		"JSON / YAML converter - https://github.com/queone/utils/blob/main/cmd/jy/README.md\n"+
+		"JSON / YAML converter - https://github.com/queone/gkit/blob/main/cmd/jy/README.md\n"+
 		"%s\n"+
 		"  %s [options] [file]\n"+
 		"\n"+

@@ -11,13 +11,13 @@ Release Date: 2026-may-01
 ### 1.5.0
 Release Date: 2026-may-01
 - Internalized `queone/utl` json/yaml/file helpers into `cmd/jy/json.go` and `cmd/jy/yaml.go`; main.go gains local `die`/`fileUsable`/`loadFileText`/`loadFileYamlBytes`. `die` now writes to stderr.
-- Removed `github.com/queone/utl` dependency (utils repo no longer imports it).
+- Removed `github.com/queone/utl` dependency (gkit repo no longer imports it).
 
 ---
 
 ### 1.4.6
 Release Date: 2025-oct-27
-- Moved to <github.com/queone/utils>
+- Moved to <github.com/queone/gkit>
 
 ---
 
@@ -45,4 +45,3 @@ Release Date: 2025-feb-01
 - Now using updated `build_go` script
 - Updated to use Go version 1.23.5
 - Updated `go.mod` dependencies to latest 
-

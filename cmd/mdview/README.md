@@ -40,4 +40,4 @@ Raw HTML is omitted. GitHub-specific server features such as Mermaid diagrams, i
 
 ### Getting Started
 
-This utility is part of a collection of Go utilities. To compile and install, follow the **Getting Started** instructions in the [utils repository](https://github.com/queone/utils).
+This utility is part of a collection of Go utilities. To compile and install, follow the **Getting Started** instructions in the [gkit repository](https://github.com/queone/gkit).

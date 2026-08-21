@@ -17,7 +17,7 @@ func printUsage() {
 	n := icolor.Whi10(programName)
 	v := programVersion
 	usage := fmt.Sprintf("%s v%s\n"+
-		"Bulk file re-namer — https://github.com/queone/utils/blob/main/cmd/rn/README.md\n"+
+		"Bulk file re-namer — https://github.com/queone/gkit/blob/main/cmd/rn/README.md\n"+
 		"\n"+
 		"%s\n"+
 		"  %s \"OldString\" \"NewString\" [-f]\n"+

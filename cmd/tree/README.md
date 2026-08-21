@@ -11,7 +11,7 @@ Why yet another tree utility?
 
 
 ### Getting Started
-This utility is part of a collection of Go utilities. To compile and install follow the **Getting Started** instructions at the [utils repo](https://github.com/queone/utils).
+This utility is part of a collection of Go utilities. To compile and install follow the **Getting Started** instructions at the [gkit repo](https://github.com/queone/gkit).
 
 ### Usage
 
@@ -19,7 +19,7 @@ This utility is part of a collection of Go utilities. To compile and install fol
 $ tree -?
 
 tree v1.0.3
-Directory tree printer — https://github.com/queone/utils/blob/main/cmd/tree/README.md
+Directory tree printer — https://github.com/queone/gkit/blob/main/cmd/tree/README.md
 Usage
   tree [options] [directory]
 

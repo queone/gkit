@@ -21,7 +21,7 @@ $ decolor sample.yaml
 
 ```bash
 decolor v1.1.1
-Text decolorizer - https://github.com/queone/utils/blob/main/cmd/decolor/README.md
+Text decolorizer - https://github.com/queone/gkit/blob/main/cmd/decolor/README.md
 Usage
   decolor [options] [file]
 
