@@ -1,11 +1,9 @@
 # gkit
 A collection of small CLI utilities written in Go.
 
-## Archived
+## Project Direction
 
-gkit is frozen at `v0.52.0` and superseded by [`rkit`](https://github.com/queone/rkit), its maintained Rust successor. The four Git helpers—`git-cloneall`, `git-pullall`, `git-remotev`, and `git-statall`—are consolidated into `repoctl`; the other utilities retain their existing names in rkit. This repository takes no new features going forward.
-
-The remaining README is historical documentation for the frozen Go implementations.
+gkit is an active collection of Go utilities. `repoctl` consolidates the former Git helper commands into one maintained interface, while the remaining utilities retain their existing names and behavior.
 
 ## Why
 Go's tool chain is the ideal way to maintain a set of commonly used CLI utilities. They can be quickly compiled and installed whether you're in Windows, macOS, or Linux. This provides a unified and portable solution to many a scripting needs. With this setup, Go turns into a quasi-package manager for these utilities.
@@ -22,10 +20,7 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 - [`dl`](cmd/dl/main.go): Download online videos using `yt-dlp` with a target filename.
 - [`dos2unix`](cmd/dos2unix/main.go): Preview or convert CRLF line endings to LF.
 - [`fr`](cmd/fr/README.md): A simple find/replace utility.
-- [`git-cloneall`](cmd/git-cloneall/main.go): Clone all repositories from a GitHub user or organization.
-- [`git-pullall`](cmd/git-pullall/main.go): Pull updates across all local Git repositories in a directory.
-- [`git-remotev`](cmd/git-remotev/main.go): Print each local repository with its `origin` remote URL.
-- [`git-statall`](cmd/git-statall/main.go): Show git status across local repositories.
+- [`repoctl`](cmd/repoctl/README.md): Control collections of local Git repositories with status, pull, build, clone, and list operations.
 - [`jy`](cmd/jy/README.md): A lightweight JSON and YAML converter utility.
 - [`mdview`](cmd/mdview/README.md): Render GitHub Flavored Markdown in a browser or write it as HTML.
 - [`pgen`](cmd/pgen/README.md): A simple generator of memorable passwords.

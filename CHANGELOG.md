@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.54.0 | AC63: consolidate Git utilities into repoctl |
 | 0.53.1 | AC62: adopt govna v0.26.0 canon |
 | 0.53.0 | AC61: rename repository from utils to gkit |
 | 0.52.0 | AC60: freeze utils and point users to rkit |

@@ -18,6 +18,7 @@ Document the system's major components, boundaries, runtime flow, storage model,
 - core domain or business logic
 - storage, messaging, or state boundaries
 - external integrations and trust boundaries
+- `repoctl`: consolidated local Git repository management through `git` and scoped GitHub operations through `gh`
 
 ## Core Files
 
