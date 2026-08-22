@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	icolor "github.com/queone/governa-color"
+	icolor "github.com/queone/gkit/internal/color"
 )
 
 const (

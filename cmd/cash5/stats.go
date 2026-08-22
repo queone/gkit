@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/queone/governa-color"
+	"github.com/queone/gkit/internal/color"
 )
 
 func displayStatistics(draws []Draw) error {
@@ -202,16 +202,13 @@ func displayStatistics(draws []Draw) error {
 		sort.Slice(allWinners, func(i, j int) bool {
 			return allWinners[i].payout > allWinners[j].payout
 		})
-		topN := 10
-		if len(allWinners) < topN {
-			topN = len(allWinners)
-		}
+		topN := min(len(allWinners), 10)
 		fmt.Printf("\n%s:\n", color.Blu7("Biggest Prizes"))
 		fmt.Printf("  %s  %s  %s\n",
 			color.Blu7(fmt.Sprintf("%-14s", "Numbers")),
 			color.Blu7(fmt.Sprintf("%-10s", "Date")),
 			color.Blu7("Prize"))
-		for i := 0; i < topN; i++ {
+		for i := range topN {
 			w := allWinners[i]
 			nums, _ := extractPrimaryFive(w.draw)
 			drawDate := time.UnixMilli(w.draw.DrawTime).Format("2006-01-02")

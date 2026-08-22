@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	color "github.com/queone/governa-color"
+	color "github.com/queone/gkit/internal/color"
 )
 
 // Injectable seams, overridden in tests to avoid invoking real binaries.

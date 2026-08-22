@@ -10,6 +10,7 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 
 ## Utilities
 
+- [`attune`](cmd/attune/README.md): Reconcile Azure Resource Manager and Microsoft Graph state (DNS, security groups, app registrations, roles, resource groups) against declarative YAML specs.
 - [`bak`](cmd/bak/main.go): Create dated backups of files or directories.
 - [`brew-update`](cmd/brew-update/main.go): Update, upgrade, and clean up Homebrew packages.
 - [`cash5`](cmd/cash5/main.go): Analyze historical NJ Cash 5 draws (1-45 era, starting 2014-09-14) and generate number recommendations guaranteed to be unwon combinations.
@@ -30,6 +31,7 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 - [`rncap`](cmd/rncap/main.go): Rename files by capitalizing each word in filenames.
 - [`rnlower`](cmd/rnlower/main.go): Rename files by converting filenames to lowercase.
 - [`sms`](cmd/sms/README.md): Send SMS messages using Twilio credentials from a local config file.
+- [`swatch`](cmd/swatch/README.md): Xterm 256-color palette and ramp inspector.
 - [`tree`](cmd/tree/README.md): A lightweight directory tree printing utility.
 - [`vdrop`](cmd/vdrop/README.md): Remove a section of a video — drop START..END and join the remainder — via ffmpeg.
 - [`vjoin`](cmd/vjoin/README.md): Join two videos with orientation-aware framing and normalized output via ffmpeg.

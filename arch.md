@@ -19,6 +19,7 @@ Document the system's major components, boundaries, runtime flow, storage model,
 - storage, messaging, or state boundaries
 - external integrations and trust boundaries
 - `repoctl`: consolidated local Git repository management through `git` and scoped GitHub operations through `gh`
+- `attune`: declarative reconciler comparing YAML specs against live Azure Resource Manager and Microsoft Graph state (DNS, security groups, app registrations, roles, resource groups); the repo's first utility with live, state-mutating external-integration calls
 
 ## Core Files
 
@@ -38,6 +39,7 @@ Describe the main request, job, or publish path from entrypoint to output.
 - record stable system decisions here
 - prefer durable structure and interfaces over transient implementation detail
 - `cash5` operates on the 1-45 era only. Draws with `DrawTime` before `cash5EraStartMillis` (2014-09-14 UTC, the first 1-45 pool draw) are pruned at load and the local `draws.json` is rewritten in place; pre-cutoff history is not retained. Recommendation generation enforces a uniqueness invariant against the post-cutoff winners set.
+- `attune` authenticates via the local `az` CLI (`az account show`/`az account get-access-token`), never its own credential store; it writes no local state, cache, or telemetry — the live provider is the only source of truth. Requests are restricted to an ARM/Graph origin allowlist, and non-2xx response bodies are redacted wholesale before reaching any diagnostic or error message, so a failure can never leak provider response content. Role-assignment/definition resource IDs are derived deterministically (SHA1-based, RFC4122 URL-namespace UUIDv5) to stay stable across repeated `apply` runs and compatible with resources rkit's `attune` already created live.
 
 ## Conventions
 

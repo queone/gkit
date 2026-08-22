@@ -7,11 +7,11 @@ import (
 
 	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
-	icolor "github.com/queone/governa-color"
+	icolor "github.com/queone/gkit/internal/color"
 	"gopkg.in/yaml.v3"
 )
 
-// Color wrappers used by colorizeString. Sourced from queone/governa-color.
+// Color wrappers used by colorizeString. Sourced from internal/color.
 var (
 	blu = icolor.Blu5
 	gre = icolor.Grn5

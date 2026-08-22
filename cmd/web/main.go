@@ -11,7 +11,7 @@ import (
 	"github.com/alexflint/go-arg"
 	fzf "github.com/koki-develop/go-fzf"
 	"github.com/mattn/go-runewidth"
-	"github.com/queone/governa-color"
+	"github.com/queone/gkit/internal/color"
 	"github.com/skratchdot/open-golang/open"
 )
 

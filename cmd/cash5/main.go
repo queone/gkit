@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/queone/governa-color"
+	"github.com/queone/gkit/internal/color"
 
 	"github.com/spf13/cobra"
 )

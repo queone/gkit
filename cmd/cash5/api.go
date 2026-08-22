@@ -7,12 +7,13 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/queone/governa-color"
+	"github.com/queone/gkit/internal/color"
 
 	"golang.org/x/net/html"
 )
@@ -241,12 +242,8 @@ func easternTime() *time.Location {
 // hasClass reports whether an HTML node has the given CSS class.
 func hasClass(n *html.Node, class string) bool {
 	for _, a := range n.Attr {
-		if a.Key == "class" {
-			for _, c := range strings.Fields(a.Val) {
-				if c == class {
-					return true
-				}
-			}
+		if a.Key == "class" && slices.Contains(strings.Fields(a.Val), class) {
+			return true
 		}
 	}
 	return false

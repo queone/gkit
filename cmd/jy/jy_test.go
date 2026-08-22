@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	icolor "github.com/queone/governa-color"
+	icolor "github.com/queone/gkit/internal/color"
 )
 
 func captureStdout(t *testing.T, fn func()) string {

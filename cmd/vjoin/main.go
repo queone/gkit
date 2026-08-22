@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	color "github.com/queone/governa-color"
+	color "github.com/queone/gkit/internal/color"
 )
 
 const (

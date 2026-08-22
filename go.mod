@@ -9,7 +9,6 @@ require (
 	github.com/koki-develop/go-fzf v0.15.0
 	github.com/mattn/go-isatty v0.0.22
 	github.com/mattn/go-runewidth v0.0.23
-	github.com/queone/governa-color v1.4.1
 	github.com/sethvargo/go-diceware v0.5.0
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/spf13/cobra v1.10.2

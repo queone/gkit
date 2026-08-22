@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/queone/governa-color"
+	"github.com/queone/gkit/internal/color"
 	"github.com/sethvargo/go-diceware/diceware"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"

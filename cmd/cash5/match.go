@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/queone/governa-color"
+	"github.com/queone/gkit/internal/color"
 )
 
 type closestMatch struct {

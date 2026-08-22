@@ -10,7 +10,7 @@ import (
 
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mattn/go-isatty"
-	icolor "github.com/queone/governa-color"
+	icolor "github.com/queone/gkit/internal/color"
 	"gopkg.in/yaml.v3"
 )
 
