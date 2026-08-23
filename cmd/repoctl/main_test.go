@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseAliasesAndForms(t *testing.T) {
@@ -180,17 +181,166 @@ func TestListUsesScopedGitHubOwners(t *testing.T) {
 case "$1:$2:$3" in
   api:user:*) echo account ;;
   api:user/orgs:*) echo org ;;
-  repo:list:account) echo alpha ;;
-  repo:list:org) echo beta ;;
+  repo:list:account) printf '%s\n' '[{"nameWithOwner":"account/alpha","description":"Alpha CLI","visibility":"PUBLIC","isArchived":false,"updatedAt":"2026-08-22T11:54:00Z"}]' ;;
+  repo:list:org) printf '%s\n' '[{"nameWithOwner":"org/gamma","description":"","visibility":"PRIVATE","isArchived":false,"updatedAt":"2026-08-22T11:54:00Z"},{"nameWithOwner":"org/beta","description":"  Internal   tools  ","visibility":"INTERNAL","isArchived":true,"updatedAt":"2026-08-21T12:00:00Z"}]' ;;
   *) exit 9 ;;
 esac
 `)
 	withPath(t, dir)
 	var output bytes.Buffer
-	if err := runList(&output); err != nil {
+	now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+	if err := runListAt(&output, now, false); err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if got := output.String(); got != "account/alpha\norg/beta\n" {
+	want := "REPO                      DESCRIPTION     INFO                UPDATED\n" +
+		"github.com/account/alpha  Alpha CLI       public              about 6 minutes ago\n" +
+		"github.com/org/beta       Internal tools  internal, archived  about 1 day ago\n" +
+		"github.com/org/gamma                      private             about 6 minutes ago\n"
+	if got := output.String(); got != want {
+		t.Errorf("list output = %q", got)
+	}
+	var colored bytes.Buffer
+	if err := runListAt(&colored, now, true); err != nil {
+		t.Fatalf("colored list: %v", err)
+	}
+	gotColored := colored.String()
+	if !strings.Contains(gotColored, yellow+"private"+reset) || !strings.Contains(gotColored, yellow+"archived"+reset) {
+		t.Errorf("colored list lacks yellow INFO labels: %q", gotColored)
+	}
+	withoutANSI := strings.ReplaceAll(strings.ReplaceAll(gotColored, yellow, ""), reset, "")
+	if withoutANSI != want {
+		t.Errorf("colored list alignment differs after removing ANSI: %q", withoutANSI)
+	}
+}
+
+func TestRemoteRepoSortOrder(t *testing.T) {
+	older := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	newer := older.Add(time.Hour)
+	repos := []remoteRepo{
+		{NameWithOwner: "org/zeta", UpdatedAt: newer},
+		{NameWithOwner: "org/alpha", UpdatedAt: older},
+		{NameWithOwner: "org/alpha", UpdatedAt: newer},
+	}
+	sortRemoteRepos(repos)
+	if repos[0].NameWithOwner != "org/alpha" || !repos[0].UpdatedAt.Equal(newer) ||
+		repos[1].NameWithOwner != "org/alpha" || !repos[1].UpdatedAt.Equal(older) ||
+		repos[2].NameWithOwner != "org/zeta" {
+		t.Errorf("repository order = %#v", repos)
+	}
+}
+
+func TestRepoInfoColorsPrivateAndArchived(t *testing.T) {
+	tests := []struct {
+		name string
+		repo remoteRepo
+		want string
+	}{
+		{"public", remoteRepo{Visibility: "PUBLIC"}, "public"},
+		{"internal", remoteRepo{Visibility: "INTERNAL"}, "internal"},
+		{"private", remoteRepo{Visibility: "PRIVATE"}, yellow + "private" + reset},
+		{"public archived", remoteRepo{Visibility: "PUBLIC", IsArchived: true}, "public, " + yellow + "archived" + reset},
+		{"private archived", remoteRepo{Visibility: "PRIVATE", IsArchived: true}, yellow + "private" + reset + ", " + yellow + "archived" + reset},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := repoInfo(test.repo, true); got != test.want {
+				t.Errorf("repository info = %q, want %q", got, test.want)
+			}
+		})
+	}
+	if got := repoInfo(remoteRepo{Visibility: "PRIVATE", IsArchived: true}, false); got != "private, archived" {
+		t.Errorf("plain repository info = %q", got)
+	}
+}
+
+func TestListColorDisableControls(t *testing.T) {
+	var output bytes.Buffer
+	if colorEnabled(&output) {
+		t.Error("non-TTY output enabled color")
+	}
+	t.Setenv("NO_COLOR", "1")
+	if colorEnabled(os.Stdout) {
+		t.Error("NO_COLOR enabled color")
+	}
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("TERM", "dumb")
+	if colorEnabled(os.Stdout) {
+		t.Error("TERM=dumb enabled color")
+	}
+}
+
+func TestRelativeAgeUnits(t *testing.T) {
+	now := time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		age  time.Duration
+		want string
+	}{
+		{"future", -time.Second, "about 0 seconds ago"},
+		{"second", time.Second, "about 1 second ago"},
+		{"seconds", 59*time.Second + 999*time.Millisecond, "about 59 seconds ago"},
+		{"minute", time.Minute, "about 1 minute ago"},
+		{"minutes", 59*time.Minute + 59*time.Second, "about 59 minutes ago"},
+		{"hour", time.Hour, "about 1 hour ago"},
+		{"hours", 23*time.Hour + 59*time.Minute, "about 23 hours ago"},
+		{"day", 24 * time.Hour, "about 1 day ago"},
+		{"days", 29*24*time.Hour + 23*time.Hour, "about 29 days ago"},
+		{"month", 30 * 24 * time.Hour, "about 1 month ago"},
+		{"months", 364 * 24 * time.Hour, "about 12 months ago"},
+		{"year", 365 * 24 * time.Hour, "about 1 year ago"},
+		{"years", 2 * 365 * 24 * time.Hour, "about 2 years ago"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := relativeAge(now.Add(-test.age), now); got != test.want {
+				t.Errorf("relativeAge() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestRemoteRepoDetailsRequestsOneThousandRepositories(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, dir, "gh", `#!/bin/sh
+[ "$1:$2:$3:$4:$5:$6:$7" = "repo:list:account:--limit:1000:--json:nameWithOwner,description,visibility,isArchived,updatedAt" ] || exit 9
+printf '['
+i=1
+while [ "$i" -le 31 ]; do
+  [ "$i" -eq 1 ] || printf ','
+  printf '{"nameWithOwner":"account/repo%s","description":"","visibility":"PRIVATE","isArchived":false,"updatedAt":"2026-08-22T12:00:00Z"}' "$i"
+  i=$((i + 1))
+done
+printf ']\n'
+`)
+	withPath(t, dir)
+	repos, err := remoteRepoDetails("account")
+	if err != nil {
+		t.Fatalf("repository details: %v", err)
+	}
+	if len(repos) != 31 {
+		t.Fatalf("repository count = %d, want 31", len(repos))
+	}
+}
+
+func TestListContinuesAfterOwnerFailure(t *testing.T) {
+	dir := t.TempDir()
+	writeExecutable(t, dir, "gh", `#!/bin/sh
+case "$1:$2:$3" in
+  api:user:*) echo account ;;
+  api:user/orgs:*) echo org ;;
+  repo:list:account) printf '%s\n' '[{"nameWithOwner":"account/alpha","description":"","visibility":"PRIVATE","isArchived":false,"updatedAt":"2026-08-22T12:00:00Z"}]' ;;
+  repo:list:org) exit 8 ;;
+  *) exit 9 ;;
+esac
+`)
+	withPath(t, dir)
+	var output bytes.Buffer
+	err := runListAt(&output, time.Date(2026, 8, 22, 12, 0, 0, 0, time.UTC), false)
+	if err == nil {
+		t.Fatal("list returned success after an owner failure")
+	}
+	got := output.String()
+	if !strings.Contains(got, "run gh repo list org") || !strings.Contains(got, "github.com/account/alpha") {
 		t.Errorf("list output = %q", got)
 	}
 }

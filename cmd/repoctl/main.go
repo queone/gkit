@@ -3,6 +3,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -11,11 +12,14 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/mattn/go-runewidth"
 )
 
 const (
 	programName    = "repoctl"
-	programVersion = "0.3.0"
+	programVersion = "0.4.0"
 	yellow         = "\033[38;5;226m"
 	reset          = "\033[0m"
 )
@@ -275,6 +279,18 @@ func resolveClone(args []string) (string, []string, error) {
 }
 
 func runList(stdout io.Writer) error {
+	return runListAt(stdout, time.Now(), colorEnabled(stdout))
+}
+
+type remoteRepo struct {
+	NameWithOwner string    `json:"nameWithOwner"`
+	Description   string    `json:"description"`
+	Visibility    string    `json:"visibility"`
+	IsArchived    bool      `json:"isArchived"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+}
+
+func runListAt(stdout io.Writer, now time.Time, color bool) error {
 	if err := require("gh", "install GitHub CLI and authenticate with gh"); err != nil {
 		return err
 	}
@@ -282,27 +298,102 @@ func runList(stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	var lines []string
+	var repos []remoteRepo
 	failed := false
 	for _, owner := range owners {
-		names, listErr := remoteRepos(owner)
+		ownerRepos, listErr := remoteRepoDetails(owner)
 		if listErr != nil {
 			fmt.Fprintln(stdout, "    "+listErr.Error())
 			failed = true
 			continue
 		}
-		for _, name := range names {
-			lines = append(lines, owner+"/"+name)
+		repos = append(repos, ownerRepos...)
+	}
+	sortRemoteRepos(repos)
+	rows := make([][4]string, 0, len(repos)+1)
+	rows = append(rows, [4]string{"REPO", "DESCRIPTION", "INFO", "UPDATED"})
+	for _, repo := range repos {
+		rows = append(rows, [4]string{
+			"github.com/" + repo.NameWithOwner,
+			tableCell(repo.Description),
+			repoInfo(repo, false),
+			relativeAge(repo.UpdatedAt, now),
+		})
+	}
+	widths := [3]int{}
+	for _, row := range rows {
+		for column := range widths {
+			widths[column] = max(widths[column], runewidth.StringWidth(row[column]))
 		}
 	}
-	sort.Strings(lines)
-	for _, line := range lines {
-		fmt.Fprintln(stdout, line)
+	for index, row := range rows {
+		info := row[2]
+		if color && index > 0 {
+			info = repoInfo(repos[index-1], true)
+		}
+		if _, err := fmt.Fprintf(stdout, "%s%s  %s%s  %s%s  %s\n",
+			row[0], spaces(widths[0]-runewidth.StringWidth(row[0])),
+			row[1], spaces(widths[1]-runewidth.StringWidth(row[1])),
+			info, spaces(widths[2]-runewidth.StringWidth(row[2])), row[3]); err != nil {
+			return err
+		}
 	}
 	if failed {
 		return &cliError{message: "one or more repository listings failed", code: 1}
 	}
 	return nil
+}
+
+func repoInfo(repo remoteRepo, color bool) string {
+	visibility := strings.ToLower(repo.Visibility)
+	if visibility == "private" {
+		visibility = yellowTableLabel(visibility, color)
+	}
+	if !repo.IsArchived {
+		return visibility
+	}
+	return visibility + ", " + yellowTableLabel("archived", color)
+}
+
+func yellowTableLabel(label string, color bool) string {
+	if !color {
+		return label
+	}
+	return yellow + label + reset
+}
+
+func sortRemoteRepos(repos []remoteRepo) {
+	sort.Slice(repos, func(i, j int) bool {
+		if repos[i].NameWithOwner == repos[j].NameWithOwner {
+			return repos[i].UpdatedAt.After(repos[j].UpdatedAt)
+		}
+		return repos[i].NameWithOwner < repos[j].NameWithOwner
+	})
+}
+
+func tableCell(value string) string {
+	return strings.Join(strings.Fields(value), " ")
+}
+
+func relativeAge(updatedAt, now time.Time) string {
+	elapsed := max(now.Sub(updatedAt), 0)
+	quantity, unit := int64(elapsed/time.Second), "second"
+	switch {
+	case elapsed >= 365*24*time.Hour:
+		quantity, unit = int64(elapsed/(365*24*time.Hour)), "year"
+	case elapsed >= 30*24*time.Hour:
+		quantity, unit = int64(elapsed/(30*24*time.Hour)), "month"
+	case elapsed >= 24*time.Hour:
+		quantity, unit = int64(elapsed/(24*time.Hour)), "day"
+	case elapsed >= time.Hour:
+		quantity, unit = int64(elapsed/time.Hour), "hour"
+	case elapsed >= time.Minute:
+		quantity, unit = int64(elapsed/time.Minute), "minute"
+	}
+	if quantity != 1 {
+		unit += "s"
+	}
+	return fmt.Sprintf("about %d %s ago", quantity, unit)
 }
 
 func discover() ([]repoResult, error) {
@@ -436,6 +527,17 @@ func remoteRepos(owner string) ([]string, error) {
 		return nil, err
 	}
 	return nonEmptyLines(text), nil
+}
+func remoteRepoDetails(owner string) ([]remoteRepo, error) {
+	text, err := ghText("repo", "list", owner, "--limit", "1000", "--json", "nameWithOwner,description,visibility,isArchived,updatedAt")
+	if err != nil {
+		return nil, err
+	}
+	var repos []remoteRepo
+	if err := json.Unmarshal([]byte(text), &repos); err != nil {
+		return nil, runtimeError("decode GitHub repositories for "+owner, err, "retry the GitHub query")
+	}
+	return repos, nil
 }
 func ghText(args ...string) (string, error) {
 	out, err := execute(".", "gh", args...)
