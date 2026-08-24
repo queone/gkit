@@ -2,7 +2,7 @@
 
 ## Governed Sections
 
-Edit only AGENTS.md.
+- Edit governed sections only in AGENTS.md.
 
 Note: CLAUDE.md is a symlink that mirrors AGENTS.md.
 
@@ -68,7 +68,8 @@ Note: prefer wording that is easiest for an LLM to follow, while staying simple 
 - Treat AGENTS.md as the active operating contract for this repository.
 - State "Govna contract loaded." before the first substantive govna-governed action of a session, and only after internalizing AGENTS.md.
 - Treat planning, editing, reviewing, command choice, and implementation work as substantive actions.
-- Before any file change, confirm the gate set: AC status, explicit authorization, scoped edits, tests in the same pass, and no agent-run commits.
+- Confirm the gate set before any primary-repository file change: AC status, explicit authorization, scoped edits, tests in the same pass, and no agent-run commits.
+- Route ancillary-repository and path changes through `### Primary And Ancillary Scope`.
 - Treat changed-content integrity, AC-template structure, Instruction Style, and applicable Pre-Implementation Verification as the tests-in-the-same-pass gate when a change pass creates or edits only an active AC document.
 - Resolve instruction conflicts in this order: user instruction within authorized scope, then AGENTS.md, then referenced govna docs, then model defaults.
 - Follow an explicit Director workflow override without requiring contract-amendment language.

@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.56.1 | AC69: adopt govna v0.29.0 canon |
 | 0.56.0 | AC68: improve repoctl list output |
 | 0.55.0 | AC65+AC66+AC67: add swatch+attune; internalize governa-color as internal/color |
 | 0.54.1 | AC64: make Staticcheck Go 1.27-compatible |

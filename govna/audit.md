@@ -120,6 +120,29 @@ A non-actionable audit exits successfully, prints the classification tally follo
 
 Every Director-resolved routing target becomes effective implementation scope while the emitted stub remains unchanged. Explicitly named migration destinations join that scope. `govna/preserve.txt` joins that scope only when a resolved outcome requires creating or changing it, without a second Director authorization.
 
+### Emitted AC instruction and phase shape
+
+- Start the count paragraph with `This adoption covers`.
+- Start the Summary sentences with `This audit adoption synchronizes`, `Audit surfaced`, and `Per-file inspection uses` in that order.
+- Keep the count and Summary paragraphs descriptive.
+- Place routing procedure and the CODE reachability check under `### Adoption Instructions`.
+- Emit each adoption instruction as one imperative bullet.
+- Format every numbered routing entry as one Director decision question.
+- End every numbered routing entry with `?`.
+- Keep shared implementation procedure out of routing questions.
+- End every emitted adoption AC with exact status `` `PENDING` — audit emission; awaiting explicit Director Audit.``
+
+### Mixed-content sync verification
+
+- Capture the SHA-256 digest of each existing mixed-content target from the first byte of its exact registered boundary-heading line through end of file.
+- Include the boundary line, its line ending, the complete repository-owned tail, and the final-newline state in the protected region.
+- Emit the expected digest and boundary in the file-specific automated acceptance test for every direct sync.
+- Emit the same conditional verification for every review item whose Director resolution is sync.
+- Recompute the protected-region digest after adoption and require it to match the emitted digest.
+- Keep rendered-canon comparison scoped to the canon zone above the boundary.
+- Avoid comparing the repository-owned tail with rendered defaults.
+- Keep the protected-region digest out of classification, baseline scope, and JSON output.
+
 When baseline migration is present, audit infers validation only from bounded target governance evidence. Positive declarations come only from exactly one AGENTS.md rule shaped ``Run `<command>` as the first validation command ...`` and exactly one rule shaped ``Use `<command>` for repository-wide ... validation ...``; CODE infers `./build.sh` only when both name that command and root `build.sh` is a regular file. DOC infers `Not applicable` only when `govna/release.md` contains the exact canon no-automated-content-validation declaration and AGENTS.md contains no recognized positive declaration. Missing, duplicate, incomplete, mismatched, positive-plus-negative, non-`./build.sh`, or non-regular-file evidence stays unresolved for a Director decision. Audit ignores other prose, governance documents, executables, manifests, CI files, and flavor defaults.
 
 An inferred disposition records its evidence without requesting Director confirmation. A baseline-only migration with inferred validation has no routing decision or manual routing AT. An unresolved disposition remains a numbered routing decision with the existing manual and conditional routing ATs. Emitted count summaries use singular nouns only for a count of one and plural nouns for zero or multiple counts.

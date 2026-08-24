@@ -2,34 +2,36 @@
 
 Use these durable coding practices.
 Use `AGENTS.md`, `development-cycle.md`, and `build-release.md` for workflow, validation, and Package.
-Sections above ## Project Practices are govna-maintained canon and update via canon syncs; repo-specific practices in ## Project Practices.
+Treat sections above `## Project Practices` as govna-maintained canon.
+Keep repo-specific practices in `## Project Practices`.
 
 ## Identifier Strategy
 
 - Choose a primary key strategy early and document it in `arch.md`
 - Prefer surrogate keys for internal identity
 - Keep external IDs as indexed attributes
-- When integrating multiple external ID systems, maintain an explicit mapping layer rather than assuming IDs are interchangeable
+- Maintain an explicit mapping layer between external ID systems.
+- Prohibit assumptions that external IDs are interchangeable.
 
 ## Schema And Data Migrations
 
 - Treat schema changes as first-class events: version them, document them, test the migration path
 - Never assume old data fits new schemas — write migration logic or fail explicitly
-- When a migration changes identity or key structure, audit all foreign key references in the same change
+- Audit all foreign key references when a migration changes identity or key structure.
 
 ## External Integration Patterns
 
 - Validate external data at the boundary
 - Treat upstream shape and completeness as untrusted
-- When reconciling data from multiple sources, define a clear precedence order and document it
+- Define and document a clear precedence order when reconciling data from multiple sources.
 - Cache external data locally with explicit TTL or versioning
 - Never silently serve stale data as fresh
 
 ## Generated Artifact Propagation
 
-- When source-of-truth code is duplicated into templates or rendered examples, fixes must propagate to all copies in the same change
+- Propagate source-of-truth fixes to every template and rendered-example copy in the same change.
 - Grep the full repo for the pattern being changed before considering a fix complete
-- If a template and its rendered output diverge, the template is authoritative
+- Treat the template as authoritative when it diverges from rendered output.
 - Keep `build.sh` self-contained.
 - Do not add sourced production helper modules.
 
@@ -38,7 +40,7 @@ Sections above ## Project Practices are govna-maintained canon and update via ca
 - Validate at system boundaries (user input, external APIs, file I/O)
 - Trust internal code
 - Fail explicitly rather than silently degrading — a clear error is better than wrong output
-- Static analysis and linting errors are build failures, not warnings
+- Treat static analysis and linting errors as build failures.
 - Validate installable-target declarations before compiling or installing them.
 - Follow the applicable stack guidance for release-prep evidence, validation ordering, and build-state reuse.
 - Pass release-prep evidence through the applicable stack's canonical CLI option.
@@ -46,24 +48,26 @@ Sections above ## Project Practices are govna-maintained canon and update via ca
 ## Testing Expectations
 
 - Test every new function and error path in the implementation pass.
-- If a code path cannot be tested without mocking infrastructure that is out of scope, document the coverage gap explicitly rather than silently skipping it
+- Document every coverage gap caused by out-of-scope mocking infrastructure.
 - Label tests that require live systems or manual verification as `[Manual]`
 
 ## Dependency And Import Hygiene
 
 - Prefer standard library over external dependencies when the capability is equivalent
-- When adding a dependency, justify it — convenience alone is not sufficient
+- Justify every added dependency.
+- Reject convenience alone as dependency justification.
 - Keep import paths consistent after renames or reorganizations
 
 ## CLI Usage Formatting
 
-- All commands must accept `-h`, `-?`, and `--help` as help flags
-- Help output uses a shared formatting function for consistent layout
-- "Usage:" is rendered in bold white
+- Accept `-h`, `-?`, and `--help` as help flags for every command.
+- Use a shared formatting function for help output.
+- Render `Usage:` in bold white.
 - Indent each flag line by 2 spaces
 - Align descriptions at column 38
-- Short and long flag forms are combined on one line (e.g. `-v, --verbose`)
-- When adding new flags, add the entry to the shared usage formatter — do not rely on framework defaults
+- Combine short and long flag forms on one line.
+- Add every new flag to the shared usage formatter.
+- Do not rely on framework defaults for new flags.
 
 ## Documentation Alignment
 
