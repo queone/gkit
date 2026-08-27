@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.56.2 | AC70+AC71: adopt govna v0.41.0 and canonicalize utility version output |
 | 0.56.1 | AC69: adopt govna v0.29.0 canon |
 | 0.56.0 | AC68: improve repoctl list output |
 | 0.55.0 | AC65+AC66+AC67: add swatch+attune; internalize governa-color as internal/color |

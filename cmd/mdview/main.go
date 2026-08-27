@@ -101,14 +101,17 @@ Usage
 
 Options
   -o, --output FILE  write HTML to FILE without opening a browser
-  -v, --version      show this help message and exit
+  -v, --version      print %s v%s and exit
   -h, -?, --help     show this help message and exit
-`, programName, programVersion, programName)
+`, programName, programVersion, programName, programName, programVersion)
 }
 
 func isHelp(arg string) bool {
-	return arg == "-h" || arg == "-?" || arg == "--help" ||
-		arg == "-v" || arg == "--version"
+	return arg == "-h" || arg == "-?" || arg == "--help"
+}
+
+func isVersion(arg string) bool {
+	return arg == "-v" || arg == "--version"
 }
 
 func parseArgs(args []string) (options, bool, error) {
@@ -669,6 +672,18 @@ func run(args []string, stdout io.Writer) error {
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
+	for _, arg := range args {
+		if arg == "--" {
+			break
+		}
+		if isVersion(arg) {
+			fmt.Fprintf(stdout, "%s v%s\n", programName, programVersion)
+			return 0
+		}
+		if isHelp(arg) {
+			break
+		}
+	}
 	if err := run(args, stdout); err != nil {
 		fmt.Fprintf(stderr, "%s: %v\n", programName, err)
 		return 1

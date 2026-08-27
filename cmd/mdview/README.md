@@ -10,7 +10,7 @@ mdview [-o FILE] FILE
 
 ```text
 -o, --output FILE  write HTML to FILE without opening a browser
--v, --version      show the full help screen and exit
+-v, --version      print mdview v0.1.0 and exit
 -h, -?, --help     show the full help screen and exit
 ```
 

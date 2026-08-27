@@ -380,7 +380,7 @@ func Usage(invoked, version string) string {
 		"  -a, --accurate         Frame-accurate re-encode (default: fast keyframe copy)\n"+
 		"  -x, --crossfade[=SECS] Dissolve the interior join (vdrop only; re-encodes;\n"+
 		"                         default 0.5s)\n"+
-		"  -v, --version          Show this help message and exit\n"+
+		"  -v, --version          Print %s v%s and exit\n"+
 		"  -h, -?, --help         Show this help message and exit\n"+
 		"\n"+
 		"%s\n"+
@@ -396,6 +396,7 @@ func Usage(invoked, version string) string {
 		h("Cheatsheet"),
 		table.String(),
 		h("Options"),
+		invoked, version,
 		h("Notes"))
 }
 

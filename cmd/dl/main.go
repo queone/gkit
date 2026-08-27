@@ -58,10 +58,13 @@ func upgradeYtDlp() error {
 	return cmd.Run()
 }
 
-// showVersion displays version information for dl and yt-dlp
-func showVersion() error {
+// showVersion displays the exact dl version line.
+func showVersion() {
 	fmt.Printf("%s v%s\n", programName, programVersion)
+}
 
+// showYtDlpVersion displays the installed yt-dlp version after an upgrade.
+func showYtDlpVersion() error {
 	ytdlpVersion, err := getYtDlpVersion()
 	if err != nil {
 		return err
@@ -106,7 +109,7 @@ func printUsage() {
 	fmt.Printf("Usage: %s [OPTIONS] FILENAME \"URL\"\n\n", programName)
 	fmt.Println("Options:")
 	fmt.Println("  -u    Upgrade yt-dlp to nightly version")
-	fmt.Println("  -v    Show version information")
+	fmt.Printf("  -v, --version    Print %s v%s and exit\n", programName, programVersion)
 	fmt.Println("\nExamples:")
 	fmt.Printf("  %s myvideo \"https://youtube.com/watch?v=...\"\n", programName)
 	fmt.Printf("  %s -u\n", programName)
@@ -114,6 +117,11 @@ func printUsage() {
 }
 
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
+		showVersion()
+		return
+	}
+
 	// Check if yt-dlp is installed before doing anything
 	if err := checkYtDlpInstalled(); err != nil {
 		os.Exit(1)
@@ -128,14 +136,8 @@ func main() {
 				os.Exit(1)
 			}
 			// Show new version after upgrade
-			if err := showVersion(); err != nil {
-				fmt.Fprintf(os.Stderr, "%sError: %v%s\n", Red, err, Reset)
-				os.Exit(1)
-			}
-			return
-
-		case "-v", "--version":
-			if err := showVersion(); err != nil {
+			showVersion()
+			if err := showYtDlpVersion(); err != nil {
 				fmt.Fprintf(os.Stderr, "%sError: %v%s\n", Red, err, Reset)
 				os.Exit(1)
 			}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"os/exec"
@@ -662,5 +663,37 @@ func TestUsageScreenExitsZero(t *testing.T) {
 		if !strings.Contains(clean, "retotal v1.0.0") {
 			t.Errorf("mode %q: information screen missing version line:\n%s", mode, clean)
 		}
+	}
+}
+
+func TestVersionAliases(t *testing.T) {
+	const envName = "GKIT_RETOTAL_VERSION_FLAG"
+	if flag := os.Getenv(envName); flag != "" {
+		os.Args = []string{programName, flag}
+		main()
+		os.Exit(0)
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatalf("locate test binary: %v", err)
+	}
+	for _, flag := range []string{"-v", "--version"} {
+		t.Run(flag, func(t *testing.T) {
+			cmd := exec.Command(exe, "-test.run=^TestVersionAliases$")
+			cmd.Env = append(os.Environ(), envName+"="+flag)
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stderr
+			if err := cmd.Run(); err != nil {
+				t.Fatalf("run %s: %v", flag, err)
+			}
+			if got, want := stdout.String(), programName+" v"+programVersion+"\n"; got != want {
+				t.Errorf("stdout = %q, want %q", got, want)
+			}
+			if got := stderr.String(); got != "" {
+				t.Errorf("stderr = %q, want empty", got)
+			}
+		})
 	}
 }

@@ -44,11 +44,12 @@ func usageText() string {
 		"  TOTALS, signed with a recalculation note; it then re-tallies that signed output file in place\n"+
 		"  after you edit it. Supported invocations are:\n"+
 		"\n"+
+		"    retotal -v, --version Prints %s v%s and exits.\n"+
 		"    retotal -h, --help    Prints this information screen.\n"+
 		"    retotal FILE          Consolidate CSV/aligned input into <stem>.txt with computed TOTALS and a\n"+
 		"                          signature line; or, when FILE is already a signed retotal output file,\n"+
 		"                          recompute its TOTALS in place.\n",
-		n, programVersion, color.Whi10("Overview"))
+		n, programVersion, color.Whi10("Overview"), programName, programVersion)
 }
 
 // printUsage prints the information screen and exits 0.
@@ -515,6 +516,10 @@ func consolidate(inPath string) error {
 func run() error {
 	args := os.Args[1:]
 
+	if len(args) == 1 && (args[0] == "-v" || args[0] == "--version") {
+		fmt.Printf("%s v%s\n", programName, programVersion)
+		return nil
+	}
 	if len(args) != 1 || args[0] == "-h" || args[0] == "--help" {
 		printUsage()
 	}

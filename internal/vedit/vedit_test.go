@@ -429,6 +429,7 @@ func TestUsage(t *testing.T) {
 		"vdrop 1:00 8:31 FILE",
 		"vdrop has no whole-file form",
 		"--crossfade",
+		"Print vkeep v0.1.0 and exit",
 	} {
 		if !contains(keepScreen, want) {
 			t.Errorf("vkeep usage missing %q", want)
@@ -453,6 +454,9 @@ func TestUsage(t *testing.T) {
 	}
 
 	dropScreen := Usage("vdrop", "0.1.0")
+	if !contains(dropScreen, "Print vdrop v0.1.0 and exit") {
+		t.Error("vdrop usage describes version output incorrectly")
+	}
 	if stripExceptHeader(keepScreen) != stripExceptHeader(dropScreen) {
 		t.Error("vkeep and vdrop usage bodies differ beyond the header line and highlight")
 	}
@@ -589,12 +593,18 @@ func contains(s, sub string) bool { return strings.Contains(s, sub) }
 
 var ansiRE = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
-// stripExceptHeader removes ANSI color codes and drops the first line (the
-// per-tool header), leaving the shared body for cross-tool comparison.
+// stripExceptHeader removes ANSI color codes and normalizes the two per-tool
+// details, leaving the shared body for cross-tool comparison.
 func stripExceptHeader(s string) string {
 	plain := ansiRE.ReplaceAllString(s, "")
 	if _, body, found := strings.Cut(plain, "\n"); found {
-		return body
+		lines := strings.Split(body, "\n")
+		for i, line := range lines {
+			if strings.HasPrefix(line, "  -v, --version") {
+				lines[i] = "  -v, --version <per-tool version line>"
+			}
+		}
+		return strings.Join(lines, "\n")
 	}
 	return plain
 }

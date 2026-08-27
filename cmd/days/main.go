@@ -39,13 +39,13 @@ func printUsage() {
 		"  YYYY-MMM-DD format), and reports the relationship between today's date and the supplied\n"+
 		"  argument(s). Supported invocations are:\n"+
 		"\n"+
-		"    days -v, --version            Prints this information screen.\n"+
+		"    days -v, --version            Prints %s v%s and exits.\n"+
 		"    days -N                       Prints the calendar date N days ago (e.g. -11).\n"+
 		"    days +N                       Prints the calendar date N days in the future (e.g. +6 or just 6).\n"+
 		"    days YYYY-MM-DD               Prints the number of days between today and the given date (positive\n"+
 		"                                  if the date is in the future, negative if it is in the past).\n"+
 		"    days YYYY-MM-DD YYYY-MM-DD    Prints the number of days between the two supplied dates.\n",
-		n, v, color.Whi10("Overview"))
+		n, v, color.Whi10("Overview"), programName, programVersion)
 	fmt.Print(usage)
 	os.Exit(0)
 }
@@ -62,7 +62,7 @@ func main() {
 	case 1:
 		arg1 := os.Args[1]
 		if arg1 == "-v" || arg1 == "--version" {
-			printUsage()
+			fmt.Printf("%s v%s\n", programName, programVersion)
 		} else if validDate(arg1, "2006-01-02") {
 			days, err := getDaysSinceOrTo(arg1)
 			if err != nil {

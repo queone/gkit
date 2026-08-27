@@ -44,7 +44,7 @@ Overview
   YYYY-MMM-DD format), and reports the relationship between today's date and the supplied
   argument(s). Supported invocations are:
 
-    days -v, --version            Prints this information screen.
+    days -v, --version            Prints days v1.1.0 and exits.
     days -N                       Prints the calendar date N days ago (e.g. -11).
     days +N                       Prints the calendar date N days in the future (e.g. +6 or just 6).
     days YYYY-MM-DD               Prints the number of days between today and the given date (positive

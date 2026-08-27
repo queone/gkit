@@ -541,7 +541,7 @@ func printUsage() {
 		"  -m [N]         Show closest-match analysis for last N drawings (default: 30)\n"+
 		"  -o [N]         Show odds table for 1 to N combos played (default: 30)\n"+
 		"  -d DATE        Show raw JSON for draws on DATE (format: 2026-02-06)\n"+
-		"  -v             Show this help message and exit\n"+
+		"  -v, --version  Print %s v%s and exit\n"+
 		"  -h, -?         Show this help message and exit\n"+
 		"\n"+
 		"%s\n"+
@@ -556,7 +556,7 @@ func printUsage() {
 		"  %s -m 50\n"+
 		"  %s -o 100\n"+
 		"  %s -o\n",
-		n, v, color.Whi5("Usage"), n, color.Whi5("Options"),
+		n, v, color.Whi5("Usage"), n, color.Whi5("Options"), programName, programVersion,
 		color.Whi5("Running without switches will"), color.Whi5("Examples"),
 		n, n, n, n, n, n)
 	usage += "\n" + color.Red3(lottery_warning) + "\n"
@@ -617,7 +617,7 @@ func runCLI() {
 		Short: "NJ Cash 5 daily numbers recommender",
 		Run: func(cmd *cobra.Command, args []string) {
 			if showVersion {
-				printUsage()
+				fmt.Printf("%s v%s\n", programName, programVersion)
 				return
 			}
 
@@ -696,7 +696,7 @@ func runCLI() {
 	root.Flags().BoolVarP(&fetchAll, "fetch-all", "f", false, "Fetch new draws since last run (within last year)")
 	root.Flags().BoolVarP(&showAll, "all", "a", false, "Display all previous drawings")
 	root.Flags().BoolVarP(&showStats, "stats", "s", false, "Show statistics about historical data")
-	root.Flags().BoolVarP(&showVersion, "version", "v", false, "Show program version and usage")
+	root.Flags().BoolVarP(&showVersion, "version", "v", false, "Print version and exit")
 	root.Flags().StringVarP(&debugDate, "debug", "d", "", "Show raw JSON for draws on specified date")
 
 	// Disable default help flag

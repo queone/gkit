@@ -220,7 +220,7 @@ func TestExistingOutputStopsBeforeTools(t *testing.T) {
 }
 
 func TestHelpAliases(t *testing.T) {
-	for _, args := range [][]string{nil, {"-h"}, {"-?"}, {"--help"}, {"-v"}, {"--version"}} {
+	for _, args := range [][]string{nil, {"-h"}, {"-?"}, {"--help"}} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
 			restoreFakes(t)
 			outputExists = func(string) (bool, error) { t.Fatal("output checked"); return false, nil }
@@ -232,6 +232,25 @@ func TestHelpAliases(t *testing.T) {
 				if !strings.Contains(stdout.String(), want) {
 					t.Errorf("usage missing %q", want)
 				}
+			}
+		})
+	}
+}
+
+func TestVersionAliases(t *testing.T) {
+	for _, flag := range []string{"-v", "--version"} {
+		t.Run(flag, func(t *testing.T) {
+			restoreFakes(t)
+			outputExists = func(string) (bool, error) { t.Fatal("output checked"); return false, nil }
+			var stdout, stderr bytes.Buffer
+			if err := run([]string{flag}, &stdout, &stderr); err != nil {
+				t.Fatalf("run(%s): %v", flag, err)
+			}
+			if got, want := stdout.String(), programName+" v"+programVersion+"\n"; got != want {
+				t.Errorf("stdout = %q, want %q", got, want)
+			}
+			if got := stderr.String(); got != "" {
+				t.Errorf("stderr = %q, want empty", got)
 			}
 		})
 	}

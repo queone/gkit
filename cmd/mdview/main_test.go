@@ -355,8 +355,6 @@ func TestParseUsagePrecedenceAndLiteralPath(t *testing.T) {
 		{"-h"},
 		{"-?"},
 		{"--help"},
-		{"-v"},
-		{"--version"},
 		{"bad", "--help", "extra"},
 	} {
 		_, show, err := parseArgs(args)
@@ -403,7 +401,8 @@ func TestRunCLIUsageAndErrorStatus(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "mdview v0.1.0") ||
 		!strings.Contains(stdout.String(), "mdview [-o FILE] FILE") ||
-		!strings.Contains(stdout.String(), "-o, --output FILE") {
+		!strings.Contains(stdout.String(), "-o, --output FILE") ||
+		!strings.Contains(stdout.String(), "print mdview v0.1.0 and exit") {
 		t.Errorf("usage missing contract:\n%s", stdout.String())
 	}
 
@@ -413,6 +412,45 @@ func TestRunCLIUsageAndErrorStatus(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "mdview: expected FILE (see mdview --help)") {
 		t.Errorf("stderr missing prefix and recovery hint: %s", stderr.String())
+	}
+}
+
+func TestRunCLIVersionAliases(t *testing.T) {
+	for _, flag := range []string{"-v", "--version"} {
+		t.Run(flag, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			if status := runCLI([]string{flag}, &stdout, &stderr); status != 0 {
+				t.Fatalf("status = %d, want 0", status)
+			}
+			if got, want := stdout.String(), "mdview v0.1.0\n"; got != want {
+				t.Errorf("stdout = %q, want %q", got, want)
+			}
+			if got := stderr.String(); got != "" {
+				t.Errorf("stderr = %q, want empty", got)
+			}
+		})
+	}
+}
+
+func TestRunCLISpecialFlagPrecedence(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if status := runCLI([]string{"--help", "--version"}, &stdout, &stderr); status != 0 {
+		t.Fatalf("help-first status = %d, want 0", status)
+	}
+	if !strings.Contains(stdout.String(), "View GitHub Flavored Markdown") {
+		t.Errorf("help-first stdout is not usage: %q", stdout.String())
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if status := runCLI([]string{"--version", "--help"}, &stdout, &stderr); status != 0 {
+		t.Fatalf("version-first status = %d, want 0", status)
+	}
+	if got, want := stdout.String(), "mdview v0.1.0\n"; got != want {
+		t.Errorf("version-first stdout = %q, want %q", got, want)
+	}
+	if got := stderr.String(); got != "" {
+		t.Errorf("version-first stderr = %q, want empty", got)
 	}
 }
 

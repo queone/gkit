@@ -79,7 +79,7 @@ func usage() string {
 		"  resampled to 48000 Hz. Output uses H.264 CRF 18 and AAC at 192k.\n"+
 		"\n"+
 		"%s\n"+
-		"  -v, --version          Show this help message and exit\n"+
+		"  -v, --version          Print %s v%s and exit\n"+
 		"  -h, -?, --help         Show this help message and exit\n"+
 		"\n"+
 		"%s\n"+
@@ -91,12 +91,17 @@ func usage() string {
 		h("Usage"),
 		h("Processing"),
 		h("Options"),
+		programName, programVersion,
 		h("Notes"))
 }
 
 func run(args []string, stdout, stderr io.Writer) error {
 	for _, arg := range args {
-		if arg == "-h" || arg == "-?" || arg == "--help" || arg == "-v" || arg == "--version" {
+		if arg == "-v" || arg == "--version" {
+			fmt.Fprintf(stdout, "%s v%s\n", programName, programVersion)
+			return nil
+		}
+		if arg == "-h" || arg == "-?" || arg == "--help" {
 			fmt.Fprint(stdout, usage())
 			return nil
 		}

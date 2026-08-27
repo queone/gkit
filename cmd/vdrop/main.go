@@ -40,7 +40,11 @@ func printUsage() {
 func runCLI() {
 	args := os.Args[1:]
 	for _, a := range args {
-		if a == "-?" || a == "-h" || a == "--help" || a == "-v" || a == "--version" {
+		if a == "-v" || a == "--version" {
+			fmt.Printf("%s v%s\n", programName, programVersion)
+			return
+		}
+		if a == "-?" || a == "-h" || a == "--help" {
 			printUsage()
 			return
 		}

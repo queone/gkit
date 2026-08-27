@@ -27,7 +27,7 @@ The output is always `merged.mp4` in the current directory. `vjoin` refuses to o
 
 ### Options
 
-- `-v, --version` shows the usage screen and version.
+- `-v, --version` prints `vjoin v0.1.0` and exits.
 - `-h, -?, --help` shows the usage screen.
 
 ### Requirements
