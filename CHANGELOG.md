@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.56.4 | AC73: adopt Govna v0.45 governance workflow |
 | 0.56.3 | AC72: adopt govna v0.42.0 lifecycle eligibility rules |
 | 0.56.2 | AC70+AC71: adopt govna v0.41.0 and canonicalize utility version output |
 | 0.56.1 | AC69: adopt govna v0.29.0 canon |

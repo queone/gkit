@@ -124,7 +124,17 @@ Audit fails before emission for malformed fields, duplicate or unsorted paths, i
 
 ## Canon-coherence precondition
 
-Before comparing anything against the target, audit checks that govna's own rendered canon is internally coherent — a registry-driven, canon-only precondition that catches cases like an overlay template drifting out of sync with its authority doc. The registry requires `govna/roles.md` to reference the one release document present in the selected flavor and reject the absent opposite-flavor path. If a rule fails, audit skips target comparison and emits a coherence-failure report.
+Before comparing anything against the target, audit checks that Govna's rendered files agree with each other. This deterministic precondition checks only embedded canon. It does not replace the consumer-equivalent candidate-canon review in `govna/canon-cycle.md`.
+
+- Require `govna/roles.md` to reference the release document present in the selected flavor.
+- Reject a `govna/roles.md` reference to the absent opposite-flavor release document.
+- Require `AGENTS.md` to define the structured Package completion report.
+- Require the selected release guide to end that structured report with the exact release command.
+- Reject retired command-only Package wording.
+- Require integrated audit adoption to enter Refine without another instruction.
+- Require integrated audit adoption to stop before Implement.
+
+Audit skips target comparison when any coherence rule fails. The error names the conflicting rendered file and directs the Operator to report it to the Govna maintainer.
 
 ## Emitted AC stub
 
@@ -138,6 +148,26 @@ Audit writes `govna/ac<N>-audit-<canon-version>.md` only when the repository has
 The stub carries an edit-detection marker (SHA-256 body hash). Re-running audit against an unedited stub for the same canon version reuses the same AC number. Re-running it against an edited stub fails and directs the Director to delete or rename that generated file before retrying.
 
 An audit with no updates or Director choices exits successfully and prints `No Govna updates or Director choices found`, followed by a plain result tally and `No AC was written.` It performs no AC-number allocation, stub inspection, directory creation, or file write. It never deletes, overwrites, or validates an existing audit stub. With `--json`, the complete report remains available and `emitted` is `null`; no additional prose is written.
+
+### Agent-mediated review
+
+The executable ends after deterministic comparison and emission. An explicit request to an agent to run `govna audit` also authorizes the Operator review steps below. The immutable AC records the adoption work; the active session records its phase.
+
+- Run `govna audit` before entering an AC phase.
+- Enter Audit only when the command emits or reuses one guarded adoption AC.
+- Keep a clean result or pre-emission failure outside the AC phases.
+- Audit the emitted AC immediately.
+- Leave the emitted AC unchanged during Audit and Refine.
+- Report every blocking finding and Director decision.
+- Pause while any blocking finding or Director decision remains unresolved.
+- Resume Refine after the Director resolves every blocking finding and decision.
+- Require a new audit emission when a required correction would change the immutable AC.
+- Complete Refine without editing the emitted AC when no blocker remains.
+- Run Pre-Implementation Verification after Refine.
+- Report implementation readiness only when Pre-Implementation Verification passes.
+- Remain in Refine when Pre-Implementation Verification finds a gap.
+- Stop before Implement.
+- Track the active phase in the session instead of the emitted AC.
 
 Effective implementation scope is the narrow rule that permits a directly affected supporting file to change when the Director already settled its outcome. Every Director-resolved routing target enters that scope while the generated AC remains unchanged. Explicitly named migration destinations also enter it. `govna/preserve.txt` enters only when a resolved outcome requires creating or changing it. `CHANGELOG.md` enters only when a resolved legacy-phrase outcome requires removing an exact phrase. Neither supporting-file adjustment requires a second Director authorization.
 
@@ -157,7 +187,7 @@ Effective implementation scope is the narrow rule that permits a directly affect
 - Format every numbered routing entry as one Director decision question.
 - End every numbered routing entry with `?`.
 - Keep shared implementation procedure out of routing questions.
-- End every emitted adoption AC with exact status `` `PENDING` — audit emission; awaiting explicit Director Audit.``
+- End every emitted adoption AC with exact status `` `PENDING` — immutable audit emission; workflow state is tracked in the active session.``
 
 ### Routing capabilities
 
@@ -223,7 +253,7 @@ Effective implementation scope is the narrow rule that permits a directly affect
 - Require both positive declarations to name `./build.sh` for CODE inference.
 - Require root `build.sh` to resolve to a regular file for CODE inference.
 - Require the selected CODE stack's recognized root manifest before inferring `./build.sh`.
-- Recognize `go.mod`, `Cargo.toml`, `Package.swift`, `.terraform.lock.hcl` or a root `*.tf`, `package.json`, `pyproject.toml`, and `pom.xml` or `build.gradle` for Go, Rust, Swift, Terraform, Node, Python, and Java respectively.
+- Recognize `go.mod`, `Cargo.toml`, `Package.swift`, and `.terraform.lock.hcl` or a root `*.tf` for Go, Rust, Swift, and Terraform respectively.
 - Require each recognized manifest path used as evidence to resolve to a regular file.
 - Treat selected-stack manifest evidence only as proof that the declared repository command can run.
 - Keep exact AGENTS.md declarations as the repository-command authority.
