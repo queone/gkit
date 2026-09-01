@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.58.0 | AC75: dl defaults to 360p; -q/-w size caps; (ffmpeg) phase marker |
 | 0.57.1 | AC74: adopt govna v0.52.0 canon |
 | 0.57.0 | dl v2.1.0: prefer H.264 remux, add -b/--best, yellow ffmpeg phase |
 | 0.56.4 | AC73: adopt Govna v0.45 governance workflow |
