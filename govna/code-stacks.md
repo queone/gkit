@@ -15,6 +15,14 @@
 - Validate compiled versions before writing release metadata.
 - Preserve independent utility versions during repository release prep.
 
+## Release Command
+
+- Print one shell-safe two-argument release command after prep in every stack.
+- Emit the validated release tag bare in the printed release command.
+- Emit the release message single-quoted with POSIX quote escaping in the printed release command.
+- Confine the tag to `v`, digits, and dots through each adapter's existing validation before emission.
+- Route each adapter's release-command prints through one emit helper.
+
 ## Go
 
 - Discover utilities from regular `cmd/<target>/main.go` files in byte order.
@@ -24,8 +32,17 @@
 - Validate every selected compiled `--version` output before installing any selected utility.
 - Replace each installed utility atomically from an adjacent staging file.
 - Preserve each installed utility until its replacement succeeds.
-- Run ordinary canonical pre-change validation during Go release prep.
-- Run ordinary canonical post-change validation during Go release prep.
+- Use the successful final full build and clean Ratify review as current Package evidence.
+- Require applicable revalidation before Go prep when Package evidence is missing or stale.
+- Keep Go prep limited to version, changelog, released-AC, and matching `plan.md` pointer bookkeeping.
+- Run no canonical build, Go build, or Go dependency command during Go prep.
+- Reject every Go prep result outside its planned transformations.
+- Require every prep-changed version declaration to equal the unprefixed release tag.
+- Require the canonical changelog shape during prep.
+- Accept each `\|` pair in an existing summary cell as one escaped pipe during changelog shape validation.
+- Insert one exact release row immediately after `Unreleased`.
+- Reject multiline, over-80-byte, and Markdown-table-unsafe release messages.
+- Reject every release-message pipe, escaped or raw.
 - Emit no validation token from Go builds.
 - Remove invocation-owned build, coverage, version-probe, and installation-staging outputs on every handled exit.
 - Terminate after handling HUP, INT, or TERM.
@@ -38,6 +55,24 @@
 - Validate independent utility versions in multi-utility repositories.
 - Preserve independent utility versions in multi-utility repositories.
 - Accept command names for scoped builds while retaining package-wide shared validation.
+- Capture the complete candidate Git tree without changing the repository index.
+- Display the candidate files and exact release sequence before approval.
+- Reject a changed candidate tree after approval.
+- Verify the staged and committed trees against the approved candidate.
+- Require the release commit to use the exact approved message.
+- Require clean committed `HEAD` before release compilation.
+- Reuse an approved retry commit only when the tag is absent, Git state is clean, the full commit message matches, and prepared metadata matches.
+- Validate every discovered utility declaration before release compilation.
+- Compile each discovered utility once in byte order with `go build -mod=readonly -buildvcs=true -o <temporary-output> -ldflags '-s -w' ./cmd/<target>`.
+- Run no canonical validation phase during release compilation.
+- Validate every compiled utility version and committed-HEAD provenance before installation.
+- Require every prep-changed utility version to equal the unprefixed release tag.
+- Preserve independent secondary utility versions during release compilation.
+- Install every validated utility by atomic adjacent replacement.
+- Recheck every installed utility version and committed-HEAD provenance before tagging.
+- Create the release tag only after compilation, validation, installation, and rechecks pass.
+- Push nothing after an earlier release failure.
+- Remove invocation-owned release outputs on every handled exit.
 
 ## Rust
 
