@@ -6,9 +6,11 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/queone/gkit/internal/color"
 )
 
-const programVersion = "1.0.0"
+const programVersion = "1.1.0"
 
 var validKinds = []string{
 	"dnsRecordSet",
@@ -90,7 +92,7 @@ func run(args []string) int {
 		return 1
 	}
 	if cmd == cmdValidate {
-		fmt.Printf("attune validate: OK (%d specs)\n", bundle.Len())
+		fmt.Print(validateLine(bundle.Len(), settings.ContentVersion))
 		return 0
 	}
 
@@ -100,7 +102,7 @@ func run(args []string) int {
 		fmt.Fprintf(os.Stderr, "attune: authenticate provider: %s\n", err)
 		return 1
 	}
-	fmt.Fprintf(os.Stderr, "attune: provider=azure specs=%d authenticated=yes\n", bundle.Len())
+	fmt.Fprint(os.Stderr, groundingLine(bundle.Len(), settings.ContentVersion))
 	if settings.Diagnostic {
 		fmt.Fprintf(os.Stderr, "attune: diagnostic tenant=%s subscription=%s identity=%s resource-group=%s specs=%s\n",
 			account.Tenant, provider.Subscription, account.Identity, settings.ResourceGroup, settings.Specs)
@@ -139,26 +141,99 @@ func run(args []string) int {
 		fmt.Fprintf(os.Stderr, "attune: plan provider changes: %s\n", err)
 		return 1
 	}
-	fmt.Println("attune plan: provider=azure")
-	for _, c := range changes {
-		symbol := "~"
-		switch c.Action {
-		case ActionCreate:
-			symbol = "+"
-		case ActionDelete:
-			symbol = "-"
-		}
-		fmt.Printf("  %s %-6s %-15s %s  %s\n", symbol, c.Action.String(), c.Kind, c.Key, c.Summary)
-	}
-	fmt.Printf("\n%d change(s).\n", len(changes))
+	fmt.Print(renderPlanBlock(changes))
 
 	if cmd == cmdApply {
-		if err := Apply(provider, changes, provider.Subscription); err != nil {
+		fmt.Println(applyHeader())
+		if err := Apply(provider, changes, provider.Subscription, func(c Change) {
+			fmt.Println(renderAppliedLine(c))
+		}); err != nil {
 			fmt.Fprintf(os.Stderr, "attune: apply provider change: %s\n", err)
 			return 1
 		}
+		fmt.Print(renderApplyTrailer(len(changes)))
 	}
 	return 0
+}
+
+// changeSymbol maps an Action to its one-character change marker.
+func changeSymbol(a Action) string {
+	switch a {
+	case ActionCreate:
+		return "+"
+	case ActionDelete:
+		return "-"
+	default:
+		return "~"
+	}
+}
+
+// pastTense maps an Action to the past-tense verb used on apply
+// confirmation lines.
+func pastTense(a Action) string {
+	switch a {
+	case ActionCreate:
+		return "created"
+	case ActionUpdate:
+		return "updated"
+	case ActionDelete:
+		return "deleted"
+	default:
+		return "unknown"
+	}
+}
+
+// renderPlanBlock renders the prospective change block: an uncolored
+// header, one yellow line per change, and the yellow "would be made"
+// trailer.
+func renderPlanBlock(changes []Change) string {
+	var b strings.Builder
+	b.WriteString("attune plan: provider=azure\n")
+	for _, c := range changes {
+		line := fmt.Sprintf("  %s %-6s %-15s %s  %s", changeSymbol(c.Action), c.Action.String(), c.Kind, c.Key, c.Summary)
+		b.WriteString(color.Yel5(line) + "\n")
+	}
+	b.WriteString("\n" + color.Yel5(fmt.Sprintf("%d change(s) would be made.", len(changes))) + "\n")
+	return b.String()
+}
+
+// applyHeader renders the green header that opens the apply confirmation
+// block.
+func applyHeader() string {
+	return color.Grn5("attune apply: provider=azure")
+}
+
+// renderAppliedLine renders one green confirmation line, mirroring the
+// plan-line columns with the past-tense verb in place of the action.
+func renderAppliedLine(c Change) string {
+	return color.Grn5(fmt.Sprintf("  %s %-7s %-15s %s  %s", changeSymbol(c.Action), pastTense(c.Action), c.Kind, c.Key, c.Summary))
+}
+
+// renderApplyTrailer renders the green trailer printed after every change
+// applied successfully.
+func renderApplyTrailer(applied int) string {
+	return "\n" + color.Grn5(fmt.Sprintf("%d change(s) made.", applied)) + "\n"
+}
+
+// contentSuffix renders the optional ` content=<value>` output suffix for a
+// declared spec content version.
+func contentSuffix(contentVersion string) string {
+	if contentVersion == "" {
+		return ""
+	}
+	return " content=" + contentVersion
+}
+
+// validateLine renders the `attune validate` success line, appending the
+// declared content version when one is set.
+func validateLine(specs int, contentVersion string) string {
+	return fmt.Sprintf("attune validate: OK (%d specs)%s\n", specs, contentSuffix(contentVersion))
+}
+
+// groundingLine renders the non-secret grounding line every live run
+// prints, appending the declared content version when one is set.
+func groundingLine(specs int, contentVersion string) string {
+	return fmt.Sprintf("attune: provider=azure specs=%d authenticated=yes%s\n", specs, contentSuffix(contentVersion))
 }
 
 // parseFlags parses attune's flag surface. String flags (-s/-P/-g/-S/-k)

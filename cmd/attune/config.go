@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Provider            string
 	Specs               string
+	ContentVersion      string
 	Subscription        string
 	ResourceGroup       string
 	PruneDNS            *bool
@@ -40,6 +41,7 @@ type Overrides struct {
 type Settings struct {
 	Provider            string
 	Specs               string
+	ContentVersion      string
 	Subscription        string
 	ResourceGroup       string
 	PruneDNS            bool
@@ -152,7 +154,7 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := rejectUnknown(m, []string{"provider", "specs", "azure", "prune"}, "attune.yaml"); err != nil {
+	if err := rejectUnknown(m, []string{"provider", "specs", "content_version", "azure", "prune"}, "attune.yaml"); err != nil {
 		return nil, err
 	}
 	azure, err := cfgOptionalMapping(m, "azure")
@@ -175,6 +177,10 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 	specs, err := optionalString(m, "specs")
+	if err != nil {
+		return nil, err
+	}
+	contentVersion, err := optionalString(m, "content_version")
 	if err != nil {
 		return nil, err
 	}
@@ -210,6 +216,7 @@ func LoadConfig(path string) (*Config, error) {
 	return &Config{
 		Provider:            provider,
 		Specs:               specs,
+		ContentVersion:      contentVersion,
 		Subscription:        subscription,
 		ResourceGroup:       resourceGroup,
 		PruneDNS:            pruneDNS,
@@ -244,6 +251,9 @@ func Resolve(config *Config, overrides Overrides) Settings {
 				specs = filepath.Join(config.Directory, specs)
 			}
 			settings.Specs = specs
+		}
+		if config.ContentVersion != "" {
+			settings.ContentVersion = config.ContentVersion
 		}
 		if config.Subscription != "" {
 			settings.Subscription = config.Subscription

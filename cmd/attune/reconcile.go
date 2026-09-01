@@ -479,8 +479,9 @@ func dnsProtected(item DnsRecord) bool {
 	return t == "SOA" || t == "NS"
 }
 
-// Apply performs every planned Change against provider, in order.
-func Apply(provider Provider, changes []Change, subscription string) error {
+// Apply performs every planned Change against provider, in order,
+// invoking report after each successful mutation when report is non-nil.
+func Apply(provider Provider, changes []Change, subscription string, report func(Change)) error {
 	for _, c := range changes {
 		var err error
 		switch c.Target.Kind {
@@ -524,6 +525,9 @@ func Apply(provider Provider, changes []Change, subscription string) error {
 		}
 		if err != nil {
 			return err
+		}
+		if report != nil {
+			report(c)
 		}
 	}
 	return nil

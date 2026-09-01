@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -85,5 +86,45 @@ func TestResolvePrecedenceFlagOverEnvOverFileOverDefault(t *testing.T) {
 	settings = Resolve(cfg, Overrides{Subscription: &flagValue})
 	if settings.Subscription != "from-flag" {
 		t.Errorf("flag-level Subscription = %q, want %q", settings.Subscription, "from-flag")
+	}
+}
+
+func TestContentVersionParsesAndResolves(t *testing.T) {
+	dir := t.TempDir()
+	content := "provider: azure\nspecs: specs\ncontent_version: v1.2.3\n"
+	path := filepath.Join(dir, "attune.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.ContentVersion != "v1.2.3" {
+		t.Errorf("ContentVersion = %q, want %q", cfg.ContentVersion, "v1.2.3")
+	}
+	settings := Resolve(cfg, Overrides{})
+	if settings.ContentVersion != "v1.2.3" {
+		t.Errorf("resolved ContentVersion = %q, want %q", settings.ContentVersion, "v1.2.3")
+	}
+}
+
+func TestContentVersionAbsentResolvesEmpty(t *testing.T) {
+	settings := Resolve(&Config{}, Overrides{})
+	if settings.ContentVersion != "" {
+		t.Errorf("ContentVersion = %q, want empty", settings.ContentVersion)
+	}
+}
+
+func TestUnknownKeyStillRejectedBesideContentVersion(t *testing.T) {
+	dir := t.TempDir()
+	content := "provider: azure\ncontent_version: v1.2.3\nbogus_key: nope\n"
+	path := filepath.Join(dir, "attune.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadConfig(path)
+	if err == nil || !strings.Contains(err.Error(), `"bogus_key"`) {
+		t.Errorf("LoadConfig error = %v, want unknown-field rejection naming bogus_key", err)
 	}
 }

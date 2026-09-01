@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"errors"
+	"slices"
+	"testing"
+)
 
 // fakeProvider is a hand-rolled Provider double for Plan/Apply tests,
 // mirroring rkit's AssignmentProvider test fixture.
@@ -268,5 +272,47 @@ func TestResourceGroupUpdatesMergeDeclaredTagsOnlyWhenNeeded(t *testing.T) {
 	}
 	if len(changes) != 0 {
 		t.Errorf("changes = %+v, want none", changes)
+	}
+}
+
+// applyFailProvider fails every group mutation to exercise a mid-run
+// Apply failure.
+type applyFailProvider struct{ fakeProvider }
+
+func (p *applyFailProvider) PutGroup(SecurityGroup) error {
+	return errors.New("synthetic group failure")
+}
+
+func TestApplyReportsEachSuccessfulChangeInOrder(t *testing.T) {
+	changes := []Change{
+		{Kind: "dnsRecordSet", Action: ActionCreate, Key: "a", Target: Target{Kind: TargetDns}},
+		{Kind: "dnsRecordSet", Action: ActionUpdate, Key: "b", Target: Target{Kind: TargetDns}},
+		{Kind: "dnsRecordSet", Action: ActionDelete, Key: "c", Target: Target{Kind: TargetDns}},
+	}
+	var seen []string
+	if err := Apply(&fakeProvider{}, changes, "sub", func(c Change) { seen = append(seen, c.Key) }); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if want := []string{"a", "b", "c"}; !slices.Equal(seen, want) {
+		t.Errorf("reported keys = %v, want %v", seen, want)
+	}
+	if err := Apply(&fakeProvider{}, changes, "sub", nil); err != nil {
+		t.Errorf("Apply with nil reporter: %v", err)
+	}
+}
+
+func TestApplyMidRunFailureReportsOnlyAppliedChanges(t *testing.T) {
+	changes := []Change{
+		{Kind: "dnsRecordSet", Action: ActionCreate, Key: "a", Target: Target{Kind: TargetDns}},
+		{Kind: "securityGroup", Action: ActionCreate, Key: "b", Target: Target{Kind: TargetGroup, Group: SecurityGroup{Name: "g"}}},
+		{Kind: "dnsRecordSet", Action: ActionCreate, Key: "c", Target: Target{Kind: TargetDns}},
+	}
+	var seen []string
+	err := Apply(&applyFailProvider{}, changes, "sub", func(c Change) { seen = append(seen, c.Key) })
+	if err == nil {
+		t.Fatal("Apply: expected mid-run failure, got nil error")
+	}
+	if want := []string{"a"}; !slices.Equal(seen, want) {
+		t.Errorf("reported keys = %v, want only changes applied before the failure %v", seen, want)
 	}
 }

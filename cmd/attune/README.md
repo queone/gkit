@@ -13,6 +13,10 @@ Live commands require an authenticated Azure CLI session from `az login`. Config
 
 `validate` parses and checks specifications without credentials or provider access. `plan` authenticates and reads live state but does not mutate it. `apply` performs the reviewed create and update actions plus only those deletes enabled by the applicable prune policy. Every live run prints non-secret provider grounding so the operator can confirm its target. Requests are restricted to an ARM/Graph origin allowlist, and non-2xx provider responses are redacted wholesale before reaching any diagnostic or error message.
 
+The change block a live run prints is prospective: change lines and the `N change(s) would be made.` trailer render in yellow, under an uncolored `attune plan: provider=azure` header, for both `plan` and `apply`. `apply` then prints a green confirmation block headed `attune apply: provider=azure` — one green past-tense line (`created`/`updated`/`deleted`) per change, printed as that change lands, so an interrupted run shows exactly what was applied — followed by a green `N change(s) made.` trailer on full success. Color is suppressed automatically for non-TTY output, `NO_COLOR`, and `TERM=dumb`.
+
+An optional `content_version` string in `attune.yaml` declares the spec bundle's content version; when set, attune appends ` content=<value>` to the validate result and to the live grounding line. The convention decouples spec content from repository tags: bump `content_version` when azure-affecting spec content changes, and leave it (and any git tag) alone for unrelated repository changes — attune never reads git.
+
 Normal plans print resource keys and concise summaries, but omit DNS values, tag values, memberships, owners, role actions, credentials, and provider response bodies. `-d`/`--diagnostic` adds non-secret account and target grounding. attune writes no local state, cache, telemetry, copied specs, or diagnostic artifacts; serviced-repository data is sent only to the configured Azure provider endpoints during an operator-requested live command.
 
 ## Usage

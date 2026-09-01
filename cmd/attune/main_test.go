@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/queone/gkit/internal/color"
 )
 
 // captureRun invokes run(args) in-process, capturing stdout/stderr by
@@ -314,4 +316,155 @@ func collectFileNames(t *testing.T, root string) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// yellowCode/greenCode are the raw SGR prefixes color.Yel5/color.Grn5 emit,
+// asserted directly so a palette change fails loudly here.
+const (
+	yellowCode = "\x1b[38;5;220m"
+	greenCode  = "\x1b[38;5;46m"
+)
+
+func TestPlanBlockRendersYellowProspectiveWording(t *testing.T) {
+	restore := color.SetEnabled(true)
+	defer restore()
+	changes := []Change{
+		{Kind: "dnsRecordSet", Action: ActionCreate, Key: "dnsRecordSet|www", Summary: "missing"},
+		{Kind: "securityGroup", Action: ActionUpdate, Key: "securityGroup|eng", Summary: "owners or members differ"},
+		{Kind: "appRegistration", Action: ActionDelete, Key: "appRegistration|old", Summary: "absent from specs"},
+	}
+	out := renderPlanBlock(changes)
+	lines := strings.Split(out, "\n")
+	if lines[0] != "attune plan: provider=azure" {
+		t.Errorf("header = %q, want uncolored %q", lines[0], "attune plan: provider=azure")
+	}
+	for i := 1; i <= len(changes); i++ {
+		if !strings.HasPrefix(lines[i], yellowCode) {
+			t.Errorf("change line %d = %q, want yellow prefix", i, lines[i])
+		}
+	}
+	if !strings.Contains(out, color.Yel5("3 change(s) would be made.")) {
+		t.Errorf("output %q missing yellow prospective trailer", out)
+	}
+	plain := color.ClearCode(out)
+	for _, want := range []string{"+ create", "~ update", "- delete", "dnsRecordSet|www", "missing"} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("plain output %q missing %q", plain, want)
+		}
+	}
+	if zero := color.ClearCode(renderPlanBlock(nil)); !strings.Contains(zero, "0 change(s) would be made.") {
+		t.Errorf("zero-change plan = %q, want prospective zero trailer", zero)
+	}
+}
+
+func TestApplyConfirmationRendersGreenPastTense(t *testing.T) {
+	restore := color.SetEnabled(true)
+	defer restore()
+	if got := color.ClearCode(applyHeader()); got != "attune apply: provider=azure" {
+		t.Errorf("applyHeader = %q, want %q", got, "attune apply: provider=azure")
+	}
+	if !strings.HasPrefix(applyHeader(), greenCode) {
+		t.Errorf("applyHeader = %q, want green prefix", applyHeader())
+	}
+	verbs := map[Action]string{ActionCreate: "created", ActionUpdate: "updated", ActionDelete: "deleted"}
+	for action, verb := range verbs {
+		c := Change{Kind: "dnsRecordSet", Action: action, Key: "dnsRecordSet|www", Summary: "missing"}
+		line := renderAppliedLine(c)
+		if !strings.HasPrefix(line, greenCode) {
+			t.Errorf("%s line = %q, want green prefix", verb, line)
+		}
+		fields := strings.Fields(color.ClearCode(line))
+		wantFields := []string{changeSymbol(action), verb, c.Kind, c.Key, c.Summary}
+		if !slices.Equal(fields, wantFields) {
+			t.Errorf("%s line fields = %v, want %v", verb, fields, wantFields)
+		}
+	}
+	trailer := renderApplyTrailer(3)
+	if color.ClearCode(trailer) != "\n3 change(s) made.\n" {
+		t.Errorf("trailer = %q, want %q", color.ClearCode(trailer), "\n3 change(s) made.\n")
+	}
+	if !strings.Contains(trailer, greenCode) {
+		t.Errorf("trailer = %q, want green wrapping", trailer)
+	}
+}
+
+func TestRenderingUncoloredWhenColorDisabled(t *testing.T) {
+	restore := color.SetEnabled(false)
+	defer restore()
+	change := Change{Kind: "dnsRecordSet", Action: ActionCreate, Key: "dnsRecordSet|www", Summary: "missing"}
+	for name, out := range map[string]string{
+		"plan block":    renderPlanBlock([]Change{change}),
+		"apply header":  applyHeader(),
+		"applied line":  renderAppliedLine(change),
+		"apply trailer": renderApplyTrailer(1),
+	} {
+		if color.ClearCode(out) != out {
+			t.Errorf("%s = %q, want no ANSI escapes when color disabled", name, out)
+		}
+	}
+}
+
+func TestZeroChangeApplyTrailerHasNoChangeLines(t *testing.T) {
+	restore := color.SetEnabled(true)
+	defer restore()
+	got := color.ClearCode(applyHeader() + "\n" + renderApplyTrailer(0))
+	want := "attune apply: provider=azure\n\n0 change(s) made.\n"
+	if got != want {
+		t.Errorf("zero-change apply block = %q, want %q", got, want)
+	}
+}
+
+func TestGroundingAndValidateLinesAppendContentVersion(t *testing.T) {
+	if got, want := groundingLine(6, "v1.2.3"), "attune: provider=azure specs=6 authenticated=yes content=v1.2.3\n"; got != want {
+		t.Errorf("groundingLine with version = %q, want %q", got, want)
+	}
+	if got, want := groundingLine(6, ""), "attune: provider=azure specs=6 authenticated=yes\n"; got != want {
+		t.Errorf("groundingLine without version = %q, want %q", got, want)
+	}
+	if got, want := validateLine(6, "v1.2.3"), "attune validate: OK (6 specs) content=v1.2.3\n"; got != want {
+		t.Errorf("validateLine with version = %q, want %q", got, want)
+	}
+	if got, want := validateLine(6, ""), "attune validate: OK (6 specs)\n"; got != want {
+		t.Errorf("validateLine without version = %q, want %q", got, want)
+	}
+}
+
+// validateWithConfig runs `attune validate` from a temp directory holding
+// the given attune.yaml content and one valid DNS spec.
+func validateWithConfig(t *testing.T, config string) (code int, stdout, stderr string) {
+	t.Helper()
+	dir := t.TempDir()
+	specs := filepath.Join(dir, "specs")
+	if err := os.MkdirAll(specs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	spec := "kind: dnsRecordSet\nzone: example.com\ntype: A\nname: www\nttl: 300\nvalues:\n  - 192.0.2.10\n"
+	if err := os.WriteFile(filepath.Join(specs, "dns.yaml"), []byte(spec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "attune.yaml"), []byte(config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	return captureRun(t, []string{"validate"})
+}
+
+func TestValidateOutputIncludesDeclaredContentVersion(t *testing.T) {
+	code, out, errOut := validateWithConfig(t, "provider: azure\nspecs: specs\ncontent_version: v1.2.3\n")
+	if code != 0 {
+		t.Fatalf("code = %d, stderr = %q", code, errOut)
+	}
+	if want := "attune validate: OK (1 specs) content=v1.2.3\n"; out != want {
+		t.Errorf("stdout = %q, want %q", out, want)
+	}
+}
+
+func TestValidateOutputUnchangedWithoutContentVersion(t *testing.T) {
+	code, out, errOut := validateWithConfig(t, "provider: azure\nspecs: specs\n")
+	if code != 0 {
+		t.Fatalf("code = %d, stderr = %q", code, errOut)
+	}
+	if want := "attune validate: OK (1 specs)\n"; out != want {
+		t.Errorf("stdout = %q, want %q", out, want)
+	}
 }
