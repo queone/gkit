@@ -23,3 +23,19 @@ func TestDnsValuesAreOrderInsensitive(t *testing.T) {
 		t.Errorf("expected order-insensitive DNS value comparison to match")
 	}
 }
+
+func TestLocationNormalizationTreatsFormattingAsEqual(t *testing.T) {
+	equal := [][2]string{
+		{"East US", "eastus"},
+		{"EastUS", "eastus"},
+		{"eastus", "eastus"},
+	}
+	for _, pair := range equal {
+		if !sameLocation(pair[0], pair[1]) {
+			t.Errorf("sameLocation(%q, %q) = false, want true", pair[0], pair[1])
+		}
+	}
+	if sameLocation("eastus", "westus2") {
+		t.Error("sameLocation(eastus, westus2) = true, want false")
+	}
+}

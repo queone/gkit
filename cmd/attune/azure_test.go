@@ -269,3 +269,49 @@ func TestPaginationFollowsODataNextLink(t *testing.T) {
 		t.Fatalf("got %d items, want 2", len(items))
 	}
 }
+
+// TestHasZoneMapsStatusesWithoutLeakingBodies pins HasZone's status
+// mapping: success means the zone exists, not-found means it does not,
+// and any other status is a redacted error.
+func TestHasZoneMapsStatusesWithoutLeakingBodies(t *testing.T) {
+	cases := []struct {
+		name    string
+		status  int
+		body    string
+		exists  bool
+		wantErr bool
+	}{
+		{"success", 200, `{"name":"example.com"}`, true, false},
+		{"not found", 404, `{"error":{"code":"ResourceNotFound"}}`, false, false},
+		{"other failure", 403, `{"access_token":"super-secret-value"}`, false, true},
+	}
+	for _, c := range cases {
+		var urls []string
+		transport := &syntheticTransport{
+			urls:      &urls,
+			responses: []*HTTPResponse{{Status: c.status, Body: []byte(c.body)}},
+		}
+		provider := NewAzureProviderWith(syntheticCli{}, transport, "sub", "rg")
+		exists, err := provider.HasZone("example.com")
+		if c.wantErr {
+			if err == nil {
+				t.Errorf("%s: expected error, got exists=%v", c.name, exists)
+				continue
+			}
+			if strings.Contains(err.Error(), "super-secret-value") {
+				t.Errorf("%s: error leaked response body: %v", c.name, err)
+			}
+			if !strings.Contains(err.Error(), "redacted") {
+				t.Errorf("%s: error does not mention redaction: %v", c.name, err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%s: HasZone: %v", c.name, err)
+			continue
+		}
+		if exists != c.exists {
+			t.Errorf("%s: exists = %v, want %v", c.name, exists, c.exists)
+		}
+	}
+}

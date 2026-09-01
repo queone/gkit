@@ -168,3 +168,24 @@ func tagsSatisfy(declared, live map[string]string) bool {
 	}
 	return true
 }
+
+// FieldDiff records one field-level difference behind a planned update,
+// printed only under -V/--verbose. A scalar change fills Old and New; a
+// set-valued change fills only the side that applies (entries added or
+// entries removed).
+type FieldDiff struct {
+	Field string
+	Old   string
+	New   string
+}
+
+// sameLocation reports whether two Azure location names refer to the same
+// region, tolerating display formatting ("East US") against ARM's
+// normalized form ("eastus").
+func sameLocation(a, b string) bool {
+	return normalizeLocation(a) == normalizeLocation(b)
+}
+
+func normalizeLocation(location string) string {
+	return strings.ToLower(strings.ReplaceAll(location, " ", ""))
+}

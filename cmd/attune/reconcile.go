@@ -34,6 +34,7 @@ type TargetKind int
 
 const (
 	TargetDns TargetKind = iota
+	TargetZone
 	TargetGroup
 	TargetApp
 	TargetRoleDefinition
@@ -52,6 +53,7 @@ type RoleAssignmentTarget struct {
 // Target is the resource a Change applies to, tagged by Kind.
 type Target struct {
 	Kind           TargetKind
+	Zone           string
 	Dns            DnsRecord
 	Group          SecurityGroup
 	App            AppRegistration
@@ -60,12 +62,14 @@ type Target struct {
 	ResourceGroup  ResourceGroup
 }
 
-// Change is one planned create/update/delete action.
+// Change is one planned create/update/delete action. Diffs carries the
+// field-level differences behind an update, shown only under -V/--verbose.
 type Change struct {
 	Kind    string
 	Action  Action
 	Key     string
 	Summary string
+	Diffs   []FieldDiff
 	Target  Target
 }
 
@@ -90,6 +94,7 @@ type LiveAssignment struct {
 // Provider is the live-state interface Plan/Apply reconcile against.
 type Provider interface {
 	EnsureZone(zone string) error
+	HasZone(zone string) (bool, error)
 	ListDNS(zone string) ([]DnsRecord, error)
 	PutDNS(record DnsRecord) error
 	DeleteDNS(record DnsRecord) error
@@ -138,6 +143,88 @@ func change(kind string, action Action, key, summary string, target Target) Chan
 	return Change{Kind: kind, Action: action, Key: key, Summary: summary, Target: target}
 }
 
+// setDiffs renders a set-valued field's membership change as added and
+// removed entries.
+func setDiffs(field string, live, desired []string) []FieldDiff {
+	liveSet := map[string]bool{}
+	for _, v := range live {
+		liveSet[v] = true
+	}
+	desiredSet := map[string]bool{}
+	for _, v := range desired {
+		desiredSet[v] = true
+	}
+	var added, removed []string
+	for _, v := range sortedCopy(desired) {
+		if !liveSet[v] {
+			added = append(added, v)
+		}
+	}
+	for _, v := range sortedCopy(live) {
+		if !desiredSet[v] {
+			removed = append(removed, v)
+		}
+	}
+	var diffs []FieldDiff
+	if len(added) > 0 {
+		diffs = append(diffs, FieldDiff{Field: field + " added", New: strings.Join(added, ", ")})
+	}
+	if len(removed) > 0 {
+		diffs = append(diffs, FieldDiff{Field: field + " removed", Old: strings.Join(removed, ", ")})
+	}
+	return diffs
+}
+
+// resourceGroupDiffs lists the differences driving a resource-group update.
+func resourceGroupDiffs(current, desired ResourceGroup) []FieldDiff {
+	var diffs []FieldDiff
+	if !sameLocation(current.Location, desired.Location) {
+		diffs = append(diffs, FieldDiff{Field: "location", Old: current.Location, New: desired.Location})
+	}
+	var keys []string
+	for k := range desired.Tags {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if current.Tags[k] != desired.Tags[k] {
+			diffs = append(diffs, FieldDiff{Field: "tag " + k, Old: current.Tags[k], New: desired.Tags[k]})
+		}
+	}
+	return diffs
+}
+
+// dnsRecordDiffs lists the differences driving a DNS record-set update.
+func dnsRecordDiffs(current, desired DnsRecord) []FieldDiff {
+	var diffs []FieldDiff
+	if current.TTL != desired.TTL {
+		diffs = append(diffs, FieldDiff{Field: "ttl", Old: fmt.Sprintf("%d", current.TTL), New: fmt.Sprintf("%d", desired.TTL)})
+	}
+	if !stringsEqual(sortedCopy(current.Values), sortedCopy(desired.Values)) {
+		diffs = append(diffs, FieldDiff{Field: "values", Old: strings.Join(current.Values, ", "), New: strings.Join(desired.Values, ", ")})
+	}
+	return diffs
+}
+
+// roleDefinitionDiffs lists the differences driving a role-definition
+// update, mirroring sameRoleDefinition's comparisons.
+func roleDefinitionDiffs(current, desired RoleDefinition, subscription string) []FieldDiff {
+	var diffs []FieldDiff
+	if current.Description != desired.Description {
+		diffs = append(diffs, FieldDiff{Field: "description", Old: current.Description, New: desired.Description})
+	}
+	diffs = append(diffs, setDiffs("actions", current.Actions, desired.Actions)...)
+	diffs = append(diffs, setDiffs("notActions", current.NotActions, desired.NotActions)...)
+	diffs = append(diffs, setDiffs("dataActions", current.DataActions, desired.DataActions)...)
+	diffs = append(diffs, setDiffs("notDataActions", current.NotDataActions, desired.NotDataActions)...)
+	currentScopes, currentErr := roleScopes(current, subscription)
+	desiredScopes, desiredErr := roleScopes(desired, subscription)
+	if currentErr == nil && desiredErr == nil {
+		diffs = append(diffs, setDiffs("assignableScopes", currentScopes, desiredScopes)...)
+	}
+	return diffs
+}
+
 // Plan computes create/update/delete changes for bundle against provider's
 // live state, honoring options.Kind filtering and prune policy. Kinds are
 // always processed in this fixed order: resourceGroup, securityGroup,
@@ -159,13 +246,15 @@ func Plan(provider Provider, bundle *Bundle, options *Options) ([]Change, error)
 			switch {
 			case !found:
 				changes = append(changes, change("resourceGroup", ActionCreate, "resourceGroup|"+item.Name, "missing", Target{Kind: TargetResourceGroup, ResourceGroup: item}))
-			case current.Location != item.Location || !tagsSatisfy(item.Tags, current.Tags):
+			case !sameLocation(current.Location, item.Location) || !tagsSatisfy(item.Tags, current.Tags):
 				merged := map[string]string{}
 				maps.Copy(merged, current.Tags)
 				maps.Copy(merged, item.Tags)
 				updated := item
 				updated.Tags = merged
-				changes = append(changes, change("resourceGroup", ActionUpdate, "resourceGroup|"+item.Name, "location or declared tags differ", Target{Kind: TargetResourceGroup, ResourceGroup: updated}))
+				c := change("resourceGroup", ActionUpdate, "resourceGroup|"+item.Name, "location or declared tags differ", Target{Kind: TargetResourceGroup, ResourceGroup: updated})
+				c.Diffs = resourceGroupDiffs(current, item)
+				changes = append(changes, c)
 			}
 		}
 		if options.PruneResourceGroups {
@@ -187,7 +276,9 @@ func Plan(provider Provider, bundle *Bundle, options *Options) ([]Change, error)
 			case current == nil:
 				changes = append(changes, change("securityGroup", ActionCreate, "securityGroup|"+item.Name, "missing", Target{Kind: TargetGroup, Group: item}))
 			case !stringsEqual(sortedCopy(current.Owners), sortedCopy(item.Owners)) || !stringsEqual(sortedCopy(current.Members), sortedCopy(item.Members)):
-				changes = append(changes, change("securityGroup", ActionUpdate, "securityGroup|"+item.Name, "owners or members differ", Target{Kind: TargetGroup, Group: item}))
+				c := change("securityGroup", ActionUpdate, "securityGroup|"+item.Name, "owners or members differ", Target{Kind: TargetGroup, Group: item})
+				c.Diffs = append(setDiffs("owners", current.Owners, item.Owners), setDiffs("members", current.Members, item.Members)...)
+				changes = append(changes, c)
 			}
 		}
 		if options.PruneIdentities {
@@ -217,7 +308,12 @@ func Plan(provider Provider, bundle *Bundle, options *Options) ([]Change, error)
 			case current == nil:
 				changes = append(changes, change("appRegistration", ActionCreate, "appRegistration|"+item.Name, "missing", Target{Kind: TargetApp, App: item}))
 			case !stringsEqual(sortedCopy(current.Owners), sortedCopy(item.Owners)) || current.ServicePrincipal != item.ServicePrincipal:
-				changes = append(changes, change("appRegistration", ActionUpdate, "appRegistration|"+item.Name, "owners or service principal differ", Target{Kind: TargetApp, App: item}))
+				c := change("appRegistration", ActionUpdate, "appRegistration|"+item.Name, "owners or service principal differ", Target{Kind: TargetApp, App: item})
+				c.Diffs = setDiffs("owners", current.Owners, item.Owners)
+				if current.ServicePrincipal != item.ServicePrincipal {
+					c.Diffs = append(c.Diffs, FieldDiff{Field: "servicePrincipal", Old: fmt.Sprintf("%t", current.ServicePrincipal), New: fmt.Sprintf("%t", item.ServicePrincipal)})
+				}
+				changes = append(changes, c)
 			}
 		}
 		if options.PruneIdentities {
@@ -252,7 +348,9 @@ func Plan(provider Provider, bundle *Bundle, options *Options) ([]Change, error)
 			case !found:
 				changes = append(changes, change("roleDefinition", ActionCreate, "roleDefinition|"+item.Name, "missing", Target{Kind: TargetRoleDefinition, RoleDefinition: item}))
 			case !sameRoleDefinition(current, item, options.Subscription):
-				changes = append(changes, change("roleDefinition", ActionUpdate, "roleDefinition|"+item.Name, "permissions or scopes differ", Target{Kind: TargetRoleDefinition, RoleDefinition: item}))
+				c := change("roleDefinition", ActionUpdate, "roleDefinition|"+item.Name, "permissions or scopes differ", Target{Kind: TargetRoleDefinition, RoleDefinition: item})
+				c.Diffs = roleDefinitionDiffs(current, item, options.Subscription)
+				changes = append(changes, c)
 			}
 		}
 		if options.PruneRoles {
@@ -369,9 +467,18 @@ func planDNS(provider Provider, bundle *Bundle, options *Options, changes *[]Cha
 	sort.Strings(zoneOrder)
 	for _, zone := range zoneOrder {
 		desired := desiredByZone[zone]
-		live, err := provider.ListDNS(zone)
+		exists, err := provider.HasZone(zone)
 		if err != nil {
 			return err
+		}
+		var live []DnsRecord
+		if exists {
+			live, err = provider.ListDNS(zone)
+			if err != nil {
+				return err
+			}
+		} else {
+			*changes = append(*changes, change("dnsZone", ActionCreate, "dnsZone|"+zone, "missing", Target{Kind: TargetZone, Zone: zone}))
 		}
 		desiredKeys := map[string]bool{}
 		for _, item := range desired {
@@ -383,7 +490,9 @@ func planDNS(provider Provider, bundle *Bundle, options *Options, changes *[]Cha
 			case !found:
 				*changes = append(*changes, change("dnsRecordSet", ActionCreate, item.Key(), "missing", Target{Kind: TargetDns, Dns: item}))
 			case !current.SameData(item):
-				*changes = append(*changes, change("dnsRecordSet", ActionUpdate, item.Key(), "TTL or values differ", Target{Kind: TargetDns, Dns: item}))
+				c := change("dnsRecordSet", ActionUpdate, item.Key(), "TTL or values differ", Target{Kind: TargetDns, Dns: item})
+				c.Diffs = dnsRecordDiffs(current, item)
+				*changes = append(*changes, c)
 			}
 		}
 		if options.PruneDNS {
@@ -439,23 +548,26 @@ func eqID(left, right string) bool {
 	return strings.EqualFold(leftTail, rightTail)
 }
 
-func sameRoleDefinition(left, right RoleDefinition, subscription string) bool {
-	scopesOf := func(role RoleDefinition) ([]string, error) {
-		if len(role.AssignableScopes) == 0 {
-			return []string{fmt.Sprintf("/subscriptions/%s", subscription)}, nil
-		}
-		var out []string
-		for _, s := range role.AssignableScopes {
-			id, err := s.ArmID(subscription)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, id)
-		}
-		return out, nil
+// roleScopes resolves a role definition's assignable scopes to ARM IDs,
+// defaulting to the subscription scope when none are declared.
+func roleScopes(role RoleDefinition, subscription string) ([]string, error) {
+	if len(role.AssignableScopes) == 0 {
+		return []string{fmt.Sprintf("/subscriptions/%s", subscription)}, nil
 	}
-	leftScopes, leftErr := scopesOf(left)
-	rightScopes, rightErr := scopesOf(right)
+	var out []string
+	for _, s := range role.AssignableScopes {
+		id, err := s.ArmID(subscription)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, nil
+}
+
+func sameRoleDefinition(left, right RoleDefinition, subscription string) bool {
+	leftScopes, leftErr := roleScopes(left, subscription)
+	rightScopes, rightErr := roleScopes(right, subscription)
 	if leftErr != nil || rightErr != nil {
 		return false
 	}
@@ -485,6 +597,8 @@ func Apply(provider Provider, changes []Change, subscription string, report func
 	for _, c := range changes {
 		var err error
 		switch c.Target.Kind {
+		case TargetZone:
+			err = provider.EnsureZone(c.Target.Zone)
 		case TargetDns:
 			if c.Action == ActionDelete {
 				err = provider.DeleteDNS(c.Target.Dns)

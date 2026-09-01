@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"os"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/queone/gkit/internal/color"
 )
 
-const programVersion = "1.1.0"
+const programVersion = "1.2.0"
 
 var validKinds = []string{
 	"dnsRecordSet",
@@ -108,26 +107,6 @@ func run(args []string) int {
 			account.Tenant, provider.Subscription, account.Identity, settings.ResourceGroup, settings.Specs)
 	}
 
-	if cmd == cmdApply {
-		zoneSet := map[string]bool{}
-		var zones []string
-		for _, item := range bundle.Dns {
-			if settings.Kind == "" || settings.Kind == "dnsRecordSet" {
-				if !zoneSet[item.Zone] {
-					zoneSet[item.Zone] = true
-					zones = append(zones, item.Zone)
-				}
-			}
-		}
-		sort.Strings(zones)
-		for _, zone := range zones {
-			if err := provider.EnsureZone(zone); err != nil {
-				fmt.Fprintf(os.Stderr, "attune: ensure DNS zone: %s\n", err)
-				return 1
-			}
-		}
-	}
-
 	options := &Options{
 		Subscription:        provider.Subscription,
 		Kind:                settings.Kind,
@@ -141,7 +120,7 @@ func run(args []string) int {
 		fmt.Fprintf(os.Stderr, "attune: plan provider changes: %s\n", err)
 		return 1
 	}
-	fmt.Print(renderPlanBlock(changes))
+	fmt.Print(renderPlanBlock(changes, settings.Verbose))
 
 	if cmd == cmdApply {
 		fmt.Println(applyHeader())
@@ -185,16 +164,36 @@ func pastTense(a Action) string {
 
 // renderPlanBlock renders the prospective change block: an uncolored
 // header, one yellow line per change, and the yellow "would be made"
-// trailer.
-func renderPlanBlock(changes []Change) string {
+// trailer. With verbose set, each change's field-level diffs follow its
+// line as indented yellow lines.
+func renderPlanBlock(changes []Change, verbose bool) string {
 	var b strings.Builder
 	b.WriteString("attune plan: provider=azure\n")
 	for _, c := range changes {
 		line := fmt.Sprintf("  %s %-6s %-15s %s  %s", changeSymbol(c.Action), c.Action.String(), c.Kind, c.Key, c.Summary)
 		b.WriteString(color.Yel5(line) + "\n")
+		if verbose {
+			for _, d := range c.Diffs {
+				b.WriteString(color.Yel5("      "+renderFieldDiff(d)) + "\n")
+			}
+		}
 	}
 	b.WriteString("\n" + color.Yel5(fmt.Sprintf("%d change(s) would be made.", len(changes))) + "\n")
 	return b.String()
+}
+
+// renderFieldDiff renders one field-level difference for verbose output:
+// scalar changes as `field: old -> new`, set-valued changes as the added
+// or removed entries alone.
+func renderFieldDiff(d FieldDiff) string {
+	switch {
+	case d.Old == "":
+		return fmt.Sprintf("%s: %s", d.Field, d.New)
+	case d.New == "":
+		return fmt.Sprintf("%s: %s", d.Field, d.Old)
+	default:
+		return fmt.Sprintf("%s: %s -> %s", d.Field, d.Old, d.New)
+	}
 }
 
 // applyHeader renders the green header that opens the apply confirmation
@@ -320,6 +319,11 @@ func parseFlags(args []string) (Overrides, error) {
 				return overrides, fmt.Errorf("%s does not take a value", name)
 			}
 			overrides.Diagnostic = true
+		case "-V", "--verbose":
+			if inline != nil {
+				return overrides, fmt.Errorf("%s does not take a value", name)
+			}
+			overrides.Verbose = true
 		default:
 			return overrides, fmt.Errorf("unknown flag %q", name)
 		}
@@ -362,6 +366,7 @@ func usage() string {
 		"  -I, --prune-identities[=BOOL]\n" +
 		"  -R, --prune-roles[=BOOL]\n" +
 		"  -G, --prune-resource-groups[=BOOL]\n" +
-		"  -d, --diagnostic\n\n" +
+		"  -d, --diagnostic\n" +
+		"  -V, --verbose\n\n" +
 		"Live commands require an authenticated Azure CLI (`az login`).\n"
 }

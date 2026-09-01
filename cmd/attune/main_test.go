@@ -333,7 +333,7 @@ func TestPlanBlockRendersYellowProspectiveWording(t *testing.T) {
 		{Kind: "securityGroup", Action: ActionUpdate, Key: "securityGroup|eng", Summary: "owners or members differ"},
 		{Kind: "appRegistration", Action: ActionDelete, Key: "appRegistration|old", Summary: "absent from specs"},
 	}
-	out := renderPlanBlock(changes)
+	out := renderPlanBlock(changes, false)
 	lines := strings.Split(out, "\n")
 	if lines[0] != "attune plan: provider=azure" {
 		t.Errorf("header = %q, want uncolored %q", lines[0], "attune plan: provider=azure")
@@ -352,7 +352,7 @@ func TestPlanBlockRendersYellowProspectiveWording(t *testing.T) {
 			t.Errorf("plain output %q missing %q", plain, want)
 		}
 	}
-	if zero := color.ClearCode(renderPlanBlock(nil)); !strings.Contains(zero, "0 change(s) would be made.") {
+	if zero := color.ClearCode(renderPlanBlock(nil, false)); !strings.Contains(zero, "0 change(s) would be made.") {
 		t.Errorf("zero-change plan = %q, want prospective zero trailer", zero)
 	}
 }
@@ -391,9 +391,10 @@ func TestApplyConfirmationRendersGreenPastTense(t *testing.T) {
 func TestRenderingUncoloredWhenColorDisabled(t *testing.T) {
 	restore := color.SetEnabled(false)
 	defer restore()
-	change := Change{Kind: "dnsRecordSet", Action: ActionCreate, Key: "dnsRecordSet|www", Summary: "missing"}
+	change := Change{Kind: "dnsRecordSet", Action: ActionCreate, Key: "dnsRecordSet|www", Summary: "missing",
+		Diffs: []FieldDiff{{Field: "ttl", Old: "300", New: "600"}}}
 	for name, out := range map[string]string{
-		"plan block":    renderPlanBlock([]Change{change}),
+		"plan block":    renderPlanBlock([]Change{change}, true),
 		"apply header":  applyHeader(),
 		"applied line":  renderAppliedLine(change),
 		"apply trailer": renderApplyTrailer(1),
@@ -466,5 +467,84 @@ func TestValidateOutputUnchangedWithoutContentVersion(t *testing.T) {
 	}
 	if want := "attune validate: OK (1 specs)\n"; out != want {
 		t.Errorf("stdout = %q, want %q", out, want)
+	}
+}
+
+func TestDnsZoneCreateRendersStandardCreatedLine(t *testing.T) {
+	restore := color.SetEnabled(true)
+	defer restore()
+	line := renderAppliedLine(Change{Kind: "dnsZone", Action: ActionCreate, Key: "dnsZone|example.com", Summary: "missing"})
+	if !strings.HasPrefix(line, greenCode) {
+		t.Errorf("line = %q, want green prefix", line)
+	}
+	fields := strings.Fields(color.ClearCode(line))
+	want := []string{"+", "created", "dnsZone", "dnsZone|example.com", "missing"}
+	if !slices.Equal(fields, want) {
+		t.Errorf("fields = %v, want %v", fields, want)
+	}
+}
+
+func TestVerboseFlagParses(t *testing.T) {
+	for _, args := range [][]string{{"-V"}, {"--verbose"}} {
+		overrides, err := parseFlags(args)
+		if err != nil {
+			t.Fatalf("%v: parseFlags: %v", args, err)
+		}
+		if !overrides.Verbose {
+			t.Errorf("%v: Verbose = false, want true", args)
+		}
+		if !Resolve(nil, overrides).Verbose {
+			t.Errorf("%v: resolved Verbose = false, want true", args)
+		}
+	}
+	if _, err := parseFlags([]string{"-V=true"}); err == nil {
+		t.Error("parseFlags(-V=true): expected does-not-take-a-value error")
+	}
+}
+
+func TestVerbosePlanBlockShowsFieldDiffs(t *testing.T) {
+	restore := color.SetEnabled(true)
+	defer restore()
+	changes := []Change{{
+		Kind: "resourceGroup", Action: ActionUpdate, Key: "resourceGroup|rg", Summary: "location or declared tags differ",
+		Diffs: []FieldDiff{
+			{Field: "location", Old: "eastus", New: "westus2"},
+			{Field: "tag config_version", Old: "0.13.0", New: "0.14.0"},
+		},
+	}}
+	verbose := renderPlanBlock(changes, true)
+	plain := color.ClearCode(verbose)
+	for _, want := range []string{"      location: eastus -> westus2", "      tag config_version: 0.13.0 -> 0.14.0"} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("verbose output %q missing %q", plain, want)
+		}
+	}
+	for line := range strings.SplitSeq(verbose, "\n") {
+		if strings.Contains(line, "->") && !strings.HasPrefix(line, yellowCode) {
+			t.Errorf("diff line %q not yellow", line)
+		}
+	}
+	terse := renderPlanBlock(changes, false)
+	if strings.Contains(color.ClearCode(terse), "location: eastus") {
+		t.Errorf("default output leaked diff detail: %q", terse)
+	}
+	if got, want := len(strings.Split(terse, "\n")), len(strings.Split(verbose, "\n"))-len(changes[0].Diffs); got != want {
+		t.Errorf("terse line count = %d, want %d", got, want)
+	}
+}
+
+func TestRenderFieldDiffForms(t *testing.T) {
+	cases := []struct {
+		diff FieldDiff
+		want string
+	}{
+		{FieldDiff{Field: "ttl", Old: "300", New: "600"}, "ttl: 300 -> 600"},
+		{FieldDiff{Field: "members added", New: "alice, carol"}, "members added: alice, carol"},
+		{FieldDiff{Field: "members removed", Old: "bob"}, "members removed: bob"},
+	}
+	for _, c := range cases {
+		if got := renderFieldDiff(c.diff); got != c.want {
+			t.Errorf("renderFieldDiff(%+v) = %q, want %q", c.diff, got, c.want)
+		}
 	}
 }

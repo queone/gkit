@@ -165,11 +165,10 @@ func (p *AzureProvider) requireDNSTarget() error {
 	return nil
 }
 
-// request sends an authenticated ARM or Graph REST request. It refuses to
-// attach the bearer token to any URL outside the two known provider
-// origins, and redacts non-2xx response bodies before they reach any
-// diagnostic or error message.
-func (p *AzureProvider) request(method, url string, body any) (any, error) {
+// send authorizes and performs one provider request, returning the raw
+// response. It refuses to attach the bearer token to any URL outside the
+// two known provider origins.
+func (p *AzureProvider) send(method, url string, body any) (*HTTPResponse, error) {
 	graph := strings.HasPrefix(url, "https://graph.microsoft.com/")
 	allowed := graph || strings.HasPrefix(url, "https://management.azure.com/")
 	if !allowed {
@@ -214,12 +213,29 @@ func (p *AzureProvider) request(method, url string, body any) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("send provider request: %w", err)
 	}
+	return resp, nil
+}
+
+// statusError renders a non-2xx provider response as a redacted error.
+func statusError(resp *HTTPResponse) error {
+	detail := sanitizeBody(resp.Body)
+	if detail == "" {
+		return fmt.Errorf("provider request failed with HTTP %d", resp.Status)
+	}
+	return fmt.Errorf("provider request failed with HTTP %d: %s", resp.Status, detail)
+}
+
+// request sends an authenticated ARM or Graph REST request. It refuses to
+// attach the bearer token to any URL outside the two known provider
+// origins, and redacts non-2xx response bodies before they reach any
+// diagnostic or error message.
+func (p *AzureProvider) request(method, url string, body any) (any, error) {
+	resp, err := p.send(method, url, body)
+	if err != nil {
+		return nil, err
+	}
 	if resp.Status < 200 || resp.Status >= 300 {
-		detail := sanitizeBody(resp.Body)
-		if detail == "" {
-			return nil, fmt.Errorf("provider request failed with HTTP %d", resp.Status)
-		}
-		return nil, fmt.Errorf("provider request failed with HTTP %d: %s", resp.Status, detail)
+		return nil, statusError(resp)
 	}
 	if len(resp.Body) == 0 {
 		return nil, nil
@@ -373,6 +389,27 @@ func (p *AzureProvider) EnsureZone(zone string) error {
 		armBase, pct(p.Subscription), pct(p.resourceGroup), pct(zone), dnsAPI)
 	_, err := p.request("PUT", url, map[string]any{"location": "global"})
 	return err
+}
+
+// HasZone reports whether the DNS zone exists in the target resource
+// group, distinguishing a missing zone from any other provider failure.
+func (p *AzureProvider) HasZone(zone string) (bool, error) {
+	if err := p.requireDNSTarget(); err != nil {
+		return false, err
+	}
+	url := fmt.Sprintf("%s/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/dnsZones/%s?api-version=%s",
+		armBase, pct(p.Subscription), pct(p.resourceGroup), pct(zone), dnsAPI)
+	resp, err := p.send("GET", url, nil)
+	if err != nil {
+		return false, err
+	}
+	if resp.Status == 404 {
+		return false, nil
+	}
+	if resp.Status < 200 || resp.Status >= 300 {
+		return false, statusError(resp)
+	}
+	return true, nil
 }
 
 func (p *AzureProvider) ListDNS(zone string) ([]DnsRecord, error) {

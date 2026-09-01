@@ -11,6 +11,9 @@ import (
 type fakeProvider struct {
 	assignments     []LiveAssignment
 	dns             []DnsRecord
+	zones           []string
+	ensured         []string
+	listed          []string
 	groups          []SecurityGroup
 	groupNames      []string
 	apps            []AppRegistration
@@ -19,16 +22,32 @@ type fakeProvider struct {
 	resourceGroups  []ResourceGroup
 }
 
-func (p *fakeProvider) EnsureZone(string) error             { return nil }
-func (p *fakeProvider) ListDNS(string) ([]DnsRecord, error) { return p.dns, nil }
-func (p *fakeProvider) PutDNS(DnsRecord) error              { return nil }
-func (p *fakeProvider) DeleteDNS(DnsRecord) error           { return nil }
-func (p *fakeProvider) ListGroupNames() ([]string, error)   { return p.groupNames, nil }
-func (p *fakeProvider) PutGroup(SecurityGroup) error        { return nil }
-func (p *fakeProvider) DeleteGroup(string) error            { return nil }
-func (p *fakeProvider) ListAppNames() ([]string, error)     { return p.appNames, nil }
-func (p *fakeProvider) PutApp(AppRegistration) error        { return nil }
-func (p *fakeProvider) DeleteApp(string) error              { return nil }
+func (p *fakeProvider) EnsureZone(zone string) error {
+	p.ensured = append(p.ensured, zone)
+	return nil
+}
+
+// HasZone treats a nil zone list as "every zone exists" so pre-existing
+// fixtures keep their behavior.
+func (p *fakeProvider) HasZone(zone string) (bool, error) {
+	if p.zones == nil {
+		return true, nil
+	}
+	return slices.Contains(p.zones, zone), nil
+}
+
+func (p *fakeProvider) ListDNS(zone string) ([]DnsRecord, error) {
+	p.listed = append(p.listed, zone)
+	return p.dns, nil
+}
+func (p *fakeProvider) PutDNS(DnsRecord) error            { return nil }
+func (p *fakeProvider) DeleteDNS(DnsRecord) error         { return nil }
+func (p *fakeProvider) ListGroupNames() ([]string, error) { return p.groupNames, nil }
+func (p *fakeProvider) PutGroup(SecurityGroup) error      { return nil }
+func (p *fakeProvider) DeleteGroup(string) error          { return nil }
+func (p *fakeProvider) ListAppNames() ([]string, error)   { return p.appNames, nil }
+func (p *fakeProvider) PutApp(AppRegistration) error      { return nil }
+func (p *fakeProvider) DeleteApp(string) error            { return nil }
 func (p *fakeProvider) ListRoleDefinitions(string) ([]RoleDefinition, error) {
 	return p.roleDefinitions, nil
 }
@@ -314,5 +333,145 @@ func TestApplyMidRunFailureReportsOnlyAppliedChanges(t *testing.T) {
 	}
 	if want := []string{"a"}; !slices.Equal(seen, want) {
 		t.Errorf("reported keys = %v, want only changes applied before the failure %v", seen, want)
+	}
+}
+
+func TestPlanMissingZonePlansZoneCreateBeforeItsRecords(t *testing.T) {
+	provider := &fakeProvider{zones: []string{"exists.com"}}
+	bundle := &Bundle{Dns: []DnsRecord{
+		{Zone: "new.com", RecordType: "A", Name: "www", TTL: 300, Values: []string{"192.0.2.1"}},
+		{Zone: "exists.com", RecordType: "A", Name: "www", TTL: 300, Values: []string{"192.0.2.2"}},
+	}}
+	changes, err := Plan(provider, bundle, &Options{})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if len(changes) != 3 {
+		t.Fatalf("changes = %+v, want 3 (existing-zone record, zone create, new-zone record)", changes)
+	}
+	if changes[0].Kind != "dnsRecordSet" || changes[0].Target.Dns.Zone != "exists.com" {
+		t.Errorf("changes[0] = %+v, want exists.com record create with no zone change", changes[0])
+	}
+	zone := changes[1]
+	if zone.Kind != "dnsZone" || zone.Action != ActionCreate || zone.Key != "dnsZone|new.com" ||
+		zone.Target.Kind != TargetZone || zone.Target.Zone != "new.com" {
+		t.Errorf("changes[1] = %+v, want dnsZone|new.com create", zone)
+	}
+	if changes[2].Kind != "dnsRecordSet" || changes[2].Action != ActionCreate || changes[2].Target.Dns.Zone != "new.com" {
+		t.Errorf("changes[2] = %+v, want new.com record create after its zone create", changes[2])
+	}
+	if want := []string{"exists.com"}; !slices.Equal(provider.listed, want) {
+		t.Errorf("ListDNS calls = %v, want %v (missing zone must not be listed)", provider.listed, want)
+	}
+}
+
+func TestApplyCreatesOnlyPlannedMissingZones(t *testing.T) {
+	provider := &fakeProvider{}
+	changes := []Change{
+		{Kind: "dnsZone", Action: ActionCreate, Key: "dnsZone|new.com", Target: Target{Kind: TargetZone, Zone: "new.com"}},
+		{Kind: "dnsRecordSet", Action: ActionCreate, Key: "www", Target: Target{Kind: TargetDns}},
+	}
+	var seen []string
+	if err := Apply(provider, changes, "sub", func(c Change) { seen = append(seen, c.Key) }); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	if want := []string{"new.com"}; !slices.Equal(provider.ensured, want) {
+		t.Errorf("EnsureZone calls = %v, want %v", provider.ensured, want)
+	}
+	if want := []string{"dnsZone|new.com", "www"}; !slices.Equal(seen, want) {
+		t.Errorf("reported keys = %v, want %v", seen, want)
+	}
+	noZones := &fakeProvider{}
+	if err := Apply(noZones, changes[1:], "sub", nil); err != nil {
+		t.Fatalf("Apply without zone changes: %v", err)
+	}
+	if len(noZones.ensured) != 0 {
+		t.Errorf("EnsureZone calls = %v, want none for existing zones", noZones.ensured)
+	}
+}
+
+func TestResourceGroupUpdateCarriesFieldDiffs(t *testing.T) {
+	provider := &fakeProvider{resourceGroups: []ResourceGroup{{
+		Name: "rg", Location: "eastus", Tags: map[string]string{"config_version": "0.13.0"},
+	}}}
+	bundle := &Bundle{ResourceGroups: []ResourceGroup{{
+		Name: "rg", Location: "eastus", Tags: map[string]string{"config_version": "0.14.0"},
+	}}}
+	changes, err := Plan(provider, bundle, &Options{})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if len(changes) != 1 || changes[0].Action != ActionUpdate {
+		t.Fatalf("changes = %+v, want one update", changes)
+	}
+	want := []FieldDiff{{Field: "tag config_version", Old: "0.13.0", New: "0.14.0"}}
+	if !slices.Equal(changes[0].Diffs, want) {
+		t.Errorf("Diffs = %+v, want %+v", changes[0].Diffs, want)
+	}
+}
+
+func TestLocationFormattingAloneIsNotDrift(t *testing.T) {
+	provider := &fakeProvider{resourceGroups: []ResourceGroup{{Name: "rg", Location: "eastus"}}}
+	sameRegion := &Bundle{ResourceGroups: []ResourceGroup{{Name: "rg", Location: "East US"}}}
+	changes, err := Plan(provider, sameRegion, &Options{})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if len(changes) != 0 {
+		t.Errorf("changes = %+v, want none for formatting-only location difference", changes)
+	}
+	otherRegion := &Bundle{ResourceGroups: []ResourceGroup{{Name: "rg", Location: "westus2"}}}
+	changes, err = Plan(provider, otherRegion, &Options{})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if len(changes) != 1 {
+		t.Fatalf("changes = %+v, want one update for a genuinely different region", changes)
+	}
+	want := []FieldDiff{{Field: "location", Old: "eastus", New: "westus2"}}
+	if !slices.Equal(changes[0].Diffs, want) {
+		t.Errorf("Diffs = %+v, want %+v", changes[0].Diffs, want)
+	}
+}
+
+func TestDnsUpdateCarriesFieldDiffs(t *testing.T) {
+	provider := &fakeProvider{dns: []DnsRecord{
+		{Zone: "example.com", RecordType: "A", Name: "www", TTL: 300, Values: []string{"192.0.2.1"}},
+	}}
+	bundle := &Bundle{Dns: []DnsRecord{
+		{Zone: "example.com", RecordType: "A", Name: "www", TTL: 600, Values: []string{"192.0.2.2"}},
+	}}
+	changes, err := Plan(provider, bundle, &Options{})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if len(changes) != 1 || changes[0].Action != ActionUpdate {
+		t.Fatalf("changes = %+v, want one update", changes)
+	}
+	want := []FieldDiff{
+		{Field: "ttl", Old: "300", New: "600"},
+		{Field: "values", Old: "192.0.2.1", New: "192.0.2.2"},
+	}
+	if !slices.Equal(changes[0].Diffs, want) {
+		t.Errorf("Diffs = %+v, want %+v", changes[0].Diffs, want)
+	}
+}
+
+func TestGroupUpdateCarriesAddedAndRemovedMembers(t *testing.T) {
+	provider := &fakeProvider{groups: []SecurityGroup{{Name: "eng", Members: []string{"alice", "bob"}}}}
+	bundle := &Bundle{Groups: []SecurityGroup{{Name: "eng", Members: []string{"alice", "carol"}}}}
+	changes, err := Plan(provider, bundle, &Options{})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	if len(changes) != 1 || changes[0].Action != ActionUpdate {
+		t.Fatalf("changes = %+v, want one update", changes)
+	}
+	want := []FieldDiff{
+		{Field: "members added", New: "carol"},
+		{Field: "members removed", Old: "bob"},
+	}
+	if !slices.Equal(changes[0].Diffs, want) {
+		t.Errorf("Diffs = %+v, want %+v", changes[0].Diffs, want)
 	}
 }

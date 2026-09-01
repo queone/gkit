@@ -35,6 +35,7 @@ type Overrides struct {
 	PruneResourceGroups *bool
 	Kind                string
 	Diagnostic          bool
+	Verbose             bool
 }
 
 // Settings is the fully resolved configuration attune runs with.
@@ -50,6 +51,7 @@ type Settings struct {
 	PruneResourceGroups bool
 	Kind                string
 	Diagnostic          bool
+	Verbose             bool
 }
 
 // Find walks upward from start looking for the nearest attune.yaml. A
@@ -240,6 +242,7 @@ func Resolve(config *Config, overrides Overrides) Settings {
 		PruneResourceGroups: false,
 		Kind:                overrides.Kind,
 		Diagnostic:          overrides.Diagnostic,
+		Verbose:             overrides.Verbose,
 	}
 	if config != nil {
 		if config.Provider != "" {
