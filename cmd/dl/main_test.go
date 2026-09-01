@@ -5,8 +5,25 @@ import (
 	"os"
 	"os/exec"
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestDenoHintShownOnlyWhenDenoMissing(t *testing.T) {
+	missing := func(string) (string, error) { return "", exec.ErrNotFound }
+	found := func(string) (string, error) { return "/opt/homebrew/bin/deno", nil }
+
+	hint := denoHint(missing)
+	if !strings.Contains(hint, "brew install deno") {
+		t.Errorf("missing-deno hint = %q, want it to name 'brew install deno'", hint)
+	}
+	if !strings.HasPrefix(hint, Yellow) || !strings.Contains(hint, Reset) {
+		t.Errorf("missing-deno hint = %q, want yellow-wrapped", hint)
+	}
+	if hint := denoHint(found); hint != "" {
+		t.Errorf("installed-deno hint = %q, want empty", hint)
+	}
+}
 
 func mustParse(t *testing.T, args ...string) dlOptions {
 	t.Helper()

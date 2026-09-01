@@ -23,7 +23,7 @@ const (
 
 const (
 	programName    = "dl"
-	programVersion = "2.2.0"
+	programVersion = "2.3.0"
 )
 
 const (
@@ -230,6 +230,17 @@ func ytDlpArgs(o dlOptions) []string {
 	return []string{"-f", buildFormat(o), "-o", o.filename, "--recode-video", "mp4", o.url}
 }
 
+// denoHint returns a yellow hint to install deno when yt-dlp has no
+// JavaScript runtime available, or an empty string when deno is installed.
+// yt-dlp needs a JS runtime for reliable YouTube extraction; without one it
+// falls back to deprecated clients with missing formats and more bot checks.
+func denoHint(lookPath func(string) (string, error)) string {
+	if _, err := lookPath("deno"); err == nil {
+		return ""
+	}
+	return fmt.Sprintf("%sHint: yt-dlp extracts YouTube best with a JavaScript runtime; run: brew install deno%s\n", Yellow, Reset)
+}
+
 // downloadVideo downloads a video as mp4 using yt-dlp
 func downloadVideo(o dlOptions) error {
 	// Get file extension in lowercase
@@ -248,6 +259,7 @@ func downloadVideo(o dlOptions) error {
 
 	// Download as MP4
 	fmt.Printf("==> %sDownloading to: %s%s\n", Green, o.filename, Reset)
+	fmt.Print(denoHint(exec.LookPath))
 	cmd := exec.Command("yt-dlp", ytDlpArgs(o)...)
 	highlighter := &ffmpegHighlighter{w: os.Stdout}
 	cmd.Stdout = highlighter
