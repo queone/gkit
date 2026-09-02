@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.61.1 | AC80: adopt govna v0.53.0 canon |
 | 0.61.0 | AC78+AC79: attune v1.2.0 plans zone creates; -V diffs; location normalize |
 | 0.60.0 | AC77: attune v1.1.0 yellow plan/green apply output; content_version key |
 | 0.59.0 | AC76: dl v2.3.0 yellow deno install hint |
