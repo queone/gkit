@@ -815,16 +815,6 @@ func chiSquaredCritical(df int) float64 {
 	return d * x * x * x
 }
 
-func countConsecPairs(combo []int) int {
-	count := 0
-	for i := 0; i < len(combo)-1; i++ {
-		if combo[i+1] == combo[i]+1 {
-			count++
-		}
-	}
-	return count
-}
-
 func formatNumber(n int) string {
 	s := fmt.Sprintf("%d", n)
 	var result []byte

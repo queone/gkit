@@ -71,10 +71,19 @@ func TestGenerateRecommendationsAvoidsHistoricalWinners(t *testing.T) {
 	winners := buildWinnersSet(draws)
 	recs := generateRecommendations(draws, winners)
 
-	if len(recs) != 5 {
-		t.Fatalf("len(recs) = %d, want 5", len(recs))
+	wantStrategies := []string{
+		"Most common by position",
+		"Most frequent",
+		"Hot numbers last 30 days",
+		"Least common by position",
 	}
-	for _, r := range recs {
+	if len(recs) != len(wantStrategies) {
+		t.Fatalf("len(recs) = %d, want %d", len(recs), len(wantStrategies))
+	}
+	for i, r := range recs {
+		if r.strategy != wantStrategies[i] {
+			t.Errorf("recs[%d].strategy = %q, want %q", i, r.strategy, wantStrategies[i])
+		}
 		key := sortedKey(r.numbers)
 		if winners[key] {
 			t.Errorf("recommendation %v (strategy %q) is a historical winner",

@@ -16,7 +16,7 @@ import (
 
 const (
 	programName     = "cash5"
-	programVersion  = "0.13.0"
+	programVersion  = "0.14.0"
 	lottery_warning = "This is basically lighting money on fire! Play for fun, not profit 😀"
 )
 
@@ -292,7 +292,7 @@ type recommendation struct {
 	strategy string
 }
 
-// generateRecommendations creates 5 recommendations based on statistical
+// generateRecommendations creates 4 recommendations based on statistical
 // analysis. Every returned combination is absent from the winners set; on
 // collision each strategy performs a deterministic single-element swap to the
 // next-ranked alternative within its own ranking.
@@ -367,10 +367,6 @@ func generateRecommendations(uniqueDraws []Draw, winners map[[5]int]bool) []reco
 	if combo := firstUnwonByPositionSwap(leastPerPos, winners, 50); combo != nil {
 		recs = append(recs, recommendation{combo, "Least common by position"})
 	}
-
-	// 5. Consecutive pair avoidance — the one statistically grounded signal
-	consecCombo := generateConsecAvoidComboUnique(winners)
-	recs = append(recs, recommendation{consecCombo, "Consecutive pair avoidance"})
 
 	return recs
 }
@@ -497,34 +493,6 @@ func generateRandomUnwonCombo(winners map[[5]int]bool) []int {
 	return generateRandomCombo()
 }
 
-// generateConsecAvoidComboUnique is the consec-avoid strategy with a winners
-// filter applied: candidates already in winners are rejected outright.
-func generateConsecAvoidComboUnique(winners map[[5]int]bool) []int {
-	var bestCombo []int
-	bestConsec := 0
-	for range 1000 {
-		combo := generateRandomCombo()
-		var key [5]int
-		copy(key[:], combo)
-		if winners[key] {
-			continue
-		}
-		consec := countConsecPairs(combo)
-		if bestCombo == nil || consec < bestConsec {
-			bestCombo = combo
-			bestConsec = consec
-			if bestConsec == 0 {
-				break
-			}
-		}
-	}
-	if bestCombo == nil {
-		fmt.Fprintln(os.Stderr, "cash5: consec-avoid perturbation cap hit; falling back to random unwon combo")
-		return generateRandomUnwonCombo(winners)
-	}
-	return bestCombo
-}
-
 func printUsage() {
 	n := color.Whi5(programName)
 	v := programVersion
@@ -547,7 +515,7 @@ func printUsage() {
 		"%s\n"+
 		"  1. Display the last 10 draws\n"+
 		"  2. Show current jackpot, last winning numbers, and closest matches\n"+
-		"  3. Recommend 5 sets of numbers based on statistics\n"+
+		"  3. Recommend 4 sets of numbers based on statistics\n"+
 		"\n"+
 		"%s\n"+
 		"  %s\n"+
