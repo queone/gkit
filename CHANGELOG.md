@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.76.0 | AC98: macfit v1.6.0 ls sorts by host, then target; -S sort by target or captured |
 | 0.75.0 | AC97: macfit v1.5.0 bare st verdict, host-bound add, set verb, ls host first |
 | 0.74.0 | AC96: macfit v1.4.0 render store to a directory, cat one file, st shows mtime |
 | 0.73.0 | AC95: macfit v1.3.0 st status screen, symlink-aware push/diff, conflict match |

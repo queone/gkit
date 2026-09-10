@@ -21,7 +21,7 @@ import (
 	"golang.org/x/term"
 )
 
-const programVersion = "1.5.0"
+const programVersion = "1.6.0"
 
 // storeSource names where the store path came from.
 type storeSource string
@@ -118,7 +118,7 @@ func usage() string {
 		"  macfit add PATH... [-H HOST|-g]     register live files for this Mac and capture them\n" +
 		"  macfit set TARGET [flags]           change an entry's Mac binding or mode (-H, -g, -m, -F)\n" +
 		"  macfit rm TARGET [-H HOST]          forget a file and its stored versions\n" +
-		"  macfit ls                           list entries\n" +
+		"  macfit ls [-S FIELD]                list entries by host, or by target or captured\n" +
 		"  macfit push [TARGET...]             send changed live files into the store\n" +
 		"  macfit pull [TARGET...] [-f]        plan the restore, or write it with -f\n" +
 		"  macfit diff [TARGET...] [-V]        show drift between the store and this Mac\n" +
@@ -135,6 +135,7 @@ func usage() string {
 		"  -g, --global       Make the entry apply on every Mac (add, set)\n" +
 		"  -m, --mode MODE    Store a new mode, three or four octal digits (set)\n" +
 		"  -F, --from WHICH   Pick the entry to change by its binding: a host name or global (set)\n" +
+		"  -S, --sort FIELD   Sort ls by host (the default), target, or captured, newest first\n" +
 		"  -l, --literal      Keep the path under ~ instead of an XDG variable (add)\n" +
 		"  -n, --dry-run      Print the pull plan; the default, kept for scripts\n" +
 		"  -f, --force        Write the pull plan, overwriting live files that differ; skip the key rm prompt\n" +
@@ -680,9 +681,17 @@ func (a *app) pickEntry(all []lockbox.Entry, arg, host string, explicit bool) *l
 	return pick
 }
 
+// lsSorts names the fields ls can sort by.
+var lsSorts = []string{"host", "target", "captured"}
+
 func (a *app) cmdLs(ref storeRef, args []string) int {
-	if len(args) > 0 {
-		a.errorf("ls takes no arguments; run `macfit help`")
+	flags, pos, err := parseArgs(args, []flagSpec{{"-S", "--sort", true}})
+	field := "host"
+	if v, ok := flags["--sort"]; ok {
+		field = v
+	}
+	if err != nil || len(pos) > 0 || !slices.Contains(lsSorts, field) {
+		a.errorf("ls: usage: macfit ls [-S host|target|captured]")
 		return 2
 	}
 	st, err := a.openStore(ref.path)
@@ -696,8 +705,39 @@ func (a *app) cmdLs(ref storeRef, args []string) int {
 		a.errorf("ls: %s", err)
 		return 1
 	}
-	rows := [][]string{{"HOST", "OWNER_GROUP", "MODE", "CAPTURED", "TARGET"}}
+	type lsRow struct {
+		e        lockbox.Entry
+		captured time.Time
+	}
+	items := make([]lsRow, 0, len(all))
 	for _, e := range all {
+		row := lsRow{e: e}
+		if v, ok, err := st.Latest(e.ID); err == nil && ok {
+			row.captured = v.CapturedAt
+		}
+		items = append(items, row)
+	}
+	slices.SortStableFunc(items, func(x, y lsRow) int {
+		switch field {
+		case "target":
+			if c := strings.Compare(x.e.Target, y.e.Target); c != 0 {
+				return c
+			}
+			return strings.Compare(x.e.Host, y.e.Host)
+		case "captured":
+			if c := y.captured.Compare(x.captured); c != 0 {
+				return c
+			}
+			return strings.Compare(x.e.Target, y.e.Target)
+		}
+		if c := strings.Compare(x.e.Host, y.e.Host); c != 0 {
+			return c
+		}
+		return strings.Compare(x.e.Target, y.e.Target)
+	})
+	rows := [][]string{{"HOST", "OWNER_GROUP", "MODE", "CAPTURED", "TARGET"}}
+	for _, it := range items {
+		e := it.e
 		host := e.Host
 		if host == "" {
 			host = "<global>"
@@ -707,8 +747,8 @@ func (a *app) cmdLs(ref storeRef, args []string) int {
 			owner = e.Owner + ":" + e.Group
 		}
 		captured := "-"
-		if v, ok, err := st.Latest(e.ID); err == nil && ok {
-			captured = v.CapturedAt.Local().Format(time.DateTime)
+		if !it.captured.IsZero() {
+			captured = it.captured.Local().Format(time.DateTime)
 		}
 		rows = append(rows, []string{host, owner, fmt.Sprintf("%04o", e.Mode), captured, e.Target})
 	}

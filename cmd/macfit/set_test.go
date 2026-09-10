@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/queone/gkit/internal/color"
 	"github.com/queone/gkit/internal/lockbox"
@@ -224,6 +225,50 @@ func TestParseMode(t *testing.T) {
 	for _, bad := range []string{"", "6", "66", "08", "1777", "0x1", "rw-"} {
 		if _, err := parseMode(bad); err == nil {
 			t.Fatalf("parseMode(%q) accepted", bad)
+		}
+	}
+}
+
+func TestLsSortsByHostThenTargetAndByFlag(t *testing.T) {
+	h := newHarness(t)
+	h.app.host = "np11"
+	h.mustRun("init", "-N")
+	zsh := h.write(".zshrc", "z\n", 0o644)
+	bashrc := h.write(".bashrc", "b\n", 0o644)
+	h.mustRun("add", zsh, "-g")
+	h.mustRun("add", bashrc, "-H", "np10")
+	h.mustRun("add", bashrc, "-H", "np11")
+	h.mustRun("add", zsh)
+	h.write(".zshrc", "z2\n", 0o644)
+	time.Sleep(1100 * time.Millisecond) // capture times are stored to the second
+	h.mustRun("push", "~/.zshrc")
+
+	targets := func(out string) []string {
+		var seq []string
+		for _, l := range strings.Split(strings.TrimSuffix(out, "\n"), "\n")[1:] {
+			f := regexp.MustCompile(`\s{2,}`).Split(l, -1)
+			seq = append(seq, f[0]+" "+f[4])
+		}
+		return seq
+	}
+	want := []string{"<global> ~/.zshrc", "np10 ~/.bashrc", "np11 ~/.bashrc", "np11 ~/.zshrc"}
+	if got := targets(h.mustRun("ls")); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("default order %v, want %v", got, want)
+	}
+	if got := targets(h.mustRun("ls", "-S", "host")); strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("-S host %v, want %v", got, want)
+	}
+	wantTarget := []string{"np10 ~/.bashrc", "np11 ~/.bashrc", "<global> ~/.zshrc", "np11 ~/.zshrc"}
+	if got := targets(h.mustRun("ls", "-S", "target")); strings.Join(got, ",") != strings.Join(wantTarget, ",") {
+		t.Fatalf("-S target %v, want %v", got, wantTarget)
+	}
+	got := targets(h.mustRun("ls", "--sort=captured"))
+	if got[0] != "np11 ~/.zshrc" {
+		t.Fatalf("-S captured must put the newest capture first: %v", got)
+	}
+	for _, args := range [][]string{{"ls", "-S", "owner"}, {"ls", "extra"}, {"ls", "-S"}} {
+		if code, _, _ := h.run(args...); code != 2 {
+			t.Fatalf("%v: code %d, want 2", args, code)
 		}
 	}
 }

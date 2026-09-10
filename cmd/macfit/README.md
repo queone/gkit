@@ -49,7 +49,7 @@ If the passphrase or the key ever leaks, create a new store with `init -N -s NEW
 - `macfit pull [TARGET...]` prints the plan and writes nothing: `unchanged`, `would write` for a missing file, `would overwrite` for a differing one, `symlink` for a live symlink. `macfit pull -f` writes the plan, creating parent directories (0700 for a 0600 file, else 0755) and setting the mode; it never writes through a symlink. `-n` is accepted and means the plan, even next to `-f`.
 - `macfit diff [TARGET...] [-V]` prints `=` same, `M` differs, `?` live file missing, one line per entry, and exits 1 when anything drifted. `-V` adds a unified diff block, set off by blank lines.
 - Colors on a terminal, plain when piped: grey for `=` and `unchanged`, yellow for `M`, `differs`, `would overwrite`, and `missing`, orange for `?`, green for `would write`, `restored`, `added`, and `updated`, red for `symlink`. Inside a diff block the headers are dark grey, unchanged lines grey, and removed and added lines light yellow.
-- `macfit ls` lists every entry: host (`<global>` for a global one), owner and group as recorded on the Mac that added or last pushed it, mode, last capture time, and target. `macfit rm TARGET [-H HOST]` removes one.
+- `macfit ls [-S FIELD]` lists every entry: host (`<global>` for a global one), owner and group as recorded on the Mac that added or last pushed it, mode, last capture time, and target. Rows are sorted by host, global first, then target; `-S target` or `-S captured` (newest first) reorders them. `macfit rm TARGET [-H HOST]` removes one.
 - `macfit st`, or just `macfit`, prints one status screen: the store path and where it came from, the remembered path, the store file's size, generation, and modification time (to see whether the other Mac's push has arrived), the key id and whether the keychain key opens the store, this Mac's hostname as `-H` sees it, entry counts, sync conflict copies, and the drift verdict: green `none`, or red `M` and `?` counts. Exit 0 with no drift, 1 with drift or when the store does not open, so `macfit && echo clean` works. On a terminal the values are dark grey, `store opens` is green or red, and conflict copies are yellow.
 - `push` and `diff` refuse a live path that has become a symlink, as `pull` does, so a link is never read into the store or compared as if it were the file.
 - `macfit render [-o DIR] [-a] [-f]` writes the latest stored copy of every entry into a directory tree shaped like the targets: `~/.bashrc` lands at `any/HOME/.bashrc`, `$XDG_CONFIG_HOME/git/config` at `any/XDG_CONFIG_HOME/git/config`, and an entry bound to `np11` under `np11/`. Files keep their stored mode, directories are 0700, and `MANIFEST.txt` at the top lists every file with its target, host, mode, generation, capture time, and digest. By default the tree goes into a fresh private temp directory whose path is printed; `-o DIR` chooses a place and refuses a non-empty one unless `-f`; `-a` adds every stored version under `versions/`. The copies are plaintext, so delete the directory when done.
@@ -69,7 +69,7 @@ A TARGET is either the template as `ls` shows it (`$XDG_CONFIG_HOME/git/config`)
 ### Usage
 
 ```text
-macfit v1.5.0
+macfit v1.6.0
 Keep Mac config files in one encrypted store and restore them on any Mac.
 
 Overview
@@ -85,7 +85,7 @@ Usage
   macfit add PATH... [-H HOST|-g]     register live files for this Mac and capture them
   macfit set TARGET [flags]           change an entry's Mac binding or mode (-H, -g, -m, -F)
   macfit rm TARGET [-H HOST]          forget a file and its stored versions
-  macfit ls                           list entries
+  macfit ls [-S FIELD]                list entries by host, or by target or captured
   macfit push [TARGET...]             send changed live files into the store
   macfit pull [TARGET...] [-f]        plan the restore, or write it with -f
   macfit diff [TARGET...] [-V]        show drift between the store and this Mac
@@ -103,13 +103,14 @@ Options
   -g, --global       Make the entry apply on every Mac (add, set)
   -m, --mode MODE    Store a new mode, three or four octal digits (set)
   -F, --from WHICH   Pick the entry to change by its binding: a host name or global (set)
+  -S, --sort FIELD   Sort ls by host (the default), target, or captured, newest first
   -l, --literal      Keep the path under ~ instead of an XDG variable (add)
   -n, --dry-run      Print the pull plan; the default, kept for scripts
   -f, --force        Write the pull plan, overwriting live files that differ; skip the key rm prompt
   -V, --verbose      Add a unified diff to diff output
   -o, --out DIR      Render into DIR instead of a fresh private temp directory (render)
   -a, --all          Render every stored version too, under versions/ (render)
-  -v, --version      Print macfit v1.5.0 and exit
+  -v, --version      Print macfit v1.6.0 and exit
   -h, -?, --help     Show this help message and exit
 
 Notes

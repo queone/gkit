@@ -165,7 +165,7 @@ func (h *harness) pointer() string {
 func TestVersionAndHelp(t *testing.T) {
 	h := newHarness(t)
 	for _, arg := range []string{"--version", "-v", "v", "version"} {
-		if code, out, errs := h.runRaw(arg); code != 0 || out != "macfit v1.5.0\n" || errs != "" {
+		if code, out, errs := h.runRaw(arg); code != 0 || out != "macfit v1.6.0\n" || errs != "" {
 			t.Fatalf("%s: code %d stdout %q stderr %q", arg, code, out, errs)
 		}
 	}
@@ -194,7 +194,7 @@ func TestHelpLayoutMatchesTheOtherUtilities(t *testing.T) {
 			t.Fatalf("%s: code %d", arg, code)
 		}
 		lines := strings.Split(out, "\n")
-		if lines[0] != "macfit v1.5.0" {
+		if lines[0] != "macfit v1.6.0" {
 			t.Fatalf("%s: first line %q", arg, lines[0])
 		}
 		if lines[1] != "Keep Mac config files in one encrypted store and restore them on any Mac." {
@@ -208,7 +208,7 @@ func TestHelpLayoutMatchesTheOtherUtilities(t *testing.T) {
 			}
 			last = idx
 		}
-		for _, want := range []string{"  -N, --new ", "  -h, -?, --help     Show this help message and exit", "Store path order: -s, then MACFIT_STORE", "plan the restore, or write it with -f", "Print the pull plan; the default", "  macfit render [-o DIR] [-a] [-f]", "  macfit cat TARGET [-H HOST]", "  -o, --out DIR ", "  -a, --all ", "  macfit [st] ", "  macfit set TARGET [flags]", "  -g, --global ", "  -m, --mode MODE ", "  -F, --from WHICH ", "register live files for this Mac"} {
+		for _, want := range []string{"  -N, --new ", "  -h, -?, --help     Show this help message and exit", "Store path order: -s, then MACFIT_STORE", "plan the restore, or write it with -f", "Print the pull plan; the default", "  macfit render [-o DIR] [-a] [-f]", "  macfit cat TARGET [-H HOST]", "  -o, --out DIR ", "  -a, --all ", "  macfit [st] ", "  macfit set TARGET [flags]", "  -g, --global ", "  -m, --mode MODE ", "  -F, --from WHICH ", "  -S, --sort FIELD ", "  macfit ls [-S FIELD]", "register live files for this Mac"} {
 			if !strings.Contains(out, want) {
 				t.Fatalf("%s: help lacks %q", arg, want)
 			}
@@ -222,7 +222,7 @@ func TestHelpHeaderAndHeadingsAreColoredLikeSkout(t *testing.T) {
 	defer color.SetEnabled(true)()
 	_, out, _ := h.runRaw("help")
 	lines := strings.Split(out, "\n")
-	if lines[0] != color.Bold(color.Gra10("macfit"))+" v1.5.0" {
+	if lines[0] != color.Bold(color.Gra10("macfit"))+" v1.6.0" {
 		t.Fatalf("first line %q", lines[0])
 	}
 	if lines[1] != color.Gra5("Keep Mac config files in one encrypted store and restore them on any Mac.") {
