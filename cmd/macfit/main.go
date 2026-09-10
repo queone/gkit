@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/queone/gkit/internal/color"
@@ -22,7 +21,7 @@ import (
 	"golang.org/x/term"
 )
 
-const programVersion = "1.4.0"
+const programVersion = "1.5.0"
 
 // storeSource names where the store path came from.
 type storeSource string
@@ -114,9 +113,10 @@ func usage() string {
 		"  lives in the login keychain, with a passphrase-wrapped copy in the store\n" +
 		"  for other Macs.\n\n" +
 		heading("Usage") + "\n" +
+		"  macfit [st]                         status of the store, key, and drift; no command means st\n" +
 		"  macfit init [-N]                    unlock an existing store, or create one with -N\n" +
-		"  macfit st                           status of the store, key, and drift on this Mac\n" +
-		"  macfit add PATH... [-H HOST] [-l]   register live files and capture them\n" +
+		"  macfit add PATH... [-H HOST|-g]     register live files for this Mac and capture them\n" +
+		"  macfit set TARGET [flags]           change an entry's Mac binding or mode (-H, -g, -m, -F)\n" +
 		"  macfit rm TARGET [-H HOST]          forget a file and its stored versions\n" +
 		"  macfit ls                           list entries\n" +
 		"  macfit push [TARGET...]             send changed live files into the store\n" +
@@ -131,7 +131,10 @@ func usage() string {
 		heading("Options") + "\n" +
 		"  -s, --store PATH   Store file for this command; init -s also remembers it\n" +
 		"  -N, --new          Create a new store (init)\n" +
-		"  -H, --host NAME    Bind the entry to one Mac (add, rm)\n" +
+		"  -H, --host NAME    Bind the entry to another Mac (add, set, rm, cat)\n" +
+		"  -g, --global       Make the entry apply on every Mac (add, set)\n" +
+		"  -m, --mode MODE    Store a new mode, three or four octal digits (set)\n" +
+		"  -F, --from WHICH   Pick the entry to change by its binding: a host name or global (set)\n" +
 		"  -l, --literal      Keep the path under ~ instead of an XDG variable (add)\n" +
 		"  -n, --dry-run      Print the pull plan; the default, kept for scripts\n" +
 		"  -f, --force        Write the pull plan, overwriting live files that differ; skip the key rm prompt\n" +
@@ -144,6 +147,7 @@ func usage() string {
 		"  Store path order: -s, then MACFIT_STORE, then the path init -s remembered in\n" +
 		"  $XDG_CONFIG_HOME/macfit/store, then $XDG_DATA_HOME/macfit/macfit.store.\n" +
 		"  A TARGET is the template ls shows ($XDG_CONFIG_HOME/git/config) or the live path.\n" +
+		"  add binds a file to this Mac unless -g; on a Mac, its own entry wins over a global one.\n" +
 		"  init needs a terminal for the passphrase prompt and creates only the default folder.\n" +
 		"  render writes plaintext copies of the store; delete the directory when done.\n" +
 		"  Files only: no directories, globs, or symlinks. macOS defaults settings are a planned addition.\n"
@@ -159,7 +163,7 @@ func (a *app) run(args []string) int {
 		fmt.Fprintf(a.stdout, "macfit v%s\n", programVersion)
 		return 0
 	}
-	if len(args) == 0 || (len(args) == 1 && isHelpArg(args[0])) {
+	if len(args) == 1 && isHelpArg(args[0]) {
 		fmt.Fprint(a.stdout, usage())
 		return 0
 	}
@@ -168,7 +172,10 @@ func (a *app) run(args []string) int {
 		a.errorf("%s; run `macfit help`", err)
 		return 2
 	}
-	if len(rest) == 0 || isHelpArg(rest[0]) {
+	if len(rest) == 0 {
+		rest = []string{"st"}
+	}
+	if isHelpArg(rest[0]) {
 		fmt.Fprint(a.stdout, usage())
 		return 0
 	}
@@ -201,6 +208,8 @@ func (a *app) run(args []string) int {
 		return a.cmdDiff(ref, vargs)
 	case "key":
 		return a.cmdKey(ref, vargs)
+	case "set":
+		return a.cmdSet(ref, vargs)
 	case "render":
 		return a.cmdRender(ref, vargs)
 	case "cat":
@@ -529,12 +538,18 @@ func forHost(h string) string {
 }
 
 func (a *app) cmdAdd(ref storeRef, args []string) int {
-	flags, pos, err := parseArgs(args, []flagSpec{{"-H", "--host", true}, {"-l", "--literal", false}})
-	if err != nil || len(pos) == 0 {
-		a.errorf("add: usage: macfit add PATH... [-H HOST] [-l]")
+	flags, pos, err := parseArgs(args, []flagSpec{{"-H", "--host", true}, {"-g", "--global", false}, {"-l", "--literal", false}})
+	_, explicitHost := flags["--host"]
+	global := flags["--global"] == "true"
+	if err != nil || len(pos) == 0 || (explicitHost && global) {
+		a.errorf("add: usage: macfit add PATH... [-H HOST | -g] [-l]")
 		return 2
 	}
-	host := flags["--host"]
+	host, err := a.bindingFor(flags["--host"], explicitHost, global)
+	if err != nil {
+		a.errorf("add: %s", err)
+		return 1
+	}
 	literal := flags["--literal"] == "true"
 	st, err := a.openStore(ref.path)
 	if err != nil {
@@ -581,7 +596,7 @@ func (a *app) addOne(st *lockbox.Store, p, host string, literal bool) error {
 	if literal {
 		target = a.env.Literal(abs)
 	}
-	e, err := st.AddEntry(target, info.Mode().Perm(), host)
+	e, err := st.AddEntry(target, info.Mode().Perm(), host, fileOwnership(info))
 	if errors.Is(err, lockbox.ErrExists) {
 		return fmt.Errorf("%s is already registered%s; use `macfit push` to store its current content", target, forHost(host))
 	}
@@ -591,7 +606,7 @@ func (a *app) addOne(st *lockbox.Store, p, host string, literal bool) error {
 	if _, err := st.AddVersion(e.ID, content, a.host); err != nil {
 		return err
 	}
-	fmt.Fprintln(a.stdout, status("added", fmt.Sprintf("%s (mode %04o%s)", target, e.Mode, forHost(host))))
+	fmt.Fprintln(a.stdout, status("added", fmt.Sprintf("%s (mode %04o, %s)", target, e.Mode, bindingOf(host))))
 	return nil
 }
 
@@ -681,20 +696,42 @@ func (a *app) cmdLs(ref storeRef, args []string) int {
 		a.errorf("ls: %s", err)
 		return 1
 	}
-	w := tabwriter.NewWriter(a.stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "TARGET\tMODE\tHOST\tCAPTURED")
+	rows := [][]string{{"HOST", "OWNER_GROUP", "MODE", "CAPTURED", "TARGET"}}
 	for _, e := range all {
 		host := e.Host
 		if host == "" {
-			host = "-"
+			host = "<global>"
+		}
+		owner := "?:?"
+		if e.Known() {
+			owner = e.Owner + ":" + e.Group
 		}
 		captured := "-"
 		if v, ok, err := st.Latest(e.ID); err == nil && ok {
 			captured = v.CapturedAt.Local().Format(time.DateTime)
 		}
-		fmt.Fprintf(w, "%s\t%04o\t%s\t%s\n", e.Target, e.Mode, host, captured)
+		rows = append(rows, []string{host, owner, fmt.Sprintf("%04o", e.Mode), captured, e.Target})
 	}
-	w.Flush()
+	widths := make([]int, len(rows[0]))
+	for _, r := range rows {
+		for i, c := range r {
+			widths[i] = max(widths[i], len(c))
+		}
+	}
+	for ri, r := range rows {
+		cells := make([]string, len(r))
+		for i, c := range r {
+			cell := c
+			if i < len(r)-1 {
+				cell = fmt.Sprintf("%-*s", widths[i], c)
+			}
+			if ri > 0 {
+				cell = color.Gra4(cell)
+			}
+			cells[i] = cell
+		}
+		fmt.Fprintln(a.stdout, strings.Join(cells, "  "))
+	}
 	return 0
 }
 
@@ -768,10 +805,18 @@ func (a *app) cmdPush(ref storeRef, args []string) int {
 			rc = 1
 			continue
 		}
+		own := fileOwnership(info)
+		sameOwner := !own.Known() || own == e.Ownership
 		sameContent := ok && latest.SHA256 == lockbox.Digest(content)
-		if sameContent && mode == e.Mode {
+		if sameContent && mode == e.Mode && sameOwner {
 			fmt.Fprintln(a.stdout, status("unchanged", e.Target))
 			continue
+		}
+		if !sameOwner {
+			if err := st.SetOwner(e.ID, own); err != nil {
+				a.errorf("push: %s: %s", e.Target, err)
+				return 1
+			}
 		}
 		if mode != e.Mode {
 			if err := st.SetMode(e.ID, mode); err != nil {
@@ -892,7 +937,7 @@ func paint(word, line string) string {
 		return color.Yel5(line)
 	case "?":
 		return color.Org5(line)
-	case "would write", "restored", "added", "updated":
+	case "would write", "restored", "added", "updated", "set":
 		return color.Grn5(line)
 	case "symlink":
 		return color.Red5(line)
@@ -1123,21 +1168,12 @@ func (a *app) cmdSt(ref storeRef, args []string) int {
 		}
 		counts[mark]++
 	}
-	same := color.Gra4(fmt.Sprintf("= %d", counts["="]))
-	modified := fmt.Sprintf("M %d", counts["M"])
-	if counts["M"] > 0 {
-		modified = color.Yel5(modified)
-	} else {
-		modified = color.Gra4(modified)
+	if counts["M"] == 0 && counts["?"] == 0 {
+		kv("drift", color.Grn5("none"))
+		return rc
 	}
-	missing := fmt.Sprintf("? %d", counts["?"])
-	if counts["?"] > 0 {
-		missing = color.Red5(missing)
-	} else {
-		missing = color.Gra4(missing)
-	}
-	kv("drift", same+", "+modified+", "+missing)
-	return rc
+	kv("drift", color.Red5(fmt.Sprintf("M %d, ? %d", counts["M"], counts["?"])))
+	return 1
 }
 
 func splitLines(b []byte) []string {

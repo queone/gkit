@@ -14,7 +14,7 @@ import (
 	_ "modernc.org/sqlite" // registers the pure-Go "sqlite" driver
 )
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 const schemaSQL = `
 create table if not exists meta(
@@ -26,6 +26,10 @@ create table if not exists entries(
 	target text not null,
 	mode integer not null,
 	host text not null default '',
+	uid integer,
+	gid integer,
+	owner text,
+	grp text,
 	unique(target, host)
 );
 create table if not exists versions(
@@ -138,11 +142,44 @@ func Load(path string, key []byte) (*Store, error) {
 		s.Close()
 		return nil, ErrSchema
 	}
-	if v != strconv.Itoa(schemaVersion) {
+	switch v {
+	case "1":
+		if err := s.migrateV1(); err != nil {
+			s.Close()
+			return nil, fmt.Errorf("migrate store schema: %w", err)
+		}
+	case strconv.Itoa(schemaVersion):
+	default:
 		s.Close()
 		return nil, fmt.Errorf("%w: version %s", ErrSchema, v)
 	}
 	return s, nil
+}
+
+// migrateV1 upgrades a version-1 image in memory: entries gain the
+// ownership columns. The next Save writes the upgraded image back.
+func (s *Store) migrateV1() error {
+	for _, stmt := range []string{
+		"alter table entries add column uid integer",
+		"alter table entries add column gid integer",
+		"alter table entries add column owner text",
+		"alter table entries add column grp text",
+		"update meta set value = '2' where key = 'schema_version'",
+	} {
+		if _, err := s.conn.ExecContext(bg, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SchemaVersion reports the schema version of the loaded image.
+func (s *Store) SchemaVersion() (int, error) {
+	var v string
+	if err := s.conn.QueryRowContext(bg, "select value from meta where key = 'schema_version'").Scan(&v); err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(v)
 }
 
 func (s *Store) prepare() error {
@@ -195,7 +232,7 @@ func (s *Store) Close() error {
 
 // Entries lists every registered entry ordered by target, then host.
 func (s *Store) Entries() ([]Entry, error) {
-	rows, err := s.conn.QueryContext(bg, "select id, target, mode, host from entries order by target, host")
+	rows, err := s.conn.QueryContext(bg, "select id, target, mode, host, uid, gid, owner, grp from entries order by target, host")
 	if err != nil {
 		return nil, err
 	}
@@ -204,26 +241,42 @@ func (s *Store) Entries() ([]Entry, error) {
 	for rows.Next() {
 		var e Entry
 		var mode int64
-		if err := rows.Scan(&e.ID, &e.Target, &mode, &e.Host); err != nil {
+		var uid, gid sql.NullInt64
+		var owner, group sql.NullString
+		if err := rows.Scan(&e.ID, &e.Target, &mode, &e.Host, &uid, &gid, &owner, &group); err != nil {
 			return nil, err
 		}
 		e.Mode = os.FileMode(mode)
+		e.Ownership = UnknownOwnership
+		if uid.Valid && gid.Valid {
+			e.Ownership = Ownership{UID: uid.Int64, GID: gid.Int64, Owner: owner.String, Group: group.String}
+		}
 		out = append(out, e)
 	}
 	return out, rows.Err()
 }
 
-// AddEntry registers target with mode for host ("" for any Mac). It returns
-// ErrExists when that target and host pair is already registered.
-func (s *Store) AddEntry(target string, mode os.FileMode, host string) (Entry, error) {
+func (s *Store) hasEntry(target, host string) (bool, error) {
 	var n int
 	if err := s.conn.QueryRowContext(bg, "select count(*) from entries where target = ? and host = ?", target, host).Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// AddEntry registers target with mode, host ("" for every Mac), and
+// ownership. It returns ErrExists when that target and host pair is already
+// registered.
+func (s *Store) AddEntry(target string, mode os.FileMode, host string, own Ownership) (Entry, error) {
+	exists, err := s.hasEntry(target, host)
+	if err != nil {
 		return Entry{}, err
 	}
-	if n > 0 {
+	if exists {
 		return Entry{}, ErrExists
 	}
-	res, err := s.conn.ExecContext(bg, "insert into entries(target, mode, host) values (?, ?, ?)", target, int64(mode.Perm()), host)
+	args := append([]any{target, int64(mode.Perm()), host}, ownerArgs(own)...)
+	res, err := s.conn.ExecContext(bg, "insert into entries(target, mode, host, uid, gid, owner, grp) values (?, ?, ?, ?, ?, ?, ?)", args...)
 	if err != nil {
 		return Entry{}, err
 	}
@@ -231,7 +284,43 @@ func (s *Store) AddEntry(target string, mode os.FileMode, host string) (Entry, e
 	if err != nil {
 		return Entry{}, err
 	}
-	return Entry{ID: id, Target: target, Mode: mode.Perm(), Host: host}, nil
+	if !own.Known() {
+		own = UnknownOwnership
+	}
+	return Entry{ID: id, Target: target, Mode: mode.Perm(), Host: host, Ownership: own}, nil
+}
+
+// ownerArgs renders ownership as SQL arguments, NULL when unknown.
+func ownerArgs(own Ownership) []any {
+	if !own.Known() {
+		return []any{nil, nil, nil, nil}
+	}
+	return []any{own.UID, own.GID, own.Owner, own.Group}
+}
+
+// SetOwner records new ownership for an entry.
+func (s *Store) SetOwner(id int64, own Ownership) error {
+	args := append(ownerArgs(own), id)
+	_, err := s.conn.ExecContext(bg, "update entries set uid = ?, gid = ?, owner = ?, grp = ? where id = ?", args...)
+	return err
+}
+
+// SetHost rebinds an entry to host ("" for every Mac). It returns ErrExists
+// when another entry already holds that target and host.
+func (s *Store) SetHost(id int64, host string) error {
+	var target string
+	if err := s.conn.QueryRowContext(bg, "select target from entries where id = ?", id).Scan(&target); err != nil {
+		return err
+	}
+	exists, err := s.hasEntry(target, host)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrExists
+	}
+	_, err = s.conn.ExecContext(bg, "update entries set host = ? where id = ?", host, id)
+	return err
 }
 
 // RemoveEntry deletes an entry and every version it holds.

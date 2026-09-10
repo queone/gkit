@@ -165,12 +165,15 @@ func (h *harness) pointer() string {
 func TestVersionAndHelp(t *testing.T) {
 	h := newHarness(t)
 	for _, arg := range []string{"--version", "-v", "v", "version"} {
-		if code, out, errs := h.runRaw(arg); code != 0 || out != "macfit v1.4.0\n" || errs != "" {
+		if code, out, errs := h.runRaw(arg); code != 0 || out != "macfit v1.5.0\n" || errs != "" {
 			t.Fatalf("%s: code %d stdout %q stderr %q", arg, code, out, errs)
 		}
 	}
-	if code, out, _ := h.runRaw(); code != 0 || !strings.Contains(out, "\nUsage\n") {
-		t.Fatalf("bare invocation: code %d out %q", code, out)
+	if code, out, _ := h.runRaw(); code != 1 || !strings.Contains(out, "store file: missing") {
+		t.Fatalf("bare invocation must run st: code %d out %q", code, out)
+	}
+	if code, out, _ := h.run(); code != 1 || !strings.Contains(out, "store: "+h.store+" (flag)") {
+		t.Fatalf("bare invocation with -s must run st on that store: code %d out %q", code, out)
 	}
 	if code, out, _ := h.runRaw("help"); code != 0 || !strings.Contains(out, "macfit key show") {
 		t.Fatalf("help: code %d out %q", code, out)
@@ -191,7 +194,7 @@ func TestHelpLayoutMatchesTheOtherUtilities(t *testing.T) {
 			t.Fatalf("%s: code %d", arg, code)
 		}
 		lines := strings.Split(out, "\n")
-		if lines[0] != "macfit v1.4.0" {
+		if lines[0] != "macfit v1.5.0" {
 			t.Fatalf("%s: first line %q", arg, lines[0])
 		}
 		if lines[1] != "Keep Mac config files in one encrypted store and restore them on any Mac." {
@@ -205,7 +208,7 @@ func TestHelpLayoutMatchesTheOtherUtilities(t *testing.T) {
 			}
 			last = idx
 		}
-		for _, want := range []string{"  -N, --new ", "  -h, -?, --help     Show this help message and exit", "Store path order: -s, then MACFIT_STORE", "plan the restore, or write it with -f", "Print the pull plan; the default", "  macfit st ", "  macfit render [-o DIR] [-a] [-f]", "  macfit cat TARGET [-H HOST]", "  -o, --out DIR ", "  -a, --all "} {
+		for _, want := range []string{"  -N, --new ", "  -h, -?, --help     Show this help message and exit", "Store path order: -s, then MACFIT_STORE", "plan the restore, or write it with -f", "Print the pull plan; the default", "  macfit render [-o DIR] [-a] [-f]", "  macfit cat TARGET [-H HOST]", "  -o, --out DIR ", "  -a, --all ", "  macfit [st] ", "  macfit set TARGET [flags]", "  -g, --global ", "  -m, --mode MODE ", "  -F, --from WHICH ", "register live files for this Mac"} {
 			if !strings.Contains(out, want) {
 				t.Fatalf("%s: help lacks %q", arg, want)
 			}
@@ -219,7 +222,7 @@ func TestHelpHeaderAndHeadingsAreColoredLikeSkout(t *testing.T) {
 	defer color.SetEnabled(true)()
 	_, out, _ := h.runRaw("help")
 	lines := strings.Split(out, "\n")
-	if lines[0] != color.Bold(color.Gra10("macfit"))+" v1.4.0" {
+	if lines[0] != color.Bold(color.Gra10("macfit"))+" v1.5.0" {
 		t.Fatalf("first line %q", lines[0])
 	}
 	if lines[1] != color.Gra5("Keep Mac config files in one encrypted store and restore them on any Mac.") {
@@ -264,7 +267,7 @@ func TestReadmeUsageBlockEqualsHelp(t *testing.T) {
 func TestPlatformGuard(t *testing.T) {
 	h := newHarness(t)
 	h.app.goos = "linux"
-	for _, verb := range []string{"init", "st", "add", "rm", "ls", "push", "pull", "diff", "key", "render", "cat"} {
+	for _, verb := range []string{"init", "st", "add", "set", "rm", "ls", "push", "pull", "diff", "key", "render", "cat"} {
 		code, _, errs := h.run(verb)
 		if code != 1 || !strings.Contains(errs, "macfit supports macOS only") {
 			t.Fatalf("%s on linux: code %d stderr %q", verb, code, errs)
@@ -451,7 +454,7 @@ func TestAddPushDiffPullRoundTrip(t *testing.T) {
 	const target = "$XDG_CONFIG_HOME/git/config"
 
 	out := h.mustRun("add", live)
-	if out != line("added", target+" (mode 0600)") {
+	if out != line("added", target+" (mode 0600, host a)") {
 		t.Fatalf("add: %q", out)
 	}
 	out = h.mustRun("ls")
@@ -550,7 +553,7 @@ func TestAddPushDiffPullRoundTrip(t *testing.T) {
 		t.Fatalf("diff after mode push: %q", out)
 	}
 
-	if out := h.mustRun("rm", target); out != "removed "+target+"\n" {
+	if out := h.mustRun("rm", target); out != "removed "+target+", host a\n" {
 		t.Fatalf("rm: %q", out)
 	}
 	if out := h.mustRun("diff"); out != "" {
@@ -569,7 +572,7 @@ func TestAddSeveralFilesInOneRun(t *testing.T) {
 	c := h.write(".profile", "c\n", 0o600)
 	gen := h.generation()
 	out := h.mustRun("add", a, b, c)
-	for _, want := range []string{line("added", "~/.bash_logout (mode 0644)"), line("added", "~/.bashrc (mode 0644)"), line("added", "~/.profile (mode 0600)")} {
+	for _, want := range []string{line("added", "~/.bash_logout (mode 0644, host a)"), line("added", "~/.bashrc (mode 0644, host a)"), line("added", "~/.profile (mode 0600, host a)")} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("multi add lacks %q: %q", want, out)
 		}
@@ -581,7 +584,7 @@ func TestAddSeveralFilesInOneRun(t *testing.T) {
 	e := h.write(".gitignore", "e\n", 0o644)
 	gen = h.generation()
 	out, errs := h.mustFail(1, "add", d, filepath.Join(h.home, "missing"), e)
-	if !strings.Contains(out, line("added", "~/.vimrc (mode 0644)")) || !strings.Contains(out, line("added", "~/.gitignore (mode 0644)")) || !strings.Contains(errs, "missing") {
+	if !strings.Contains(out, line("added", "~/.vimrc (mode 0644, host a)")) || !strings.Contains(out, line("added", "~/.gitignore (mode 0644, host a)")) || !strings.Contains(errs, "missing") {
 		t.Fatalf("partial add: out %q err %q", out, errs)
 	}
 	if h.generation() != gen+1 {
@@ -618,7 +621,7 @@ func TestAddRefusesDuplicatesAndNonFiles(t *testing.T) {
 		t.Fatalf("host-bound add: %q", out)
 	}
 	cfg := h.write(".config/git/config", "c\n", 0o644)
-	if out := h.mustRun("add", cfg, "-l"); out != line("added", "~/.config/git/config (mode 0644)") {
+	if out := h.mustRun("add", cfg, "-l"); out != line("added", "~/.config/git/config (mode 0644, host a)") {
 		t.Fatalf("literal add: %q", out)
 	}
 	if out := h.mustRun("push", cfg); out != line("unchanged", "~/.config/git/config") {
@@ -661,7 +664,7 @@ func TestHostBoundEntriesWinOnTheirHost(t *testing.T) {
 	h := newHarness(t)
 	h.mustRun("init", "-N")
 	live := h.write(".bashrc", "shared\n", 0o644)
-	h.mustRun("add", live)
+	h.mustRun("add", live, "-g")
 	h.write(".bashrc", "for a\n", 0o644)
 	h.mustRun("add", live, "-H", "a")
 	h.write(".bashrc", "for b\n", 0o644)
@@ -946,7 +949,7 @@ func TestEmptyFileRoundTrip(t *testing.T) {
 	h := newHarness(t)
 	h.mustRun("init", "-N")
 	live := h.write(".hushlogin", "", 0o644)
-	if out := h.mustRun("add", live); out != line("added", "~/.hushlogin (mode 0644)") {
+	if out := h.mustRun("add", live); out != line("added", "~/.hushlogin (mode 0644, host a)") {
 		t.Fatalf("add empty: %q", out)
 	}
 	if out := h.mustRun("diff"); out != "= ~/.hushlogin\n" {
@@ -979,7 +982,7 @@ func TestStatusScreen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := h.mustRun("st")
+	out, _ := h.mustFail(1, "st")
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
 	want := []string{
 		"store: " + h.store + " (flag)",
@@ -991,7 +994,7 @@ func TestStatusScreen(t *testing.T) {
 		"host: a",
 		"entries: 3 total, 2 for this Mac",
 		"conflict copies: none",
-		"drift: = 1, M 1, ? 0",
+		"drift: M 1, ? 0",
 	}
 	if len(lines) != len(want) {
 		t.Fatalf("st printed %d lines, want %d:\n%s", len(lines), len(want), out)
@@ -1021,7 +1024,7 @@ func TestStatusScreen(t *testing.T) {
 	if colored[5] != "store opens: "+color.Grn5("yes") {
 		t.Fatalf("store opens not green: %q", colored[5])
 	}
-	if colored[9] != "drift: "+color.Gra4("= 1")+", "+color.Yel5("M 1")+", "+color.Gra4("? 0") {
+	if colored[9] != "drift: "+color.Red5("M 1, ? 0") {
 		t.Fatalf("colored drift line: %q", colored[9])
 	}
 	restore := color.SetEnabled(false)
@@ -1031,7 +1034,7 @@ func TestStatusScreen(t *testing.T) {
 	if err := os.WriteFile(copyPath, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if out := h.mustRun("st"); !strings.Contains(out, "conflict copies: "+copyPath+"\n") {
+	if out, _ := h.mustFail(1, "st"); !strings.Contains(out, "conflict copies: "+copyPath+"\n") {
 		t.Fatalf("conflict copy line: %q", out)
 	}
 	color.SetEnabled(true)
@@ -1076,16 +1079,28 @@ func TestStatusDriftAgreesWithDiff(t *testing.T) {
 	for l := range strings.SplitSeq(strings.TrimSuffix(diffOut, "\n"), "\n") {
 		counts[l[0]]++
 	}
-	want := fmt.Sprintf("drift: = %d, M %d, ? %d", counts['='], counts['M'], counts['?'])
-	if counts['M'] < 2 {
-		t.Fatalf("fixture must yield a symlink counted as M: %q", diffOut)
+	want := fmt.Sprintf("drift: M %d, ? %d", counts['M'], counts['?'])
+	if counts['M'] < 2 || counts['?'] == 0 {
+		t.Fatalf("fixture must yield a symlink counted as M and a missing file: %q", diffOut)
 	}
-	if out := h.mustRun("st"); !strings.Contains(out, want+"\n") {
+	if out, _ := h.mustFail(1, "st"); !strings.Contains(out, want+"\n") {
 		t.Fatalf("st drift %q not found in %q", want, out)
 	}
 	defer color.SetEnabled(true)()
-	if _, out, _ := h.run("st"); !strings.Contains(out, color.Red5(fmt.Sprintf("? %d", counts['?']))+"\n") || counts['?'] == 0 {
-		t.Fatalf("missing count not red: %q", out)
+	if _, out, _ := h.run("st"); !strings.Contains(out, "drift: "+color.Red5(fmt.Sprintf("M %d, ? %d", counts['M'], counts['?']))+"\n") {
+		t.Fatalf("drift verdict not red: %q", out)
+	}
+	os.Remove(filepath.Join(h.home, ".zshrc"))
+	h.mustRun("rm", "~/.zshrc")
+	h.mustRun("pull", "-f")
+	restore := color.SetEnabled(false)
+	defer restore()
+	if out := h.mustRun("st"); !strings.Contains(out, "drift: none\n") {
+		t.Fatalf("clean st: %q", out)
+	}
+	color.SetEnabled(true)
+	if _, out, _ := h.run("st"); !strings.Contains(out, "drift: "+color.Grn5("none")+"\n") {
+		t.Fatalf("clean st not green: %q", out)
 	}
 }
 

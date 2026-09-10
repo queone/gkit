@@ -121,12 +121,31 @@ func Hostname(exec Executor, osHostname func() (string, error)) string {
 	return strings.TrimSuffix(strings.TrimSpace(h), ".local")
 }
 
-// Entry is one registered file: its target template, mode, and optional host binding.
+// Ownership is the owner and group of a live file as captured on the Mac
+// that added or last pushed it. Unknown ownership has UID and GID -1 and
+// empty names.
+type Ownership struct {
+	UID   int64
+	GID   int64
+	Owner string
+	Group string
+}
+
+// UnknownOwnership is the ownership of an entry that predates schema
+// version 2 or whose file could not be inspected.
+var UnknownOwnership = Ownership{UID: -1, GID: -1}
+
+// Known reports whether the ownership carries real values.
+func (o Ownership) Known() bool { return o.UID >= 0 && o.GID >= 0 }
+
+// Entry is one registered file: its target template, mode, optional host
+// binding, and ownership.
 type Entry struct {
 	ID     int64
 	Target string
 	Mode   os.FileMode
 	Host   string
+	Ownership
 }
 
 // Select returns the entries that apply on host, one per target. An entry
