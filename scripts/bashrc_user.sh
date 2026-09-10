@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
-# bashrc_user.sh 1.2.0
+# bashrc_user.sh 1.3.0
 # Generic interactive bash settings for a user account on macOS
 
 [[ $- == *i* ]] || return # skip all of this for non-interactive shells
 
-echo "history -c" > ~/.bash_logout
-on_exit() { [ -f ~/.bash_history ] && rm ~/.bash_history && sh ~/.bash_logout ; }
-trap on_exit EXIT
+# Command history stays in memory: nothing is written to disk, so no ~/.bash_history
+export HISTFILE=
+# Terminal.app creates ~/.bash_sessions before this file runs and hooks the exit trap
+# to save into it; drop both so the directory never comes back
+trap - EXIT
+rmdir ~/.bash_sessions 2>/dev/null
 
 # XDG base directories; tools that honor them keep their files out of the home root
 export XDG_CONFIG_HOME="$HOME/.config"
