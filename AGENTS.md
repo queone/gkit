@@ -606,3 +606,6 @@ Note: `CLAUDE.md` is an example of an exempt identifier — it names a product-s
 ## Project Rules
 
 - Follow existing repo patterns unless an approved improvement says otherwise.
+- Skip `./build.sh` for a change pass limited to `scripts/*.sh` templates and their docs.
+
+Note: the build does not run the script templates.

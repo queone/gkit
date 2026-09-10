@@ -5,7 +5,7 @@ The store is a single sealed file. By default it lives in `~/.local/share/macfit
 
 ```text
 macfit init -N -s ~/data/etc/macfit.store     # first Mac: create the store and its key, remember the path
-macfit add -g ~/.bash_logout ~/.bashrc         # register files for every Mac and capture them
+macfit add -g ~/.bashrc ~/.profile             # register files for every Mac and capture them
 macfit add ~/.ssh/config                      # register a file for this Mac only
 macfit                                        # status: store, key, host, entries, conflicts, drift verdict
 macfit push                                   # send changed live files into the store

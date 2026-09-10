@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bashrc_root.sh 1.1.0
+# bashrc_root.sh 1.1.1
 # Generic interactive bash settings for the root account on macOS
 
 [[ $- == *i* ]] || return # skip all of this for non-interactive shells
@@ -18,7 +18,7 @@ export EDITOR=vi
 
 Red='\[\e[1;31m\]' Blu='\[\e[1;34m\]' Mag='\[\e[0;35m\]'
 Grn='\[\e[1;32m\]' Yel='\[\e[1;33m\]' Rst='\[\e[0m\]'
-PS1="${Red}\h \W${Rst}$ "
+PS1="${Red}\h \W${Rst} $ "
 
 alias grep='grep --color=auto'
 alias ls='gls -N --color --group-directories-first'

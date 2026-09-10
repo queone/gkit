@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bashrc_user.sh 1.3.0
+# bashrc_user.sh 1.3.1
 # Generic interactive bash settings for a user account on macOS
 
 [[ $- == *i* ]] || return # skip all of this for non-interactive shells
@@ -37,7 +37,7 @@ if [[ -f "$XDG_CONFIG_HOME/bash/gitbranch.sh" ]]; then
     source "$XDG_CONFIG_HOME/bash/gitbranch.sh"
     PS1="${Grn}\h \W${Rst} \$(git_branch '${Yel}%s${Rst} ')$ "
 else
-    PS1="${Grn}\h \W${Rst}$ "
+    PS1="${Grn}\h \W${Rst} $ "
 fi
 
 export BASH_SILENCE_DEPRECATION_WARNING=1
