@@ -27,13 +27,26 @@ func DefaultExecutor(name string, args ...string) ([]byte, error) {
 	return exec.Command(name, args...).CombinedOutput()
 }
 
-const keychainService = "macfit"
+// defaultKeychainService names the keychain service used when a
+// SecurityKeyStore leaves Service empty.
+const defaultKeychainService = "macfit"
 
 // SecurityKeyStore keeps the data key in the login keychain through the
 // macOS security command. Items the command creates are readable by the
 // command without an access prompt.
 type SecurityKeyStore struct {
 	Exec Executor
+	// Service is the keychain service name the items belong to, so each
+	// tool keeps its own keys apart. Empty means macfit.
+	Service string
+}
+
+// service returns the keychain service name, macfit when none is set.
+func (s SecurityKeyStore) service() string {
+	if s.Service == "" {
+		return defaultKeychainService
+	}
+	return s.Service
 }
 
 func (s SecurityKeyStore) run(args ...string) ([]byte, error) {
@@ -45,7 +58,7 @@ func (s SecurityKeyStore) run(args ...string) ([]byte, error) {
 
 // Get reads the key for keyID from the login keychain.
 func (s SecurityKeyStore) Get(keyID string) ([]byte, error) {
-	out, err := s.run("find-generic-password", "-a", keyID, "-s", keychainService, "-w")
+	out, err := s.run("find-generic-password", "-a", keyID, "-s", s.service(), "-w")
 	if err != nil {
 		if bytes.Contains(out, []byte("could not be found")) {
 			return nil, ErrKeyNotFound
@@ -54,7 +67,7 @@ func (s SecurityKeyStore) Get(keyID string) ([]byte, error) {
 	}
 	key, err := hex.DecodeString(strings.TrimSpace(string(out)))
 	if err != nil || len(key) != KeySize {
-		return nil, errors.New("keychain item is not a macfit key")
+		return nil, fmt.Errorf("keychain item is not a %s key", s.service())
 	}
 	return key, nil
 }
@@ -64,7 +77,7 @@ func (s SecurityKeyStore) Put(keyID string, key []byte) error {
 	if len(key) != KeySize {
 		return fmt.Errorf("data key must be %d bytes", KeySize)
 	}
-	out, err := s.run("add-generic-password", "-a", keyID, "-s", keychainService, "-w", hex.EncodeToString(key), "-U")
+	out, err := s.run("add-generic-password", "-a", keyID, "-s", s.service(), "-w", hex.EncodeToString(key), "-U")
 	if err != nil {
 		return fmt.Errorf("save keychain item: %w: %s", err, strings.TrimSpace(string(out)))
 	}
@@ -74,7 +87,7 @@ func (s SecurityKeyStore) Put(keyID string, key []byte) error {
 // Delete removes the keychain item for keyID. It returns ErrKeyNotFound
 // when no item exists.
 func (s SecurityKeyStore) Delete(keyID string) error {
-	out, err := s.run("delete-generic-password", "-a", keyID, "-s", keychainService)
+	out, err := s.run("delete-generic-password", "-a", keyID, "-s", s.service())
 	if err != nil {
 		if bytes.Contains(out, []byte("could not be found")) {
 			return ErrKeyNotFound

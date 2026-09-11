@@ -323,6 +323,24 @@ func (s *Store) SetHost(id int64, host string) error {
 	return err
 }
 
+// SetTarget renames an entry's target and keeps its versions. It returns
+// ErrExists when another entry already holds that target for the same host.
+func (s *Store) SetTarget(id int64, target string) error {
+	var host string
+	if err := s.conn.QueryRowContext(bg, "select host from entries where id = ?", id).Scan(&host); err != nil {
+		return err
+	}
+	exists, err := s.hasEntry(target, host)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrExists
+	}
+	_, err = s.conn.ExecContext(bg, "update entries set target = ? where id = ?", target, id)
+	return err
+}
+
 // RemoveEntry deletes an entry and every version it holds.
 func (s *Store) RemoveEntry(id int64) error {
 	res, err := s.conn.ExecContext(bg, "delete from entries where id = ?", id)

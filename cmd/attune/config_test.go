@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -20,13 +18,6 @@ func TestDefaultsAreSafe(t *testing.T) {
 	}
 }
 
-func TestDefaultSpecsIsDns(t *testing.T) {
-	settings := Resolve(nil, Overrides{})
-	if settings.Specs != "dns" {
-		t.Errorf("Specs = %q, want %q", settings.Specs, "dns")
-	}
-}
-
 func TestExpansionPreservesUnicodeText(t *testing.T) {
 	got, err := expandEnvironment("specs: café\n")
 	if err != nil {
@@ -37,17 +28,12 @@ func TestExpansionPreservesUnicodeText(t *testing.T) {
 	}
 }
 
-func TestConfigFileEnvironmentExpansion(t *testing.T) {
+func TestConfigEnvironmentExpansion(t *testing.T) {
 	t.Setenv("ATTUNE_TEST_SUBSCRIPTION", "expanded-subscription-id")
-	dir := t.TempDir()
 	content := "provider: azure\nazure:\n  subscription: $ATTUNE_TEST_SUBSCRIPTION\n  resource_group: ${ATTUNE_TEST_SUBSCRIPTION}-rg\nspecs: specs\n"
-	path := filepath.Join(dir, "attune.yaml")
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := LoadConfig(path)
+	cfg, err := ParseConfig([]byte(content))
 	if err != nil {
-		t.Fatalf("LoadConfig: %v", err)
+		t.Fatalf("ParseConfig: %v", err)
 	}
 	if cfg.Subscription != "expanded-subscription-id" {
 		t.Errorf("Subscription = %q, want %q", cfg.Subscription, "expanded-subscription-id")
@@ -90,15 +76,9 @@ func TestResolvePrecedenceFlagOverEnvOverFileOverDefault(t *testing.T) {
 }
 
 func TestContentVersionParsesAndResolves(t *testing.T) {
-	dir := t.TempDir()
-	content := "provider: azure\nspecs: specs\ncontent_version: v1.2.3\n"
-	path := filepath.Join(dir, "attune.yaml")
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := LoadConfig(path)
+	cfg, err := ParseConfig([]byte("provider: azure\nspecs: specs\ncontent_version: v1.2.3\n"))
 	if err != nil {
-		t.Fatalf("LoadConfig: %v", err)
+		t.Fatalf("ParseConfig: %v", err)
 	}
 	if cfg.ContentVersion != "v1.2.3" {
 		t.Errorf("ContentVersion = %q, want %q", cfg.ContentVersion, "v1.2.3")
@@ -117,14 +97,18 @@ func TestContentVersionAbsentResolvesEmpty(t *testing.T) {
 }
 
 func TestUnknownKeyStillRejectedBesideContentVersion(t *testing.T) {
-	dir := t.TempDir()
-	content := "provider: azure\ncontent_version: v1.2.3\nbogus_key: nope\n"
-	path := filepath.Join(dir, "attune.yaml")
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	_, err := LoadConfig(path)
+	_, err := ParseConfig([]byte("provider: azure\ncontent_version: v1.2.3\nbogus_key: nope\n"))
 	if err == nil || !strings.Contains(err.Error(), `"bogus_key"`) {
-		t.Errorf("LoadConfig error = %v, want unknown-field rejection naming bogus_key", err)
+		t.Errorf("ParseConfig error = %v, want unknown-field rejection naming bogus_key", err)
+	}
+}
+
+func TestSpecsKeyIsAcceptedAndIgnored(t *testing.T) {
+	cfg, err := ParseConfig([]byte("provider: azure\nspecs: anything/at/all\n"))
+	if err != nil {
+		t.Fatalf("ParseConfig with a specs key: %v", err)
+	}
+	if cfg.Provider != "azure" {
+		t.Fatalf("parsed %+v", *cfg)
 	}
 }

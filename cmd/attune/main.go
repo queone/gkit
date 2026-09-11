@@ -1,15 +1,22 @@
+// attune reconciles Azure state from YAML specs kept in an encrypted store
+// it manages itself. See README.md in this directory.
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 
 	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/lockbox"
+	"golang.org/x/term"
 )
 
-const programVersion = "1.2.0"
+const programVersion = "1.4.0"
 
 var validKinds = []string{
 	"dnsRecordSet",
@@ -28,83 +35,160 @@ const (
 	cmdValidate
 )
 
-func main() {
-	os.Exit(run(os.Args[1:]))
+// storeVerbs are the commands that manage the spec store.
+var storeVerbs = []string{"init", "st", "add", "edit", "rename", "rm", "ls", "cat", "render", "key"}
+
+// app carries the process-level dependencies so tests can swap them for fakes.
+type app struct {
+	stdout     io.Writer
+	stderr     io.Writer
+	stdin      io.Reader
+	keys       lockbox.KeyStore
+	env        lockbox.Env
+	host       string
+	kdf        lockbox.KDF
+	goos       string
+	storeEnv   string
+	isTerminal func() bool
+	readSecret func(prompt string) ([]byte, error)
+	readLine   func(prompt string) (string, error)
+	editor     func(path string) error
 }
 
-// run dispatches attune's subcommands and returns the process exit code.
-func run(args []string) int {
+func newApp() *app {
+	a := &app{
+		stdout:     os.Stdout,
+		stderr:     os.Stderr,
+		stdin:      os.Stdin,
+		keys:       lockbox.SecurityKeyStore{Service: "attune"},
+		env:        lockbox.EnvFromOS(),
+		host:       lockbox.Hostname(lockbox.DefaultExecutor, os.Hostname),
+		kdf:        lockbox.DefaultKDF,
+		goos:       runtime.GOOS,
+		storeEnv:   os.Getenv("ATTUNE_STORE"),
+		isTerminal: func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
+		readSecret: terminalSecret,
+		editor:     terminalEditor,
+	}
+	a.readLine = a.terminalLine
+	return a
+}
+
+// terminalSecret prompts on stderr and reads one line with echo off.
+func terminalSecret(prompt string) ([]byte, error) {
+	fmt.Fprint(os.Stderr, prompt)
+	b, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(os.Stderr)
+	return b, err
+}
+
+// terminalLine prompts on stderr and reads one visible line.
+func (a *app) terminalLine(prompt string) (string, error) {
+	fmt.Fprint(a.stderr, prompt)
+	line, err := bufio.NewReader(a.stdin).ReadString('\n')
+	if err != nil && line == "" {
+		return "", err
+	}
+	return strings.TrimSpace(line), nil
+}
+
+func main() {
+	os.Exit(newApp().run(os.Args[1:]))
+}
+
+func (a *app) errorf(format string, args ...any) {
+	fmt.Fprintf(a.stderr, "attune: "+format+"\n", args...)
+}
+
+// run dispatches attune's commands and returns the process exit code.
+func (a *app) run(args []string) int {
 	if len(args) == 1 && isVersionArg(args[0]) {
-		fmt.Printf("attune %s\n", programVersion)
+		fmt.Fprintf(a.stdout, "attune v%s\n", programVersion)
 		return 0
 	}
 	if len(args) == 0 || (len(args) == 1 && isHelpArg(args[0])) {
-		fmt.Print(usage())
+		fmt.Fprint(a.stdout, usage())
 		return 0
 	}
-
-	var cmd commandKind
+	if a.goos != "darwin" {
+		a.errorf("attune store support is macOS only")
+		return 1
+	}
 	switch args[0] {
 	case "p", "plan":
-		cmd = cmdPlan
+		return a.reconcile(cmdPlan, args[1:])
 	case "a", "apply":
-		cmd = cmdApply
+		return a.reconcile(cmdApply, args[1:])
 	case "c", "validate":
-		cmd = cmdValidate
-	default:
-		fmt.Fprintf(os.Stderr, "attune: unknown command %q; run `attune help`\n", args[0])
+		return a.reconcile(cmdValidate, args[1:])
+	}
+	if slices.Contains(storeVerbs, args[0]) {
+		return a.storeCommand(args[0], args[1:])
+	}
+	a.errorf("unknown command %q; run `attune help`", args[0])
+	return 2
+}
+
+// reconcile runs plan, apply, or validate against the store.
+func (a *app) reconcile(cmd commandKind, args []string) int {
+	overrides, err := parseFlags(args)
+	if err != nil {
+		a.errorf("%s; run `attune help`", err)
 		return 2
 	}
-
-	overrides, err := parseFlags(args[1:])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "attune: %s; run `attune help`\n", err)
-		return 2
+	storeFlag := ""
+	if overrides.Store != nil {
+		storeFlag = *overrides.Store
 	}
-
-	cwd, err := os.Getwd()
+	ref, err := a.resolveStore(storeFlag)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "attune: resolve current directory: %s\n", err)
+		a.errorf("resolve store path: %s", err)
 		return 1
 	}
-	found, err := Find(cwd)
+	st, err := a.openStore(ref.path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "attune: %s\n", err)
+		a.errorf("%s", err)
 		return 1
 	}
-	settings := Resolve(found, overrides)
+	defer st.Close()
+	config, err := storedConfig(st)
+	if err != nil {
+		a.errorf("%s", err)
+		return 1
+	}
+	settings := Resolve(config, overrides)
 	if settings.Provider != "azure" {
-		fmt.Fprintf(os.Stderr, "attune: unsupported provider %q; use `azure`\n", settings.Provider)
+		a.errorf("unsupported provider %q; use `azure`", settings.Provider)
 		return 1
 	}
 	if settings.Kind != "" && !slices.Contains(validKinds, settings.Kind) {
-		fmt.Fprintf(os.Stderr, "attune: unknown kind %q\n", settings.Kind)
+		a.errorf("unknown kind %q", settings.Kind)
 		return 1
 	}
-	bundle, err := Load(settings.Specs)
+	bundle, err := loadStoreBundle(st)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "attune: validate specs: %s\n", err)
+		a.errorf("validate specs: %s", err)
 		return 1
 	}
 	if bundle.IsEmpty() {
-		fmt.Fprintln(os.Stderr, "attune: no specs found")
+		a.errorf("no specs found")
 		return 1
 	}
 	if cmd == cmdValidate {
-		fmt.Print(validateLine(bundle.Len(), settings.ContentVersion))
+		fmt.Fprint(a.stdout, validateLine(bundle.Len(), settings.ContentVersion))
 		return 0
 	}
 
 	provider := NewAzureProvider(settings.Subscription, settings.ResourceGroup)
 	account, err := provider.Ground()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "attune: authenticate provider: %s\n", err)
+		a.errorf("authenticate provider: %s", err)
 		return 1
 	}
-	fmt.Fprint(os.Stderr, groundingLine(bundle.Len(), settings.ContentVersion))
+	fmt.Fprint(a.stderr, groundingLine(bundle.Len(), settings.ContentVersion))
 	if settings.Diagnostic {
-		fmt.Fprintf(os.Stderr, "attune: diagnostic tenant=%s subscription=%s identity=%s resource-group=%s specs=%s\n",
-			account.Tenant, provider.Subscription, account.Identity, settings.ResourceGroup, settings.Specs)
+		fmt.Fprintf(a.stderr, "attune: diagnostic tenant=%s subscription=%s identity=%s resource-group=%s %s\n",
+			account.Tenant, provider.Subscription, account.Identity, settings.ResourceGroup, "store="+ref.path)
 	}
 
 	options := &Options{
@@ -117,22 +201,69 @@ func run(args []string) int {
 	}
 	changes, err := Plan(provider, bundle, options)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "attune: plan provider changes: %s\n", err)
+		a.errorf("plan provider changes: %s", err)
 		return 1
 	}
-	fmt.Print(renderPlanBlock(changes, settings.Verbose))
+	fmt.Fprint(a.stdout, renderPlanBlock(changes, settings.Verbose))
 
 	if cmd == cmdApply {
-		fmt.Println(applyHeader())
+		fmt.Fprintln(a.stdout, applyHeader())
 		if err := Apply(provider, changes, provider.Subscription, func(c Change) {
-			fmt.Println(renderAppliedLine(c))
+			fmt.Fprintln(a.stdout, renderAppliedLine(c))
 		}); err != nil {
-			fmt.Fprintf(os.Stderr, "attune: apply provider change: %s\n", err)
+			a.errorf("apply provider change: %s", err)
 			return 1
 		}
-		fmt.Print(renderApplyTrailer(len(changes)))
+		fmt.Fprint(a.stdout, renderApplyTrailer(len(changes)))
 	}
 	return 0
+}
+
+// storedConfig parses the store's attune.yaml entry, or returns nil when
+// the store holds none.
+func storedConfig(st *lockbox.Store) (*Config, error) {
+	entries, err := st.Entries()
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range entries {
+		if e.Target != configName {
+			continue
+		}
+		latest, ok, err := st.Latest(e.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, nil
+		}
+		return ParseConfig(latest.Content)
+	}
+	return nil, nil
+}
+
+// loadStoreBundle parses every stored spec, attune.yaml excepted, exactly
+// as directory mode parses files.
+func loadStoreBundle(st *lockbox.Store) (*Bundle, error) {
+	entries, err := st.Entries()
+	if err != nil {
+		return nil, err
+	}
+	var sources []specSource
+	for _, e := range entries {
+		if e.Target == configName || !isSpecKey(e.Target) {
+			continue
+		}
+		latest, ok, err := st.Latest(e.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		sources = append(sources, specSource{name: e.Target, content: latest.Content})
+	}
+	return loadSources(sources)
 }
 
 // changeSymbol maps an Action to its one-character change marker.
@@ -235,9 +366,9 @@ func groundingLine(specs int, contentVersion string) string {
 	return fmt.Sprintf("attune: provider=azure specs=%d authenticated=yes%s\n", specs, contentSuffix(contentVersion))
 }
 
-// parseFlags parses attune's flag surface. String flags (-s/-P/-g/-S/-k)
-// consume the next argument unless given inline as flag=value. Boolean
-// flags (-r/-I/-R/-G) accept bare form (true) or flag=true/false.
+// parseFlags parses the reconciler flag surface. String flags (-t/-P/-g/-S/
+// -k) consume the next argument unless given inline as flag=value.
+// Boolean flags (-r/-I/-R/-G) accept bare form (true) or flag=true/false.
 func parseFlags(args []string) (Overrides, error) {
 	var overrides Overrides
 	for i := 0; i < len(args); i++ {
@@ -260,12 +391,12 @@ func parseFlags(args []string) (Overrides, error) {
 			return args[i], nil
 		}
 		switch name {
-		case "-s", "--specs":
+		case "-t", "--store":
 			v, err := value()
 			if err != nil {
 				return overrides, err
 			}
-			overrides.Specs = &v
+			overrides.Store = &v
 		case "-P", "--provider":
 			v, err := value()
 			if err != nil {
@@ -348,25 +479,67 @@ func boolValue(inline *string) (bool, error) {
 func isVersionArg(a string) bool { return a == "-v" || a == "--version" || a == "v" || a == "version" }
 func isHelpArg(a string) bool    { return a == "-h" || a == "--help" || a == "h" || a == "help" }
 
+// heading renders a help heading in bold white, like the name on line one.
+func heading(s string) string { return color.Bold(color.Gra10(s)) }
+
+// helpLine renders one aligned help line: a command or flag form, then its meaning.
+func helpLine(form, meaning string) string { return fmt.Sprintf("  %-36s%s\n", form, meaning) }
+
 func usage() string {
-	return "attune — reconcile provider state with neutral YAML specs.\n\n" +
-		"Usage:\n" +
-		"  attune (p|plan) [flags]\n" +
-		"  attune (a|apply) [flags]\n" +
-		"  attune (c|validate) [flags]\n" +
-		"  attune (v|version)\n" +
-		"  attune (h|help)\n\n" +
-		"Flags:\n" +
-		"  -s, --specs PATH\n" +
-		"  -P, --provider NAME\n" +
-		"  -g, --resource-group NAME\n" +
-		"  -S, --subscription ID\n" +
-		"  -k, --kind KIND\n" +
-		"  -r, --prune[=BOOL]\n" +
-		"  -I, --prune-identities[=BOOL]\n" +
-		"  -R, --prune-roles[=BOOL]\n" +
-		"  -G, --prune-resource-groups[=BOOL]\n" +
-		"  -d, --diagnostic\n" +
-		"  -V, --verbose\n\n" +
-		"Live commands require an authenticated Azure CLI (`az login`).\n"
+	return heading("attune") + " v" + programVersion + "\n" +
+		color.Gra5("Reconcile Azure state from YAML specs kept in an encrypted store.") + "\n\n" +
+		heading("Overview") + "\n" +
+		"  The specs live in one sealed store file that attune manages itself: init\n" +
+		"  creates or unlocks it, add captures spec files, edit changes a stored spec\n" +
+		"  in your editor, and render writes a browsable copy. validate checks the\n" +
+		"  stored specs offline, plan reads live Azure state and lists the changes,\n" +
+		"  and apply makes them. The key lives in the login keychain, with a\n" +
+		"  passphrase-wrapped copy in the store for other Macs.\n\n" +
+		heading("Usage") + "\n" +
+		helpLine("attune (c|validate) [flags]", "check the stored specs offline") +
+		helpLine("attune (p|plan) [flags]", "read live state and show the changes") +
+		helpLine("attune (a|apply) [flags]", "create, update, and permitted prune operations") +
+		helpLine("attune init [-N] [-t PATH]", "unlock an existing store, or create one with -N") +
+		helpLine("attune st", "status of the store, key, and entries") +
+		helpLine("attune add DIR | NAME [FILE]", "import a directory of specs, or store one from a file or stdin") +
+		helpLine("attune edit NAME", "change a stored spec in $EDITOR and save a validated version") +
+		helpLine("attune rename OLD NEW", "change an entry's name, keeping its versions") +
+		helpLine("attune rm NAME", "forget an entry and its stored versions") +
+		helpLine("attune ls [-b FIELD]", "list entries by name, or by captured") +
+		helpLine("attune cat NAME", "print one stored spec") +
+		helpLine("attune render [-o DIR] [-a] [-f]", "write the stored specs into a browsable directory") +
+		helpLine("attune key show", "store path, key id, keychain and store state") +
+		helpLine("attune key restore", "put the key back in the keychain with the passphrase") +
+		helpLine("attune key rm [-f]", "delete the keychain item after a prompt") +
+		helpLine("attune key passphrase", "change the recovery passphrase") +
+		helpLine("attune (v|version)", "print attune v"+programVersion) +
+		helpLine("attune (h|help)", "show this help") + "\n" +
+		heading("Options") + "\n" +
+		helpLine("-t, --store PATH", "Store file for this command; init -t also remembers it") +
+		helpLine("-P, --provider NAME", "Provider name; azure is the only one") +
+		helpLine("-S, --subscription ID", "Azure subscription for live commands") +
+		helpLine("-g, --resource-group NAME", "Azure resource group for live commands") +
+		helpLine("-k, --kind KIND", "Limit plan and apply to one spec kind") +
+		helpLine("-r, --prune[=BOOL]", "Delete unmanaged DNS records; on by default") +
+		helpLine("-I, --prune-identities[=BOOL]", "Delete unmanaged groups and app registrations; off by default") +
+		helpLine("-R, --prune-roles[=BOOL]", "Delete unmanaged role definitions and assignments; off by default") +
+		helpLine("-G, --prune-resource-groups[=BOOL]", "Delete unmanaged resource groups; off by default") +
+		helpLine("-d, --diagnostic", "Print non-secret account and target grounding on live commands") +
+		helpLine("-V, --verbose", "Field-level detail on plan and apply") +
+		helpLine("-N, --new", "Create a new store (init)") +
+		helpLine("-f, --force", "Render into a non-empty directory; skip the key rm prompt") +
+		helpLine("-o, --output DIR", "Render into DIR instead of a fresh private temp directory (render)") +
+		helpLine("-a, --all", "Render every stored version too, under versions/ (render)") +
+		helpLine("-b, --by FIELD", "Sort ls by name (the default) or captured, newest first") +
+		helpLine("-v, --version", "Print attune v"+programVersion+" and exit") +
+		helpLine("-h, --help", "Show this help message and exit") + "\n" +
+		heading("Notes") + "\n" +
+		"  Store path order: -t, then ATTUNE_STORE, then the path init -t remembered in\n" +
+		"  $XDG_CONFIG_HOME/attune/store, then $XDG_DATA_HOME/attune/attune.store.\n" +
+		"  A NAME is a relative path ending in .yaml or .yml (res/dns/zone.yaml), or\n" +
+		"  attune.yaml for the configuration. add and edit validate before saving.\n" +
+		"  Drift against Azure is what plan reports; st never contacts Azure.\n" +
+		"  Live commands need an authenticated Azure CLI (az login). init and edit\n" +
+		"  need a terminal. The store is macOS only.\n" +
+		"  render writes plaintext copies of the store; delete the directory when done.\n"
 }

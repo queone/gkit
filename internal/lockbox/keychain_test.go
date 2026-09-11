@@ -81,3 +81,33 @@ func TestMemoryKeyStore(t *testing.T) {
 		t.Fatalf("second delete: got %v", err)
 	}
 }
+
+func TestSecurityKeyStoreUsesItsOwnServiceName(t *testing.T) {
+	key := bytes.Repeat([]byte{0xcd}, KeySize)
+	var calls [][]string
+	ks := SecurityKeyStore{Service: "attune", Exec: func(name string, args ...string) ([]byte, error) {
+		calls = append(calls, append([]string{name}, args...))
+		if args[0] == "find-generic-password" {
+			return []byte("zz\n"), nil
+		}
+		return nil, nil
+	}}
+	if err := ks.Put("k1", key); err != nil {
+		t.Fatal(err)
+	}
+	_, err := ks.Get("k1")
+	if err == nil || err.Error() != "keychain item is not a attune key" {
+		t.Fatalf("malformed item error %v, want the service name in it", err)
+	}
+	if err := ks.Delete("k1"); err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range calls {
+		if call[5] != "attune" {
+			t.Fatalf("call %v does not use the attune service", call)
+		}
+	}
+	if (SecurityKeyStore{}).service() != "macfit" {
+		t.Fatal("an empty Service must mean macfit")
+	}
+}

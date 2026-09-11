@@ -228,25 +228,22 @@ func isHexDigit(c byte) bool {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 }
 
-// Load reads every .yaml/.yml file under directory (recursively, skipping
-// symlinks), parses each as exactly one strictly validated spec document,
-// and returns the combined Bundle. Duplicate resource keys are rejected.
-func Load(directory string) (*Bundle, error) {
-	var paths []string
-	if err := collectSpecPaths(directory, &paths); err != nil {
-		return nil, err
-	}
-	sort.Strings(paths)
+// specSource is one spec document's content with the name used in errors:
+// a file path in directory mode, an entry key in store mode.
+type specSource struct {
+	name    string
+	content []byte
+}
 
+// loadSources parses each source as exactly one strictly validated spec
+// document and returns the combined Bundle. Duplicate resource keys are
+// rejected. It is the parser behind both directory and store mode.
+func loadSources(sources []specSource) (*Bundle, error) {
 	bundle := &Bundle{}
 	keys := map[string]bool{}
-	for _, path := range paths {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("read spec: %w", err)
-		}
+	for _, src := range sources {
 		var docs []any
-		decoder := yaml.NewDecoder(strings.NewReader(string(raw)))
+		decoder := yaml.NewDecoder(strings.NewReader(string(src.content)))
 		for {
 			var doc any
 			decodeErr := decoder.Decode(&doc)
@@ -254,7 +251,7 @@ func Load(directory string) (*Bundle, error) {
 				break
 			}
 			if decodeErr != nil {
-				return nil, fmt.Errorf("parse %s: %w", path, decodeErr)
+				return nil, fmt.Errorf("parse %s: %w", src.name, decodeErr)
 			}
 			docs = append(docs, doc)
 		}

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -12,7 +11,6 @@ import (
 // Config is attune.yaml's parsed content before override precedence applies.
 type Config struct {
 	Provider            string
-	Specs               string
 	ContentVersion      string
 	Subscription        string
 	ResourceGroup       string
@@ -20,13 +18,12 @@ type Config struct {
 	PruneIdentities     *bool
 	PruneRoles          *bool
 	PruneResourceGroups *bool
-	Directory           string
 }
 
 // Overrides holds flag-level values that take precedence over Config.
 type Overrides struct {
 	Provider            *string
-	Specs               *string
+	Store               *string
 	Subscription        *string
 	ResourceGroup       *string
 	PruneDNS            *bool
@@ -41,7 +38,6 @@ type Overrides struct {
 // Settings is the fully resolved configuration attune runs with.
 type Settings struct {
 	Provider            string
-	Specs               string
 	ContentVersion      string
 	Subscription        string
 	ResourceGroup       string
@@ -52,34 +48,6 @@ type Settings struct {
 	Kind                string
 	Diagnostic          bool
 	Verbose             bool
-}
-
-// Find walks upward from start looking for the nearest attune.yaml. A
-// missing config is not an error — it returns (nil, nil).
-func Find(start string) (*Config, error) {
-	directory, err := filepath.Abs(start)
-	if err != nil {
-		return nil, fmt.Errorf("resolve configuration start directory: %w", err)
-	}
-	directory, err = filepath.EvalSymlinks(directory)
-	if err != nil {
-		return nil, fmt.Errorf("resolve configuration start directory: %w", err)
-	}
-	for {
-		candidate := filepath.Join(directory, "attune.yaml")
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			cfg, err := LoadConfig(candidate)
-			if err != nil {
-				return nil, err
-			}
-			return cfg, nil
-		}
-		parent := filepath.Dir(directory)
-		if parent == directory {
-			return nil, nil
-		}
-		directory = parent
-	}
 }
 
 // expandEnvironment expands $VAR and ${VAR} references in input using the
@@ -135,12 +103,10 @@ func isASCIIAlnum(c byte) bool {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
-// LoadConfig reads and validates attune.yaml at path.
-func LoadConfig(path string) (*Config, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read attune.yaml: %w", err)
-	}
+// ParseConfig parses attune.yaml content, which comes from the store's
+// attune.yaml entry. The specs key is accepted and ignored so older
+// configurations keep parsing.
+func ParseConfig(raw []byte) (*Config, error) {
 	expanded, err := expandEnvironment(string(raw))
 	if err != nil {
 		return nil, err
@@ -178,10 +144,6 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	specs, err := optionalString(m, "specs")
-	if err != nil {
-		return nil, err
-	}
 	contentVersion, err := optionalString(m, "content_version")
 	if err != nil {
 		return nil, err
@@ -211,13 +173,8 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	directory := filepath.Dir(path)
-	if directory == "" {
-		directory = "."
-	}
 	return &Config{
 		Provider:            provider,
-		Specs:               specs,
 		ContentVersion:      contentVersion,
 		Subscription:        subscription,
 		ResourceGroup:       resourceGroup,
@@ -225,7 +182,6 @@ func LoadConfig(path string) (*Config, error) {
 		PruneIdentities:     pruneIdentities,
 		PruneRoles:          pruneRoles,
 		PruneResourceGroups: pruneResourceGroups,
-		Directory:           directory,
 	}, nil
 }
 
@@ -235,7 +191,6 @@ func LoadConfig(path string) (*Config, error) {
 func Resolve(config *Config, overrides Overrides) Settings {
 	settings := Settings{
 		Provider:            "azure",
-		Specs:               "dns",
 		PruneDNS:            true,
 		PruneIdentities:     false,
 		PruneRoles:          false,
@@ -247,13 +202,6 @@ func Resolve(config *Config, overrides Overrides) Settings {
 	if config != nil {
 		if config.Provider != "" {
 			settings.Provider = config.Provider
-		}
-		if config.Specs != "" {
-			specs := config.Specs
-			if !filepath.IsAbs(specs) {
-				specs = filepath.Join(config.Directory, specs)
-			}
-			settings.Specs = specs
 		}
 		if config.ContentVersion != "" {
 			settings.ContentVersion = config.ContentVersion
@@ -285,9 +233,6 @@ func Resolve(config *Config, overrides Overrides) Settings {
 	}
 	if overrides.Provider != nil {
 		settings.Provider = *overrides.Provider
-	}
-	if overrides.Specs != nil {
-		settings.Specs = *overrides.Specs
 	}
 	if overrides.Subscription != nil {
 		settings.Subscription = *overrides.Subscription

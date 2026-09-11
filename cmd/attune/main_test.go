@@ -13,10 +13,15 @@ import (
 	"github.com/queone/gkit/internal/color"
 )
 
-// captureRun invokes run(args) in-process, capturing stdout/stderr by
-// swapping the package-level os.Stdout/os.Stderr vars around the call.
+// captureRun invokes a fresh app in-process, capturing stdout/stderr by
+// swapping the package-level os.Stdout/os.Stderr vars around the call. Every
+// run gets private XDG homes and no ATTUNE_STORE, so a store remembered on
+// the developer's Mac can never change what a test sees.
 func captureRun(t *testing.T, args []string) (code int, stdout, stderr string) {
 	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(t.TempDir(), "data"))
+	t.Setenv("ATTUNE_STORE", "")
 	origOut, origErr := os.Stdout, os.Stderr
 	ro, wo, err := os.Pipe()
 	if err != nil {
@@ -29,7 +34,7 @@ func captureRun(t *testing.T, args []string) (code int, stdout, stderr string) {
 	os.Stdout, os.Stderr = wo, we
 	defer func() { os.Stdout, os.Stderr = origOut, origErr }()
 
-	code = run(args)
+	code = newApp().run(args)
 
 	wo.Close()
 	we.Close()
@@ -44,7 +49,7 @@ func TestVersionOutput(t *testing.T) {
 		if code != 0 {
 			t.Errorf("%v: code = %d, want 0", args, code)
 		}
-		want := "attune " + programVersion + "\n"
+		want := "attune v" + programVersion + "\n"
 		if out != want {
 			t.Errorf("%v: stdout = %q, want %q", args, out, want)
 		}
@@ -60,33 +65,78 @@ func TestHelpOutput(t *testing.T) {
 		if code != 0 {
 			t.Errorf("%v: code = %d, want 0", args, code)
 		}
-		for _, want := range []string{"(p|plan)", "-d, --diagnostic"} {
+		lines := strings.Split(out, "\n")
+		if lines[0] != "attune v"+programVersion {
+			t.Errorf("%v: first line %q", args, lines[0])
+		}
+		if lines[1] != "Reconcile Azure state from YAML specs kept in an encrypted store." {
+			t.Errorf("%v: second line %q", args, lines[1])
+		}
+		last := -1
+		for _, section := range []string{"\nOverview\n", "\nUsage\n", "\nOptions\n", "\nNotes\n"} {
+			idx := strings.Index(out, section)
+			if idx < 0 || idx < last {
+				t.Errorf("%v: section %q missing or out of order", args, strings.TrimSpace(section))
+			}
+			last = idx
+		}
+		for _, want := range []string{"(p|plan)", "-d, --diagnostic", "-t, --store PATH", "attune key show", "attune rename OLD NEW", "attune edit NAME", "-b, --by FIELD", "macOS only"} {
 			if !strings.Contains(out, want) {
 				t.Errorf("%v: help output missing %q", args, want)
+			}
+		}
+		for _, gone := range []string{"bundle", "--specs", "push", "pull", "attune diff"} {
+			if strings.Contains(out, gone) {
+				t.Errorf("%v: help still mentions %q", args, gone)
 			}
 		}
 	}
 }
 
-func TestValidateOffline(t *testing.T) {
-	before, err := os.ReadDir("testdata/specs")
+func TestHelpHeaderAndHeadingsAreBoldWhite(t *testing.T) {
+	plain := color.ClearCode(usage())
+	defer color.SetEnabled(true)()
+	out := usage()
+	lines := strings.Split(out, "\n")
+	if lines[0] != color.Bold(color.Gra10("attune"))+" v"+programVersion {
+		t.Fatalf("first line %q", lines[0])
+	}
+	for _, name := range []string{"Overview", "Usage", "Options", "Notes"} {
+		if !strings.Contains(out, "\n"+color.Bold(color.Gra10(name))+"\n") {
+			t.Fatalf("heading %s is not bold white", name)
+		}
+	}
+	if color.ClearCode(out) != plain {
+		t.Fatal("stripping escapes does not yield the plain help")
+	}
+	restore := color.SetEnabled(false)
+	out = usage()
+	restore()
+	if strings.Contains(out, "\x1b[") || out != plain {
+		t.Fatalf("color disabled: %q", out)
+	}
+}
+
+func TestReadmeUsageBlockEqualsHelp(t *testing.T) {
+	b, err := os.ReadFile("README.md")
 	if err != nil {
 		t.Fatal(err)
 	}
-	code, out, errOut := captureRun(t, []string{"validate", "--specs", "testdata/specs"})
-	if code != 0 {
-		t.Fatalf("code = %d, stderr = %q", code, errOut)
+	readme := string(b)
+	start := strings.Index(readme, "## Usage\n\n```text\n")
+	if start < 0 {
+		t.Fatal("README has no ## Usage block")
 	}
-	want := "attune validate: OK (6 specs)\n"
-	if out != want {
-		t.Errorf("stdout = %q, want %q", out, want)
+	start += len("## Usage\n\n```text\n")
+	end := strings.Index(readme[start:], "```")
+	if end < 0 {
+		t.Fatal("README usage block is not closed")
 	}
-	after, err := os.ReadDir("testdata/specs")
-	if err != nil {
-		t.Fatal(err)
+	if got, want := readme[start:start+end], color.ClearCode(usage()); got != want {
+		t.Fatalf("README usage block differs from help\n--- README\n%s\n--- help\n%s", got, want)
 	}
-	if len(before) != len(after) {
-		t.Errorf("validate changed the spec directory: before=%d after=%d", len(before), len(after))
+	if strings.Contains(strings.ToLower(readme), "bundle") {
+		t.Fatal("README still uses the word bundle")
 	}
 }
 
@@ -108,28 +158,22 @@ func TestInvalidInputsIncludeRecoveryGuidance(t *testing.T) {
 	}
 }
 
-// validateSyntheticSpec writes yaml as the only spec file in a fresh temp
-// directory and runs `validate` against it, asserting no files were
-// created or removed as a side effect.
+// validateSyntheticSpec stores yaml as the only spec in a fresh store and
+// validates it. add validates before saving, so a bad spec is refused there
+// with the same parser message validate would give.
 func validateSyntheticSpec(t *testing.T, yaml string) (code int, stdout, stderr string) {
 	t.Helper()
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "role-assignment.yaml"), []byte(yaml), 0o644); err != nil {
+	h := newHarness(t)
+	h.mustRun("init", "-N")
+	file := filepath.Join(h.root, "role-assignment.yaml")
+	if err := os.WriteFile(file, []byte(yaml), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	before, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
+	code, stdout, stderr = h.run("add", "role-assignment.yaml", file)
+	if code != 0 {
+		return code, stdout, stderr
 	}
-	code, stdout, stderr = captureRun(t, []string{"validate", "--specs", dir})
-	after, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(before) != len(after) {
-		t.Errorf("validate changed the spec directory")
-	}
-	return code, stdout, stderr
+	return h.run("validate")
 }
 
 func TestLegacyPrincipalFormsValidateOfflineWithoutArtifacts(t *testing.T) {
@@ -163,7 +207,7 @@ func TestNamedPrincipalWithoutTypeHasRecoveryGuidance(t *testing.T) {
 // named categories (named-principal-without-type is covered separately
 // above): unknown kind, malformed YAML, and a missing required field.
 // Confirms exit 1 (not 2 — spec-content errors, not CLI-argument errors)
-// with the "attune: validate specs:" contextual prefix.
+// with the "attune: add:" contextual prefix, since add validates first.
 func TestInvalidSpecInputExitsOneWithRecoveryGuidance(t *testing.T) {
 	cases := []struct {
 		name string
@@ -179,7 +223,7 @@ func TestInvalidSpecInputExitsOneWithRecoveryGuidance(t *testing.T) {
 			if code != 1 {
 				t.Errorf("code = %d, want 1 (stderr=%q)", code, errOut)
 			}
-			if !strings.Contains(errOut, "attune: validate specs:") {
+			if !strings.Contains(errOut, "attune: add:") {
 				t.Errorf("stderr = %q, missing contextual recovery guidance prefix", errOut)
 			}
 		})
@@ -190,22 +234,22 @@ const publicExampleRoot = "../../examples/attune"
 
 func TestPublicExampleValidatesOfflineWithoutWrites(t *testing.T) {
 	before := collectFileNames(t, publicExampleRoot)
-	code, out, errOut := captureRun(t, []string{"validate", "-s", filepath.Join(publicExampleRoot, "specs")})
-	if code != 0 {
-		t.Fatalf("code = %d, stderr = %q", code, errOut)
-	}
-	want := "attune validate: OK (6 specs)\n"
-	if out != want {
+	h := newHarness(t)
+	h.mustRun("init", "-N")
+	h.mustRun("add", "attune.yaml", filepath.Join(publicExampleRoot, "attune.yaml"))
+	h.mustRun("add", filepath.Join(publicExampleRoot, "specs"))
+	want := "attune validate: OK (6 specs) content=v0.1.0\n"
+	if out := h.mustRun("validate"); out != want {
 		t.Errorf("stdout = %q, want %q", out, want)
 	}
 	after := collectFileNames(t, publicExampleRoot)
 	if len(before) != len(after) {
-		t.Errorf("validate modified the example bundle")
+		t.Errorf("validate modified the example")
 	}
 }
 
 func TestPublicExampleHasOneOfEverySupportedKind(t *testing.T) {
-	bundle, err := Load(filepath.Join(publicExampleRoot, "specs"))
+	bundle, err := loadDir(t, filepath.Join(publicExampleRoot, "specs"))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -261,7 +305,7 @@ func TestPublicExampleContainsOnlySafeDocumentationValues(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	bundle, err := Load(filepath.Join(publicExampleRoot, "specs"))
+	bundle, err := loadDir(t, filepath.Join(publicExampleRoot, "specs"))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -434,20 +478,19 @@ func TestGroundingAndValidateLinesAppendContentVersion(t *testing.T) {
 // the given attune.yaml content and one valid DNS spec.
 func validateWithConfig(t *testing.T, config string) (code int, stdout, stderr string) {
 	t.Helper()
+	h := newHarness(t)
+	h.mustRun("init", "-N")
 	dir := t.TempDir()
-	specs := filepath.Join(dir, "specs")
-	if err := os.MkdirAll(specs, 0o755); err != nil {
-		t.Fatal(err)
-	}
 	spec := "kind: dnsRecordSet\nzone: example.com\ntype: A\nname: www\nttl: 300\nvalues:\n  - 192.0.2.10\n"
-	if err := os.WriteFile(filepath.Join(specs, "dns.yaml"), []byte(spec), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "dns.yaml"), []byte(spec), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "attune.yaml"), []byte(config), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Chdir(dir)
-	return captureRun(t, []string{"validate"})
+	h.mustRun("add", "attune.yaml", filepath.Join(dir, "attune.yaml"))
+	h.mustRun("add", "dns.yaml", filepath.Join(dir, "dns.yaml"))
+	return h.run("validate")
 }
 
 func TestValidateOutputIncludesDeclaredContentVersion(t *testing.T) {

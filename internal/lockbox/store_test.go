@@ -321,3 +321,41 @@ func TestLoadMigratesVersionOneInMemoryAndSaveWritesVersionTwo(t *testing.T) {
 		t.Fatalf("version 3 store: got %v, want ErrSchema", err)
 	}
 }
+
+func TestSetTargetRenamesAndRefusesCollision(t *testing.T) {
+	st, _ := newTestStore(t, t.TempDir())
+	defer st.Close()
+	a, err := st.AddEntry("dns/a.yaml", 0o600, "", UnknownOwnership)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.AddVersion(a.ID, []byte("kind: dnsRecordSet\n"), "np10"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.AddEntry("dns/b.yaml", 0o600, "", UnknownOwnership); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetTarget(a.ID, "dns/b.yaml"); !errors.Is(err, ErrExists) {
+		t.Fatalf("rename onto a held target: got %v, want ErrExists", err)
+	}
+	if err := st.SetTarget(a.ID, "zones/a.yaml"); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := st.Entries()
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets := []string{}
+	for _, e := range entries {
+		targets = append(targets, e.Target)
+	}
+	if len(targets) != 2 || targets[0] != "dns/b.yaml" || targets[1] != "zones/a.yaml" {
+		t.Fatalf("targets after rename %v", targets)
+	}
+	if n, err := st.VersionCount(a.ID); err != nil || n != 1 {
+		t.Fatalf("versions after rename %d %v, want 1", n, err)
+	}
+	if err := st.SetTarget(999, "x.yaml"); err == nil {
+		t.Fatal("renaming a missing entry succeeded")
+	}
+}

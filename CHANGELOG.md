@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.77.0 | AC92: attune v1.4.0 store-only specs, edit verb, store commands; bashrc 1.3.1 |
 | 0.76.0 | AC98: macfit v1.6.0 ls sorts by host, then target; -S sort by target or captured |
 | 0.75.0 | AC97: macfit v1.5.0 bare st verdict, host-bound add, set verb, ls host first |
 | 0.74.0 | AC96: macfit v1.4.0 render store to a directory, cat one file, st shows mtime |

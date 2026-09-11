@@ -4,13 +4,19 @@ This directory is a fictional, provider-safe attune project. It demonstrates
 all supported resource kinds without containing a usable tenant, subscription,
 principal, credential, or production domain.
 
-Validate the files offline from this directory:
+Validate the files offline through a throwaway store named by `ATTUNE_STORE`,
+so the store you normally use is left alone:
 
 ```sh
+export ATTUNE_STORE=/tmp/attune-example.store
+attune init -N                        # any passphrase; the store is throwaway
+attune add attune.yaml attune.yaml
+attune add specs
 attune validate
+attune key rm -f && rm "$ATTUNE_STORE" && unset ATTUNE_STORE
 ```
 
-`validate` reads local configuration and specifications only. In contrast,
+`validate` reads the stored configuration and specifications only. In contrast,
 `attune plan` authenticates to Azure and reads live provider state, while
 `attune apply` can create, update, and delete provider resources according to
 the reviewed plan and enabled prune policies.
