@@ -56,7 +56,7 @@ A missing or empty config file is created as a skeleton with mode 0600 so you ca
 The API never returns the value of a sensitive variable, so `clone` creates those variables in the destination with empty values and prints their names. Set them again in the new workspace before running it.
 
 ### History
-This utility replaces the standalone `queone/tfe` repository, which depended on the `queone/utl` library. Both are archived; this is where the tool lives now.
+This utility replaces the standalone `queone/tfe` repository, which depended on the `queone/utl` library. Both have been deleted; this is where the tool lives now.
 
 ### Getting Started
 This utility is part of a collection of Go utilities. To compile and install follow the **Getting Started** instructions at the [gkit repo](https://github.com/queone/gkit).
