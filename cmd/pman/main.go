@@ -8,24 +8,41 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	programName    = "pman"
-	programVersion = "2.0.0"
+	programVersion = "2.1.0"
 )
 
+func usage() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Call Microsoft Graph and Azure Resource Manager REST APIs with an azm token",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " METHOD URL [-d DATA]", Meaning: "Send the request with a bearer token and print the response body"}},
+				Lines: []string{
+					"pman needs the azm utility installed and logged in. It asks azm for a",
+					"Microsoft Graph token for graph.microsoft.com URLs and an Azure Resource",
+					"Manager token for management.azure.com URLs.",
+				}},
+			{Title: "Options", Rows: []help.Row{{Form: "-d, --data DATA", Meaning: "Send DATA as the JSON request body"}}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: programName + ` GET "https://graph.microsoft.com/v1.0/me"`, Meaning: ""},
+				{Form: programName + ` GET "https://management.azure.com/subscriptions?api-version=2022-04-01"`, Meaning: ""},
+				{Form: programName + ` GET "https://graph.microsoft.com/v1.0/applications/<id>"`, Meaning: ""},
+			}},
+		},
+	}.String()
+}
+
+// printUsage prints the help to stderr and exits 1 for a bad command line.
 func printUsage() {
-	fmt.Printf("%s Azure REST API Caller v%s\n", programName, programVersion)
-	fmt.Println("  This utility relies on the 'azm' command-line utility being installed,")
-	fmt.Println("  authenticated, and properly configured to obtain Azure access tokens.")
-	fmt.Println("  It uses azm to retrieve Microsoft Graph or Azure Resource Manager tokens")
-	fmt.Println("  based on the target endpoint.")
-	fmt.Println()
-	fmt.Println("  Usage Examples:")
-	fmt.Printf("    %s GET \"https://graph.microsoft.com/v1.0/me\"\n", programName)
-	fmt.Printf("    %s GET \"https://management.azure.com/subscriptions?api-version=2022-04-01\"\n", programName)
-	fmt.Printf("    %s GET \"https://graph.microsoft.com/v1.0/applications/<id>\"\n", programName)
+	fmt.Fprint(os.Stderr, usage())
 	os.Exit(1)
 }
 
@@ -66,9 +83,15 @@ func getToken(url string) string {
 }
 
 func main() {
-	if len(os.Args) == 2 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
-		fmt.Printf("%s v%s\n", programName, programVersion)
-		return
+	if len(os.Args) == 2 {
+		switch os.Args[1] {
+		case "-v", "--version":
+			fmt.Printf("%s v%s\n", programName, programVersion)
+			return
+		case "-h", "-?", "--help":
+			fmt.Print(usage())
+			return
+		}
 	}
 
 	checkBinary("azm")

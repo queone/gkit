@@ -36,3 +36,30 @@ commands are replaced by `repoctl clone`, `repoctl pull`, and `repoctl status`;
 the latter two status-oriented commands are both covered by `repoctl status`.
 Git is required for local operations;
 GitHub CLI is required for scoped clone and list operations.
+
+### Usage
+
+```text
+repoctl v0.5.0
+Control a collection of local Git repositories
+github.com/queone/gkit/tree/main/cmd/repoctl
+
+Usage
+  repoctl COMMAND [REPO ...]    Run COMMAND on every immediate Git repository here, or only on REPO
+  repoctl clone NAME
+  repoctl clone OWNER REPO ...
+  repoctl clone OWNER/REPO
+
+Commands
+  s, status  Show repository status
+  p, pull    Pull selected repositories
+  c, clone   Clone a repository
+  l, list    List repositories in scope
+  b, build   Run ./build.sh in selected repositories
+  version    Print repoctl v0.5.0
+  help       Show this help
+
+Options
+  -v, --version   Print repoctl v0.5.0 and exit
+  -h, -?, --help  Show this help and exit
+```

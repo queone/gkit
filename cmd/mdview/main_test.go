@@ -399,10 +399,10 @@ func TestRunCLIUsageAndErrorStatus(t *testing.T) {
 	if status := runCLI(nil, &stdout, &stderr); status != 0 {
 		t.Fatalf("usage status = %d", status)
 	}
-	if !strings.Contains(stdout.String(), "mdview v0.1.0") ||
+	if !strings.Contains(stdout.String(), "mdview v"+programVersion) ||
 		!strings.Contains(stdout.String(), "mdview [-o FILE] FILE") ||
 		!strings.Contains(stdout.String(), "-o, --output FILE") ||
-		!strings.Contains(stdout.String(), "print mdview v0.1.0 and exit") {
+		!strings.Contains(stdout.String(), "Print mdview v"+programVersion+" and exit") {
 		t.Errorf("usage missing contract:\n%s", stdout.String())
 	}
 
@@ -422,7 +422,7 @@ func TestRunCLIVersionAliases(t *testing.T) {
 			if status := runCLI([]string{flag}, &stdout, &stderr); status != 0 {
 				t.Fatalf("status = %d, want 0", status)
 			}
-			if got, want := stdout.String(), "mdview v0.1.0\n"; got != want {
+			if got, want := stdout.String(), "mdview v"+programVersion+"\n"; got != want {
 				t.Errorf("stdout = %q, want %q", got, want)
 			}
 			if got := stderr.String(); got != "" {
@@ -446,7 +446,7 @@ func TestRunCLISpecialFlagPrecedence(t *testing.T) {
 	if status := runCLI([]string{"--version", "--help"}, &stdout, &stderr); status != 0 {
 		t.Fatalf("version-first status = %d, want 0", status)
 	}
-	if got, want := stdout.String(), "mdview v0.1.0\n"; got != want {
+	if got, want := stdout.String(), "mdview v"+programVersion+"\n"; got != want {
 		t.Errorf("version-first stdout = %q, want %q", got, want)
 	}
 	if got := stderr.String(); got != "" {
@@ -677,11 +677,19 @@ func TestTemporaryOutputLifecycleAndOpener(t *testing.T) {
 }
 
 func TestProgramIdentityAndStylesheetChecksum(t *testing.T) {
-	if programName != "mdview" || programVersion != "0.1.0" {
+	if programName != "mdview" || programVersion != "0.2.0" {
 		t.Errorf("identity = %s %s", programName, programVersion)
 	}
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(stylesheet)))
 	if got != stylesheetSHA256 {
 		t.Errorf("stylesheet SHA-256 = %s, want %s", got, stylesheetSHA256)
+	}
+}
+
+// The help screen follows the shared standard: three header lines, then the
+// sections the renderer accepts, with the standard rows left to the renderer.
+func TestHelpDocFollowsTheStandard(t *testing.T) {
+	if err := helpDoc().Check(); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -2,10 +2,40 @@
 
 Find free usernames on any site with a predictable profile URL. Give it a site and one name, and it tells you whether that name is free. Give it a pattern, and it prints every free name the pattern expands to.
 
+`namehunt` sends one HEAD request per name to a site's check URL and reads the status: 404 means free, any 2xx means taken, anything else is reported as unknown. Free names are a strong hint; only signing up confirms one.
+
 ### Usage
 
-```
-namehunt [flags] SITE CANDIDATE
+```text
+namehunt v1.2.0
+Find free usernames on any site with a predictable profile URL
+github.com/queone/gkit/tree/main/cmd/namehunt
+
+Usage
+  namehunt [flags] SITE CANDIDATE  Check one name, or list every free name a pattern yields
+
+  SITE is a site name or a URL template with {} where the username goes.
+  Built-in sites: github, lichess, archive. More come from ~/.config/namehunt/sites,
+  one per line: NAME TEMPLATE [FREE_CODES] [PROFILE_TEMPLATE]. The file is written
+  with the built-ins on first run. CANDIDATE is one name, a pattern like
+  [qk][aeou][qk][aeou], or - for stdin. 404 means free, 2xx means taken, anything
+  else is unknown; only signing up confirms a name.
+
+Options
+  -d, --distinct       Keep only names with no repeated character
+  -r, --require CHARS  Keep only names containing every character in CHARS
+  -n, --dry-run        Print the names and send no request
+  -f, --free CODES     Status codes that mean free, comma-separated (default 404)
+  -w, --wait MS        Pause MS milliseconds between requests (default 300)
+  -l, --list           List known sites and exit
+  -v, --version        Print namehunt v1.2.0 and exit
+  -h, -?, --help       Show this help and exit
+
+Examples
+  namehunt github kaqe
+  namehunt archive qoku
+  namehunt -d lichess '[qk][aeiou][qk][aeiou]'
+  namehunt 'https://www.reddit.com/user/{}' kaqe
 ```
 
 Run `namehunt` with no arguments, or with `-h`, to see the help screen.

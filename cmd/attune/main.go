@@ -12,11 +12,15 @@ import (
 	"strings"
 
 	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 	"github.com/queone/gkit/internal/lockbox"
 	"golang.org/x/term"
 )
 
-const programVersion = "1.4.0"
+const (
+	programName    = "attune"
+	programVersion = "1.5.0"
+)
 
 var validKinds = []string{
 	"dnsRecordSet",
@@ -477,69 +481,72 @@ func boolValue(inline *string) (bool, error) {
 }
 
 func isVersionArg(a string) bool { return a == "-v" || a == "--version" || a == "v" || a == "version" }
-func isHelpArg(a string) bool    { return a == "-h" || a == "--help" || a == "h" || a == "help" }
+func isHelpArg(a string) bool {
+	return a == "-h" || a == "-?" || a == "--help" || a == "h" || a == "help"
+}
 
 // heading renders a help heading in bold white, like the name on line one.
-func heading(s string) string { return color.Bold(color.Gra10(s)) }
-
-// helpLine renders one aligned help line: a command or flag form, then its meaning.
-func helpLine(form, meaning string) string { return fmt.Sprintf("  %-36s%s\n", form, meaning) }
-
-func usage() string {
-	return heading("attune") + " v" + programVersion + "\n" +
-		color.Gra5("Reconcile Azure state from YAML specs kept in an encrypted store.") + "\n\n" +
-		heading("Overview") + "\n" +
-		"  The specs live in one sealed store file that attune manages itself: init\n" +
-		"  creates or unlocks it, add captures spec files, edit changes a stored spec\n" +
-		"  in your editor, and render writes a browsable copy. validate checks the\n" +
-		"  stored specs offline, plan reads live Azure state and lists the changes,\n" +
-		"  and apply makes them. The key lives in the login keychain, with a\n" +
-		"  passphrase-wrapped copy in the store for other Macs.\n\n" +
-		heading("Usage") + "\n" +
-		helpLine("attune (c|validate) [flags]", "check the stored specs offline") +
-		helpLine("attune (p|plan) [flags]", "read live state and show the changes") +
-		helpLine("attune (a|apply) [flags]", "create, update, and permitted prune operations") +
-		helpLine("attune init [-N] [-t PATH]", "unlock an existing store, or create one with -N") +
-		helpLine("attune st", "status of the store, key, and entries") +
-		helpLine("attune add DIR | NAME [FILE]", "import a directory of specs, or store one from a file or stdin") +
-		helpLine("attune edit NAME", "change a stored spec in $EDITOR and save a validated version") +
-		helpLine("attune rename OLD NEW", "change an entry's name, keeping its versions") +
-		helpLine("attune rm NAME", "forget an entry and its stored versions") +
-		helpLine("attune ls [-b FIELD]", "list entries by name, or by captured") +
-		helpLine("attune cat NAME", "print one stored spec") +
-		helpLine("attune render [-o DIR] [-a] [-f]", "write the stored specs into a browsable directory") +
-		helpLine("attune key show", "store path, key id, keychain and store state") +
-		helpLine("attune key restore", "put the key back in the keychain with the passphrase") +
-		helpLine("attune key rm [-f]", "delete the keychain item after a prompt") +
-		helpLine("attune key passphrase", "change the recovery passphrase") +
-		helpLine("attune (v|version)", "print attune v"+programVersion) +
-		helpLine("attune (h|help)", "show this help") + "\n" +
-		heading("Options") + "\n" +
-		helpLine("-t, --store PATH", "Store file for this command; init -t also remembers it") +
-		helpLine("-P, --provider NAME", "Provider name; azure is the only one") +
-		helpLine("-S, --subscription ID", "Azure subscription for live commands") +
-		helpLine("-g, --resource-group NAME", "Azure resource group for live commands") +
-		helpLine("-k, --kind KIND", "Limit plan and apply to one spec kind") +
-		helpLine("-r, --prune[=BOOL]", "Delete unmanaged DNS records; on by default") +
-		helpLine("-I, --prune-identities[=BOOL]", "Delete unmanaged groups and app registrations; off by default") +
-		helpLine("-R, --prune-roles[=BOOL]", "Delete unmanaged role definitions and assignments; off by default") +
-		helpLine("-G, --prune-resource-groups[=BOOL]", "Delete unmanaged resource groups; off by default") +
-		helpLine("-d, --diagnostic", "Print non-secret account and target grounding on live commands") +
-		helpLine("-V, --verbose", "Field-level detail on plan and apply") +
-		helpLine("-N, --new", "Create a new store (init)") +
-		helpLine("-f, --force", "Render into a non-empty directory; skip the key rm prompt") +
-		helpLine("-o, --output DIR", "Render into DIR instead of a fresh private temp directory (render)") +
-		helpLine("-a, --all", "Render every stored version too, under versions/ (render)") +
-		helpLine("-b, --by FIELD", "Sort ls by name (the default) or captured, newest first") +
-		helpLine("-v, --version", "Print attune v"+programVersion+" and exit") +
-		helpLine("-h, --help", "Show this help message and exit") + "\n" +
-		heading("Notes") + "\n" +
-		"  Store path order: -t, then ATTUNE_STORE, then the path init -t remembered in\n" +
-		"  $XDG_CONFIG_HOME/attune/store, then $XDG_DATA_HOME/attune/attune.store.\n" +
-		"  A NAME is a relative path ending in .yaml or .yml (res/dns/zone.yaml), or\n" +
-		"  attune.yaml for the configuration. add and edit validate before saving.\n" +
-		"  Drift against Azure is what plan reports; st never contacts Azure.\n" +
-		"  Live commands need an authenticated Azure CLI (az login). init and edit\n" +
-		"  need a terminal. The store is macOS only.\n" +
-		"  render writes plaintext copies of the store; delete the directory when done.\n"
+// helpDoc describes the help screen.
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Reconcile Azure state from YAML specs kept in an encrypted store",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " COMMAND [flags]", Meaning: "Keep Azure DNS, groups, app registrations, roles, and resource groups matching the stored specs"}},
+				Lines: []string{
+					"Store path order: -t, then ATTUNE_STORE, then the path init -t remembered in",
+					"$XDG_CONFIG_HOME/attune/store, then $XDG_DATA_HOME/attune/attune.store.",
+					"Live commands need an authenticated Azure CLI (az login). init and edit need a",
+					"terminal. The store is macOS only.",
+				}},
+			{Title: "Commands", Rows: []help.Row{
+				{Form: "(c|validate) [flags]", Meaning: "check the stored specs offline"},
+				{Form: "(p|plan) [flags]", Meaning: "read live state and show the changes"},
+				{Form: "(a|apply) [flags]", Meaning: "create, update, and permitted prune operations"},
+				{Form: "init [-N] [-t PATH]", Meaning: "unlock an existing store, or create one with -N"},
+				{Form: "st", Meaning: "status of the store, key, and entries"},
+				{Form: "add DIR | NAME [FILE]", Meaning: "import a directory of specs, or store one from a file or stdin"},
+				{Form: "edit NAME", Meaning: "change a stored spec in $EDITOR and save a validated version"},
+				{Form: "rename OLD NEW", Meaning: "change an entry's name, keeping its versions"},
+				{Form: "rm NAME", Meaning: "forget an entry and its stored versions"},
+				{Form: "ls [-b FIELD]", Meaning: "list entries by name, or by captured"},
+				{Form: "cat NAME", Meaning: "print one stored spec"},
+				{Form: "render [-o DIR] [-a] [-f]", Meaning: "write the stored specs into a browsable directory"},
+				{Form: "key show", Meaning: "store path, key id, keychain and store state"},
+				{Form: "key restore", Meaning: "put the key back in the keychain with the passphrase"},
+				{Form: "key rm [-f]", Meaning: "delete the keychain item after a prompt"},
+				{Form: "key passphrase", Meaning: "change the recovery passphrase"},
+				{Form: "(v|version)", Meaning: "print attune v" + programVersion},
+				{Form: "(h|help)", Meaning: "show this help"},
+			}, Lines: []string{
+				"A NAME is a relative path ending in .yaml or .yml (res/dns/zone.yaml), or",
+				"attune.yaml for the configuration. add and edit validate before saving.",
+				"Drift against Azure is what plan reports; st never contacts Azure.",
+				"render writes plaintext copies of the store; delete the directory when done.",
+			}},
+			{Title: "Options", Rows: []help.Row{
+				{Form: "-t, --store PATH", Meaning: "Store file for this command; init -t also remembers it"},
+				{Form: "-P, --provider NAME", Meaning: "Provider name; azure is the only one"},
+				{Form: "-S, --subscription ID", Meaning: "Azure subscription for live commands"},
+				{Form: "-g, --resource-group NAME", Meaning: "Azure resource group for live commands"},
+				{Form: "-k, --kind KIND", Meaning: "Limit plan and apply to one spec kind"},
+				{Form: "-r, --prune[=BOOL]", Meaning: "Delete unmanaged DNS records; on by default"},
+				{Form: "-I, --prune-identities[=BOOL]", Meaning: "Delete unmanaged groups and app registrations; off by default"},
+				{Form: "-R, --prune-roles[=BOOL]", Meaning: "Delete unmanaged role definitions and assignments; off by default"},
+				{Form: "-G, --prune-resource-groups[=BOOL]", Meaning: "Delete unmanaged resource groups; off by default"},
+				{Form: "-d, --diagnostic", Meaning: "Print non-secret account and target grounding on live commands"},
+				{Form: "-V, --verbose", Meaning: "Field-level detail on plan and apply"},
+				{Form: "-N, --new", Meaning: "Create a new store (init)"},
+				{Form: "-f, --force", Meaning: "Render into a non-empty directory; skip the key rm prompt"},
+				{Form: "-o, --output DIR", Meaning: "Render into DIR instead of a fresh private temp directory (render)"},
+				{Form: "-a, --all", Meaning: "Render every stored version too, under versions/ (render)"},
+				{Form: "-b, --by FIELD", Meaning: "Sort ls by name (the default) or captured, newest first"},
+			}},
+		},
+	}
 }
+
+// usage returns the help screen.
+func usage() string { return helpDoc().String() }

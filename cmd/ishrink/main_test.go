@@ -144,15 +144,15 @@ func TestShrinkRejectsMissingInput(t *testing.T) {
 }
 
 func TestVersionHelpAndBadFlags(t *testing.T) {
-	if r := runWith(t, "-v"); r.code != 0 || r.stdout != "ishrink v1.0.0\n" {
+	if r := runWith(t, "-v"); r.code != 0 || r.stdout != "ishrink v"+programVersion+"\n" {
 		t.Errorf("-v: exit %d stdout %q", r.code, r.stdout)
 	}
 	for _, f := range []string{"-h", "--help", "-?"} {
-		if r := runWith(t, f); r.code != 0 || !strings.Contains(r.stdout, "Usage:") {
+		if r := runWith(t, f); r.code != 0 || !strings.Contains(r.stdout, "\nUsage\n") {
 			t.Errorf("%s: exit %d stdout %q", f, r.code, r.stdout)
 		}
 	}
-	if r := runWith(t); r.code != 0 || !strings.Contains(r.stdout, "Usage:") {
+	if r := runWith(t); r.code != 0 || !strings.Contains(r.stdout, "\nUsage\n") {
 		t.Errorf("no args: exit %d stdout %q", r.code, r.stdout)
 	}
 	if r := runWith(t, "--bogus"); r.code != 1 || !strings.Contains(r.stderr, "unknown flag") {
@@ -170,5 +170,13 @@ func TestOutputPathUsesDateAndJpg(t *testing.T) {
 		if got := outputPath(in, fixedDay); got != want {
 			t.Errorf("outputPath(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// The help screen follows the shared standard: three header lines, then the
+// sections the renderer accepts, with the standard rows left to the renderer.
+func TestHelpDocFollowsTheStandard(t *testing.T) {
+	if err := helpDoc().Check(); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -6,19 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/queone/gkit/internal/help"
 	"io"
 	"math"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
-
-	color "github.com/queone/gkit/internal/color"
 )
 
 const (
 	programName    = "vjoin"
-	programVersion = "0.1.0"
+	programVersion = "0.2.0"
 	outputPath     = "merged.mp4"
 )
 
@@ -62,38 +61,25 @@ var (
 	}
 )
 
-func usage() string {
-	h := color.Whi10
-	return fmt.Sprintf("%s v%s\n"+
-		"Join two videos into one normalized MP4 by driving ffmpeg.\n"+
-		"\n"+
-		"%s\n"+
-		"  vjoin concatenates INPUT1 followed by INPUT2. Vertical clips receive a\n"+
-		"  blurred background; horizontal and square clips receive black padding.\n"+
-		"\n"+
-		"%s\n"+
-		"  vjoin INPUT1 INPUT2\n"+
-		"\n"+
-		"%s\n"+
-		"  Video is normalized to 1920x1080, square pixels, and 30 fps. Audio is\n"+
-		"  resampled to 48000 Hz. Output uses H.264 CRF 18 and AAC at 192k.\n"+
-		"\n"+
-		"%s\n"+
-		"  -v, --version          Print %s v%s and exit\n"+
-		"  -h, -?, --help         Show this help message and exit\n"+
-		"\n"+
-		"%s\n"+
-		"  Writes merged.mp4 in the current directory and refuses to overwrite it.\n"+
-		"  Each input must contain at least one video and one audio stream.\n"+
-		"  Requires ffmpeg and ffprobe on PATH (brew install ffmpeg).\n",
-		h(programName), programVersion,
-		h("Overview"),
-		h("Usage"),
-		h("Processing"),
-		h("Options"),
-		programName, programVersion,
-		h("Notes"))
+// helpDoc describes the help screen.
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Join two videos into one normalized MP4 by driving ffmpeg",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " INPUT1 INPUT2", Meaning: "Write merged.mp4 here with INPUT1 followed by INPUT2"}},
+				Lines: []string{
+					"Each input needs one video and one audio stream. vjoin refuses to overwrite",
+					"merged.mp4 and needs ffmpeg and ffprobe on PATH (brew install ffmpeg).",
+				}},
+		},
+	}
 }
+
+// usage returns the help screen.
+func usage() string { return helpDoc().String() }
 
 func run(args []string, stdout, stderr io.Writer) error {
 	for _, arg := range args {

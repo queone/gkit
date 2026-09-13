@@ -11,13 +11,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 	"github.com/queone/gkit/internal/numfmt"
 )
 
 const (
 	programName    = "retotal"
-	programVersion = "1.0.1"
+	programVersion = "1.1.0"
 	// signatureLine gates re-tally and tells the user how to recalculate. It is the
 	// last non-empty line of every output file. The `<FILE>` token is a literal
 	// placeholder, so the signature is path-independent.
@@ -36,22 +36,24 @@ type row struct {
 
 // usageText returns the days-style information screen (program name, version,
 // overview, supported invocations).
-func usageText() string {
-	n := color.Whi10(programName)
-	return fmt.Sprintf("%s v%s\n"+
-		"Financial TOTALS consolidator and re-tallier — https://github.com/queone/gkit/blob/main/cmd/retotal/README.md\n"+
-		"%s\n"+
-		"  retotal reads CSV or space-aligned financial data and writes an aligned summary with computed\n"+
-		"  TOTALS, signed with a recalculation note; it then re-tallies that signed output file in place\n"+
-		"  after you edit it. Supported invocations are:\n"+
-		"\n"+
-		"    retotal -v, --version Prints %s v%s and exits.\n"+
-		"    retotal -h, --help    Prints this information screen.\n"+
-		"    retotal FILE          Consolidate CSV/aligned input into <stem>.txt with computed TOTALS and a\n"+
-		"                          signature line; or, when FILE is already a signed retotal output file,\n"+
-		"                          recompute its TOTALS in place.\n",
-		n, programVersion, color.Whi10("Overview"), programName, programVersion)
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Consolidate financial data into a signed TOTALS summary, and re-tally it after edits",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " FILE", Meaning: "Consolidate FILE into <stem>.txt, or re-tally a signed output file in place"}},
+				Lines: []string{
+					"FILE is CSV or space-aligned financial data; the consolidation writes an aligned",
+					"summary with computed TOTALS and a signature line. When FILE is already a signed",
+					"retotal output file, its TOTALS are recomputed in place after you edit it.",
+				}},
+		},
+	}
 }
+
+func usageText() string { return helpDoc().String() }
 
 // printUsage prints the information screen and exits 0.
 func printUsage() {
@@ -492,7 +494,7 @@ func run() error {
 		fmt.Printf("%s v%s\n", programName, programVersion)
 		return nil
 	}
-	if len(args) != 1 || args[0] == "-h" || args[0] == "--help" {
+	if len(args) != 1 || args[0] == "-h" || args[0] == "-?" || args[0] == "--help" {
 		printUsage()
 	}
 

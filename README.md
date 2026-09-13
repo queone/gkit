@@ -10,40 +10,40 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 
 ## Utilities
 
-- [`attune`](cmd/attune/README.md): Reconcile Azure Resource Manager and Microsoft Graph state (DNS, security groups, app registrations, roles, resource groups) against declarative YAML specs.
-- [`bak`](cmd/bak/main.go): Create dated backups of files or directories.
-- [`brew-update`](cmd/brew-update/main.go): Update, upgrade, and clean up Homebrew packages.
-- [`cash5`](cmd/cash5/main.go): Analyze historical NJ Cash 5 draws (1-45 era, starting 2014-09-14) and generate number recommendations guaranteed to be unwon combinations.
-- [`certgen`](cmd/certgen/main.go): Generate self-signed TLS certificates for local testing.
-- [`certls`](cmd/certls/main.go): Show SSL/TLS certificate details for a host and port.
-- [`days`](cmd/days/README.md): A CLI calendar days calculator.
-- [`decolor`](cmd/decolor/README.md): A utility that removes shell color escape codes from input stream or given file.
-- [`dl`](cmd/dl/main.go): Download online videos using `yt-dlp` with a target filename.
+- [`attune`](cmd/attune/README.md): Reconcile Azure state from YAML specs kept in an encrypted store.
+- [`bak`](cmd/bak/main.go): Create a dated backup copy of a file or directory.
+- [`brew-update`](cmd/brew-update/main.go): Update, upgrade, and clean up Homebrew formulae and casks.
+- [`cash5`](cmd/cash5/main.go): Recommend NJ Cash 5 numbers from the draw history.
+- [`certgen`](cmd/certgen/main.go): Generate a self-signed TLS certificate, private key, and CSR for a common name.
+- [`certls`](cmd/certls/main.go): Print the TLS certificate details of a host and port.
+- [`days`](cmd/days/README.md): Count calendar days between dates, or find the date N days away.
+- [`decolor`](cmd/decolor/README.md): Strip shell color escape codes from a file or piped text.
+- [`dl`](cmd/dl/main.go): Download an online video as an MP4 with yt-dlp.
 - [`dos2unix`](cmd/dos2unix/main.go): Preview or convert CRLF line endings to LF.
-- [`fr`](cmd/fr/README.md): A simple find/replace utility.
-- [`ishrink`](cmd/ishrink/README.md): Re-encode a HEIC, JPEG, or JPG image as a small JPEG via macOS `sips`.
-- [`repoctl`](cmd/repoctl/README.md): Control collections of local Git repositories with status, pull, build, clone, and list operations.
-- [`jy`](cmd/jy/README.md): A lightweight JSON and YAML converter utility.
+- [`fr`](cmd/fr/README.md): Find a regular expression in the text files under the current directory, or replace it.
+- [`ishrink`](cmd/ishrink/README.md): Shrink a HEIC, JPEG, or JPG image into a small JPEG via macOS sips.
+- [`repoctl`](cmd/repoctl/README.md): Control a collection of local Git repositories.
+- [`jy`](cmd/jy/README.md): Convert JSON to YAML and YAML to JSON.
 - [`macfit`](cmd/macfit/README.md): Keep Mac config files in one encrypted store and restore them on any Mac.
-- [`mdview`](cmd/mdview/README.md): Render GitHub Flavored Markdown in a browser or write it as HTML.
-- [`namehunt`](cmd/namehunt/README.md): Find free usernames on GitHub, Lichess, Internet Archive, or any site with a predictable profile URL, one name or a whole pattern at a time.
-- [`oidctok`](cmd/oidctok/README.md): Exchange a GitHub Actions OIDC token for Azure Resource Manager and Microsoft Graph tokens and hand them to later job steps.
-- [`pgen`](cmd/pgen/README.md): A simple generator of memorable passwords.
-- [`pman`](cmd/pman/main.go): Run authenticated Microsoft Graph and Azure REST API requests.
-- [`retotal`](cmd/retotal/README.md): Recalculate TOTALS in a signed financial summary; also consolidates CSV/aligned input into a signed summary.
-- [`rn`](cmd/rn/README.md): A bulk file re-namer.
-- [`rncap`](cmd/rncap/main.go): Rename files by capitalizing each word in filenames.
-- [`rnlower`](cmd/rnlower/main.go): Rename files by converting filenames to lowercase.
-- [`sms`](cmd/sms/README.md): Send SMS messages using Twilio credentials from a local config file.
-- [`swatch`](cmd/swatch/README.md): Xterm 256-color palette and ramp inspector.
-- [`tfe`](cmd/tfe/README.md): List, show, and clone Terraform Cloud workspaces and browse registry modules and organizations from the shell.
-- [`tree`](cmd/tree/README.md): A lightweight directory tree printing utility.
-- [`vconv`](cmd/vconv/README.md): Convert a video, typically WebM, to an H.264/AAC MP4 via ffmpeg.
-- [`vdrop`](cmd/vdrop/README.md): Remove a section of a video — drop START..END and join the remainder — via ffmpeg.
-- [`vjoin`](cmd/vjoin/README.md): Join two videos with orientation-aware framing and normalized output via ffmpeg.
-- [`vkeep`](cmd/vkeep/README.md): Keep a section of a video — extract START..END to a new file — via ffmpeg.
-- [`vshrink`](cmd/vshrink/README.md): Re-encode an MP4 at a high compression level to cut its size via ffmpeg.
-- [`web`](cmd/web/README.md): Search DuckDuckGo and open results with an interactive selector.
+- [`mdview`](cmd/mdview/README.md): View GitHub Flavored Markdown in a browser or write it as HTML.
+- [`namehunt`](cmd/namehunt/README.md): Find free usernames on any site with a predictable profile URL.
+- [`oidctok`](cmd/oidctok/README.md): Exchange a GitHub Actions OIDC token for Azure tokens.
+- [`pgen`](cmd/pgen/README.md): Generate memorable passwords from diceware words.
+- [`pman`](cmd/pman/main.go): Call Microsoft Graph and Azure Resource Manager REST APIs with an azm token.
+- [`retotal`](cmd/retotal/README.md): Consolidate financial data into a signed TOTALS summary, and re-tally it after edits.
+- [`rn`](cmd/rn/README.md): Rename files in the current directory by replacing a substring.
+- [`rncap`](cmd/rncap/main.go): Capitalize every word of every file name in the current directory.
+- [`rnlower`](cmd/rnlower/main.go): Rename every file in the current directory to lowercase.
+- [`sms`](cmd/sms/README.md): Send an SMS message through textbelt.com.
+- [`swatch`](cmd/swatch/README.md): Inspect the xterm 256-color palette and the color ramps.
+- [`tfe`](cmd/tfe/README.md): List, show, and clone Terraform Cloud workspaces, modules, and organizations.
+- [`tree`](cmd/tree/README.md): Print a directory tree, with each file's full path on request.
+- [`vconv`](cmd/vconv/README.md): Convert a video to an H.264 MP4 by driving ffmpeg.
+- [`vdrop`](cmd/vdrop/README.md): Drop one section of a video and join the rest by driving ffmpeg.
+- [`vjoin`](cmd/vjoin/README.md): Join two videos into one normalized MP4 by driving ffmpeg.
+- [`vkeep`](cmd/vkeep/README.md): Keep one section of a video by driving ffmpeg.
+- [`vshrink`](cmd/vshrink/README.md): Shrink an MP4 by re-encoding it at a high compression level via ffmpeg.
+- [`web`](cmd/web/README.md): Search DuckDuckGo and open a result picked with a fuzzy finder.
 
 ## Quick Install
 With Go installed, install all utilities at once:

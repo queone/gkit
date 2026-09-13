@@ -4,8 +4,18 @@ Render a local Markdown file as GitHub Flavored Markdown and open it in the defa
 
 ### Usage
 
-```bash
-mdview [-o FILE] FILE
+```text
+mdview v0.2.0
+View GitHub Flavored Markdown in a browser or write it as HTML
+github.com/queone/gkit/tree/main/cmd/mdview
+
+Usage
+  mdview [-o FILE] FILE  Render FILE and open it in the browser
+
+Options
+  -o, --output FILE  Write the HTML to FILE without opening a browser
+  -v, --version      Print mdview v0.2.0 and exit
+  -h, -?, --help     Show this help and exit
 ```
 
 ```text

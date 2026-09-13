@@ -10,12 +10,13 @@ import (
 	"strings"
 
 	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 	"github.com/queone/gkit/internal/vedit"
 )
 
 const (
 	programName    = "vconv"
-	programVersion = "1.0.0"
+	programVersion = "1.1.0"
 )
 
 // transcode is the ffmpeg seam, replaced in tests so no real encode runs.
@@ -27,31 +28,26 @@ type env struct {
 	stderr io.Writer
 }
 
-// usage returns the help screen.
-func usage() string {
-	lines := []color.UsageLine{
-		{Flag: "-v, --version", Desc: "Print " + programName + " v" + programVersion + " and exit"},
-		{Flag: "-h, --help", Desc: "Show this help"},
+// helpDoc describes the help screen.
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Convert a video to an H.264 MP4 by driving ffmpeg",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " INPUT", Meaning: "Write INPUT's name with an .mp4 extension next to it"}},
+				Lines: []string{
+					"INPUT is any video ffmpeg can read, typically a WebM. vconv refuses to",
+					"overwrite an existing file and needs ffmpeg and ffprobe (brew install ffmpeg).",
+				}},
+			{Title: "Examples", Rows: []help.Row{{Form: programName + " talk.webm", Meaning: "writes talk.mp4"}}},
+		},
 	}
-	footer := `INPUT is any video ffmpeg can read, typically a WebM. The output takes
-INPUT's name with an .mp4 extension and is written next to it; vconv refuses
-to overwrite an existing file. Requires ffmpeg and ffprobe (brew install ffmpeg).
-
-Example:
-  vconv talk.webm        writes talk.mp4`
-	h := color.Whi10
-	return fmt.Sprintf("%s v%s\n"+
-		"Convert a video to MP4 by driving ffmpeg.\n"+
-		"\n"+
-		"%s\n"+
-		"  vconv re-encodes INPUT as H.264 video (CRF 23, preset fast) with AAC\n"+
-		"  audio, the combination that plays everywhere, and prints a before/after\n"+
-		"  summary.\n"+
-		"\n"+
-		"%s",
-		h(programName), programVersion, h("Overview"),
-		color.FormatUsage(programName+" [flags] INPUT", lines, footer))
 }
+
+// usage returns the help screen.
+func usage() string { return helpDoc().String() }
 
 // fail prints err with the program name and returns the failure exit code.
 func fail(stderr io.Writer, err error) int {

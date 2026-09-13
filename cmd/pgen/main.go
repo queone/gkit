@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 	"github.com/sethvargo/go-diceware/diceware"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -17,27 +17,29 @@ import (
 
 const (
 	programName    = "pgen"
-	programVersion = "1.2.3"
+	programVersion = "1.3.0"
 	delimiter      = "_" // Use underscore for diceware password
 )
 
-// Print usage information
+func usage() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Generate memorable passwords from diceware words",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{
+				{Form: programName, Meaning: "Print a 3-word phrase, a capitalized variant with a digit, and a 16-character random password"},
+				{Form: programName + " NUMBER", Meaning: "Use NUMBER words, from 1 to 9"},
+			}},
+			{Title: "Examples", Rows: []help.Row{{Form: programName + " 6", Meaning: "A 6-word phrase"}}},
+		},
+	}.String()
+}
+
+// printUsage prints the help and exits 0.
 func printUsage() {
-	n := color.Whi10(programName)
-	v := programVersion
-	usageHeader := fmt.Sprintf("%s v%s\n"+
-		"Memorable password generator - https://github.com/queone/gkit/blob/main/cmd/pgen/README.md\n"+
-		"%s\n"+
-		"  %s [option]\n\n"+
-		"%s\n"+
-		"                     Without arguments it generates a 3-word memorable password phrase\n"+
-		"  NUMBER             Generates a NUMBER-word memorable password phrase\n"+
-		"                     For example, if NUMBER is '6' it generates a 6-word phrase\n"+
-		"                     Minimum is 1, maximum is 9\n"+
-		"  -v, --version      Print version and exit\n"+
-		"  -?, -h, --help     Print this usage page\n",
-		n, v, color.Whi10("Usage"), n, color.Whi10("Options"))
-	fmt.Print(usageHeader)
+	fmt.Print(usage())
 	os.Exit(0)
 }
 

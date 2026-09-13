@@ -4,23 +4,23 @@ It replaces all occurrences of a specified string in filenames with another stri
 
 ### Usage
 
-```bash
-rn v1.5.0
-Bulk file re-namer — https://github.com/queone/gkit/blob/main/cmd/rn/README.md
+```text
+rn v1.6.0
+Rename files in the current directory by replacing a substring
+github.com/queone/gkit/tree/main/cmd/rn
 
 Usage
-  rn "OldString" "NewString" [-f]
+  rn "OLD" "NEW" [-f]  Show every file name where OLD becomes NEW; rename with -f
 
-  Renames all files in the current directory by replacing occurrences of OldString
-  in filenames with NewString. If NewString is empty (""), the OldString is removed.
+  An empty NEW ("") removes OLD from the name.
 
 Options
-  -f                     Perform actual renaming (required to make changes).
-  -?, --help, -h         Show this help message and exit.
+  -f              Rename the files instead of only showing the plan
+  -v, --version   Print rn v1.6.0 and exit
+  -h, -?, --help  Show this help and exit
 
 Examples
-  rn "_draft" ""           Show files that would be renamed (dry run).
-  rn "_draft" "" -f       Actually rename files.
-  rn "temp" "final" -f     Replace one substring with another.
-  rn -h                   Display this help message.
+  rn "_draft" ""        Show the files that would be renamed
+  rn "_draft" "" -f     Rename them
+  rn "temp" "final" -f  Replace one substring with another
 ```

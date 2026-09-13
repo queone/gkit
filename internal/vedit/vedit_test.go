@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/queone/gkit/internal/help"
 )
 
 // AT1 — parseOffset syntax, duration-independent.
@@ -418,6 +420,11 @@ func TestOptionalEndEquivalence(t *testing.T) {
 // command form and the whole-file note, and the two tools' screens are identical
 // apart from the header line and which command column is highlighted.
 func TestUsage(t *testing.T) {
+	for _, name := range []string{"vkeep", "vdrop"} {
+		if err := Help(name, "0.1.0").Check(); err != nil {
+			t.Errorf("%s help breaks the shared standard: %v", name, err)
+		}
+	}
 	keepScreen := Usage("vkeep", "0.1.0")
 	for _, want := range []string{
 		"vkeep 0 FILE",
@@ -463,10 +470,20 @@ func TestUsage(t *testing.T) {
 }
 
 func TestUsageREADMECheatsheets(t *testing.T) {
-	want := "  Copy the whole file             vkeep 0 FILE\n" +
-		"  Keep from beginning to 1:00       vkeep 0 1:00 FILE\n" +
-		"  Drop from beginning to 1:00       vdrop 0 1:00 FILE\n" +
-		"  Keep from 1:00 to the end       vkeep 1:00 FILE"
+	var cheat []help.Row
+	for _, s := range Help("vkeep", "0.1.0").Sections {
+		if s.Title == "Cheatsheet" {
+			cheat = s.Rows
+		}
+	}
+	if len(cheat) < 5 {
+		t.Fatalf("cheatsheet has %d rows, want at least 5", len(cheat))
+	}
+	var want string
+	for _, line := range help.Rows(cheat...)[:5] {
+		want += "  " + ansiRE.ReplaceAllString(line, "") + "\n"
+	}
+	want = strings.TrimSuffix(want, "\n")
 	for _, path := range []string{
 		filepath.Join("..", "..", "cmd", "vkeep", "README.md"),
 		filepath.Join("..", "..", "cmd", "vdrop", "README.md"),
@@ -593,20 +610,20 @@ func contains(s, sub string) bool { return strings.Contains(s, sub) }
 
 var ansiRE = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
-// stripExceptHeader removes ANSI color codes and normalizes the two per-tool
-// details, leaving the shared body for cross-tool comparison.
+// stripExceptHeader removes ANSI color codes, the three per-tool header lines,
+// and the per-tool version row, leaving the shared body for cross-tool comparison.
 func stripExceptHeader(s string) string {
 	plain := ansiRE.ReplaceAllString(s, "")
-	if _, body, found := strings.Cut(plain, "\n"); found {
-		lines := strings.Split(body, "\n")
-		for i, line := range lines {
-			if strings.HasPrefix(line, "  -v, --version") {
-				lines[i] = "  -v, --version <per-tool version line>"
-			}
-		}
-		return strings.Join(lines, "\n")
+	lines := strings.Split(plain, "\n")
+	if len(lines) > 3 {
+		lines = lines[3:]
 	}
-	return plain
+	for i, line := range lines {
+		if strings.HasPrefix(line, "  -v, --version") {
+			lines[i] = "  -v, --version <per-tool version line>"
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // stubTools points the tool seams at fakes: every tool is "installed", ffprobe

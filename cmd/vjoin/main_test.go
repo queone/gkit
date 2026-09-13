@@ -228,7 +228,7 @@ func TestHelpAliases(t *testing.T) {
 			if err := run(args, &stdout, io.Discard); err != nil {
 				t.Fatalf("run(%v): %v", args, err)
 			}
-			for _, want := range []string{"vjoin", "v0.1.0", "Overview", "Usage", "Processing", "Options", "Notes", "vjoin INPUT1 INPUT2"} {
+			for _, want := range []string{"vjoin", "v" + programVersion, "\nUsage\n", "\nOptions\n", "vjoin INPUT1 INPUT2", "-h, -?, --help"} {
 				if !strings.Contains(stdout.String(), want) {
 					t.Errorf("usage missing %q", want)
 				}
@@ -341,8 +341,8 @@ func TestDocumentation(t *testing.T) {
 }
 
 func TestProgramVersion(t *testing.T) {
-	if programVersion != "0.1.0" {
-		t.Errorf("programVersion = %q, want 0.1.0", programVersion)
+	if programVersion != "0.2.0" {
+		t.Errorf("programVersion = %q, want 0.2.0", programVersion)
 	}
 }
 
@@ -376,4 +376,12 @@ func readTestFile(t *testing.T, path string) string {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return string(body)
+}
+
+// The help screen follows the shared standard: three header lines, then the
+// sections the renderer accepts, with the standard rows left to the renderer.
+func TestHelpDocFollowsTheStandard(t *testing.T) {
+	if err := helpDoc().Check(); err != nil {
+		t.Fatal(err)
+	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"github.com/queone/gkit/internal/help"
 	"io"
 	"os"
 	"os/exec"
@@ -23,7 +24,7 @@ const (
 
 const (
 	programName    = "dl"
-	programVersion = "2.3.0"
+	programVersion = "2.4.0"
 )
 
 const (
@@ -278,26 +279,45 @@ func downloadVideo(o dlOptions) error {
 }
 
 // printUsage displays usage information
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Download an online video as an MP4 with yt-dlp",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + ` [options] FILENAME "URL"`, Meaning: "Save the video at URL as FILENAME.mp4"}},
+				Lines: []string{"Downloads default to a small 360p (max 640x360) mp4 for quick sharing."}},
+			{Title: "Options", Rows: []help.Row{
+				{Form: "-q, --quality N", Meaning: "Cap video height at N pixels (default 360; width pairs at 16:9)"},
+				{Form: "-w, --width N", Meaning: "Cap video width at N pixels (default 640; height pairs at 16:9)"},
+				{Form: "-b, --best", Meaning: "Uncapped best-quality mp4 (often AV1); may not play in older players"},
+				{Form: "-u, --update", Meaning: "Upgrade yt-dlp to the nightly version"},
+			}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: programName + ` myvideo "https://youtube.com/watch?v=..."`, Meaning: ""},
+				{Form: programName + ` -q 480 myvideo "https://youtube.com/watch?v=..."`, Meaning: ""},
+				{Form: programName + ` -b myvideo "https://youtube.com/watch?v=..."`, Meaning: ""},
+				{Form: programName + " -u", Meaning: ""},
+			}},
+		},
+	}
+}
+
+func usage() string { return helpDoc().String() }
+
+// printUsage prints the help.
 func printUsage() {
-	fmt.Printf("Usage: %s [OPTIONS] FILENAME \"URL\"\n\n", programName)
-	fmt.Println("Downloads default to a small 360p (max 640x360) mp4 for quick sharing.")
-	fmt.Println("\nOptions:")
-	fmt.Println("  -q, --quality N  Cap video height at N pixels (default 360; width pairs at 16:9)")
-	fmt.Println("  -w, --width N    Cap video width at N pixels (default 640; height pairs at 16:9)")
-	fmt.Println("  -b, --best       Uncapped best-quality mp4 (often AV1); may not play in older players")
-	fmt.Println("  -u, --update     Upgrade yt-dlp to nightly version")
-	fmt.Printf("  -v, --version    Print %s v%s and exit\n", programName, programVersion)
-	fmt.Println("\nExamples:")
-	fmt.Printf("  %s myvideo \"https://youtube.com/watch?v=...\"\n", programName)
-	fmt.Printf("  %s -q 480 myvideo \"https://youtube.com/watch?v=...\"\n", programName)
-	fmt.Printf("  %s -b myvideo \"https://youtube.com/watch?v=...\"\n", programName)
-	fmt.Printf("  %s -u\n", programName)
-	fmt.Printf("  %s -v\n", programName)
+	fmt.Print(usage())
 }
 
 func main() {
 	if len(os.Args) > 1 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
 		showVersion()
+		return
+	}
+	if len(os.Args) > 1 && (os.Args[1] == "-h" || os.Args[1] == "-?" || os.Args[1] == "--help") {
+		printUsage()
 		return
 	}
 
@@ -322,7 +342,7 @@ func main() {
 			}
 			return
 
-		case "-h", "--help":
+		case "-h", "-?", "--help":
 			printUsage()
 			return
 		}

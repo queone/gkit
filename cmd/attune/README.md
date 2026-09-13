@@ -21,39 +21,45 @@ An optional `content_version` string in `attune.yaml` declares the content versi
 
 Normal plans print resource keys and concise summaries, but omit DNS values, tag values, memberships, owners, role actions, credentials, and provider response bodies. `-d`/`--diagnostic` adds non-secret account and target grounding. `-V`/`--verbose` opts in to field-level detail: each planned update gains indented `field: old -> new` lines (added/removed entries for set-valued fields) showing exactly which values drive it — including live tenant values the default output deliberately omits. Resource-group locations are compared by normalized region name, so `East US` in a spec and ARM's `eastus` are the same region, not drift. Apart from its store, the remembered store path, `render` output, and the private temporary file `edit` opens, attune writes no local state, cache, telemetry, copied specs, or diagnostic artifacts; serviced-repository data is sent only to the configured Azure provider endpoints during an operator-requested live command.
 
-## Usage
+### Usage
 
 ```text
-attune v1.4.0
-Reconcile Azure state from YAML specs kept in an encrypted store.
-
-Overview
-  The specs live in one sealed store file that attune manages itself: init
-  creates or unlocks it, add captures spec files, edit changes a stored spec
-  in your editor, and render writes a browsable copy. validate checks the
-  stored specs offline, plan reads live Azure state and lists the changes,
-  and apply makes them. The key lives in the login keychain, with a
-  passphrase-wrapped copy in the store for other Macs.
+attune v1.5.0
+Reconcile Azure state from YAML specs kept in an encrypted store
+github.com/queone/gkit/tree/main/cmd/attune
 
 Usage
-  attune (c|validate) [flags]         check the stored specs offline
-  attune (p|plan) [flags]             read live state and show the changes
-  attune (a|apply) [flags]            create, update, and permitted prune operations
-  attune init [-N] [-t PATH]          unlock an existing store, or create one with -N
-  attune st                           status of the store, key, and entries
-  attune add DIR | NAME [FILE]        import a directory of specs, or store one from a file or stdin
-  attune edit NAME                    change a stored spec in $EDITOR and save a validated version
-  attune rename OLD NEW               change an entry's name, keeping its versions
-  attune rm NAME                      forget an entry and its stored versions
-  attune ls [-b FIELD]                list entries by name, or by captured
-  attune cat NAME                     print one stored spec
-  attune render [-o DIR] [-a] [-f]    write the stored specs into a browsable directory
-  attune key show                     store path, key id, keychain and store state
-  attune key restore                  put the key back in the keychain with the passphrase
-  attune key rm [-f]                  delete the keychain item after a prompt
-  attune key passphrase               change the recovery passphrase
-  attune (v|version)                  print attune v1.4.0
-  attune (h|help)                     show this help
+  attune COMMAND [flags]  Keep Azure DNS, groups, app registrations, roles, and resource groups matching the stored specs
+
+  Store path order: -t, then ATTUNE_STORE, then the path init -t remembered in
+  $XDG_CONFIG_HOME/attune/store, then $XDG_DATA_HOME/attune/attune.store.
+  Live commands need an authenticated Azure CLI (az login). init and edit need a
+  terminal. The store is macOS only.
+
+Commands
+  (c|validate) [flags]       check the stored specs offline
+  (p|plan) [flags]           read live state and show the changes
+  (a|apply) [flags]          create, update, and permitted prune operations
+  init [-N] [-t PATH]        unlock an existing store, or create one with -N
+  st                         status of the store, key, and entries
+  add DIR | NAME [FILE]      import a directory of specs, or store one from a file or stdin
+  edit NAME                  change a stored spec in $EDITOR and save a validated version
+  rename OLD NEW             change an entry's name, keeping its versions
+  rm NAME                    forget an entry and its stored versions
+  ls [-b FIELD]              list entries by name, or by captured
+  cat NAME                   print one stored spec
+  render [-o DIR] [-a] [-f]  write the stored specs into a browsable directory
+  key show                   store path, key id, keychain and store state
+  key restore                put the key back in the keychain with the passphrase
+  key rm [-f]                delete the keychain item after a prompt
+  key passphrase             change the recovery passphrase
+  (v|version)                print attune v1.5.0
+  (h|help)                   show this help
+
+  A NAME is a relative path ending in .yaml or .yml (res/dns/zone.yaml), or
+  attune.yaml for the configuration. add and edit validate before saving.
+  Drift against Azure is what plan reports; st never contacts Azure.
+  render writes plaintext copies of the store; delete the directory when done.
 
 Options
   -t, --store PATH                    Store file for this command; init -t also remembers it
@@ -72,18 +78,8 @@ Options
   -o, --output DIR                    Render into DIR instead of a fresh private temp directory (render)
   -a, --all                           Render every stored version too, under versions/ (render)
   -b, --by FIELD                      Sort ls by name (the default) or captured, newest first
-  -v, --version                       Print attune v1.4.0 and exit
-  -h, --help                          Show this help message and exit
-
-Notes
-  Store path order: -t, then ATTUNE_STORE, then the path init -t remembered in
-  $XDG_CONFIG_HOME/attune/store, then $XDG_DATA_HOME/attune/attune.store.
-  A NAME is a relative path ending in .yaml or .yml (res/dns/zone.yaml), or
-  attune.yaml for the configuration. add and edit validate before saving.
-  Drift against Azure is what plan reports; st never contacts Azure.
-  Live commands need an authenticated Azure CLI (az login). init and edit
-  need a terminal. The store is macOS only.
-  render writes plaintext copies of the store; delete the directory when done.
+  -v, --version                       Print attune v1.5.0 and exit
+  -h, -?, --help                      Show this help and exit
 ```
 
 ## Store

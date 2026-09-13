@@ -19,8 +19,41 @@ created_at: 2026-Sep-08 09:30
 
 ### Usage
 
-```bash
-tfe [flags] SUBCOMMAND [ARGS]
+```text
+tfe v2.1.0
+List, show, and clone Terraform Cloud workspaces, modules, and organizations
+github.com/queone/gkit/tree/main/cmd/tfe
+
+Usage
+  tfe [flags] COMMAND [ARGS]  Talk to a Terraform Cloud or Terraform Enterprise instance
+
+  Authentication, in this order: TF_ORG, TF_DOMAIN, and TF_TOKEN in the
+  environment, all three set; then the same three keys in
+  $XDG_CONFIG_HOME/tfe/config.yaml or ~/.config/tfe/config.yaml, created as a
+  skeleton when missing.
+
+Commands
+  orgs [FILTER]            List organizations
+  mods [-a] [-j] [FILTER]  List registry modules; one match prints its details
+  ws [FILTER]              List workspaces
+  show NAME                Show one workspace with its variables
+  clone SRC DEST           Clone workspace SRC as DEST, variables included
+  version                  Print tfe v2.1.0
+  help                     Show this help
+
+  FILTER is a case-insensitive substring of the name.
+
+Options
+  -a, --all       mods: list every version instead of the latest
+  -j, --json      mods: print a single matching module as JSON
+  -v, --version   Print tfe v2.1.0 and exit
+  -h, -?, --help  Show this help and exit
+
+Examples
+  tfe orgs
+  tfe mods -a network
+  tfe show prod-network
+  tfe clone prod-network staging-network
 ```
 
 | Subcommand | What it does |

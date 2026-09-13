@@ -14,8 +14,23 @@ output  talk.mp4    39,880,112  00:12:40
 
 ### Usage
 
-```bash
-vconv [flags] INPUT
+```text
+vconv v1.1.0
+Convert a video to an H.264 MP4 by driving ffmpeg
+github.com/queone/gkit/tree/main/cmd/vconv
+
+Usage
+  vconv INPUT  Write INPUT's name with an .mp4 extension next to it
+
+  INPUT is any video ffmpeg can read, typically a WebM. vconv refuses to
+  overwrite an existing file and needs ffmpeg and ffprobe (brew install ffmpeg).
+
+Options
+  -v, --version   Print vconv v1.1.0 and exit
+  -h, -?, --help  Show this help and exit
+
+Examples
+  vconv talk.webm  writes talk.mp4
 ```
 
 `INPUT` is any video `ffmpeg` can read. The output is `INPUT` with an `.mp4` extension, written next to it. `vconv` refuses to overwrite an existing file and refuses an input that is already `.mp4`.

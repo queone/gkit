@@ -69,18 +69,18 @@ func TestHelpOutput(t *testing.T) {
 		if lines[0] != "attune v"+programVersion {
 			t.Errorf("%v: first line %q", args, lines[0])
 		}
-		if lines[1] != "Reconcile Azure state from YAML specs kept in an encrypted store." {
+		if lines[1] != "Reconcile Azure state from YAML specs kept in an encrypted store" {
 			t.Errorf("%v: second line %q", args, lines[1])
 		}
 		last := -1
-		for _, section := range []string{"\nOverview\n", "\nUsage\n", "\nOptions\n", "\nNotes\n"} {
+		for _, section := range []string{"\nUsage\n", "\nCommands\n", "\nOptions\n"} {
 			idx := strings.Index(out, section)
 			if idx < 0 || idx < last {
 				t.Errorf("%v: section %q missing or out of order", args, strings.TrimSpace(section))
 			}
 			last = idx
 		}
-		for _, want := range []string{"(p|plan)", "-d, --diagnostic", "-t, --store PATH", "attune key show", "attune rename OLD NEW", "attune edit NAME", "-b, --by FIELD", "macOS only"} {
+		for _, want := range []string{"(p|plan)", "-d, --diagnostic", "-t, --store PATH", "  key show", "  rename OLD NEW", "  edit NAME", "-b, --by FIELD", "macOS only"} {
 			if !strings.Contains(out, want) {
 				t.Errorf("%v: help output missing %q", args, want)
 			}
@@ -96,13 +96,14 @@ func TestHelpOutput(t *testing.T) {
 func TestHelpHeaderAndHeadingsAreBoldWhite(t *testing.T) {
 	plain := color.ClearCode(usage())
 	defer color.SetEnabled(true)()
+	defer color.Set256(true)()
 	out := usage()
 	lines := strings.Split(out, "\n")
-	if lines[0] != color.Bold(color.Gra10("attune"))+" v"+programVersion {
+	if lines[0] != color.Heading("attune")+" v"+programVersion {
 		t.Fatalf("first line %q", lines[0])
 	}
-	for _, name := range []string{"Overview", "Usage", "Options", "Notes"} {
-		if !strings.Contains(out, "\n"+color.Bold(color.Gra10(name))+"\n") {
+	for _, name := range []string{"Usage", "Commands", "Options"} {
+		if !strings.Contains(out, "\n"+color.Heading(name)+"\n") {
 			t.Fatalf("heading %s is not bold white", name)
 		}
 	}
@@ -123,11 +124,11 @@ func TestReadmeUsageBlockEqualsHelp(t *testing.T) {
 		t.Fatal(err)
 	}
 	readme := string(b)
-	start := strings.Index(readme, "## Usage\n\n```text\n")
+	start := strings.Index(readme, "### Usage\n\n```text\n")
 	if start < 0 {
-		t.Fatal("README has no ## Usage block")
+		t.Fatal("README has no ### Usage block")
 	}
-	start += len("## Usage\n\n```text\n")
+	start += len("### Usage\n\n```text\n")
 	end := strings.Index(readme[start:], "```")
 	if end < 0 {
 		t.Fatal("README usage block is not closed")
@@ -589,5 +590,13 @@ func TestRenderFieldDiffForms(t *testing.T) {
 		if got := renderFieldDiff(c.diff); got != c.want {
 			t.Errorf("renderFieldDiff(%+v) = %q, want %q", c.diff, got, c.want)
 		}
+	}
+}
+
+// The help screen follows the shared standard: three header lines, then the
+// sections the renderer accepts, with the standard rows left to the renderer.
+func TestHelpDocFollowsTheStandard(t *testing.T) {
+	if err := helpDoc().Check(); err != nil {
+		t.Fatal(err)
 	}
 }

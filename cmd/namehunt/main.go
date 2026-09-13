@@ -15,12 +15,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	programName    = "namehunt"
-	programVersion = "1.1.0"
+	programVersion = "1.2.0"
 )
 
 const (
@@ -91,45 +91,43 @@ type env struct {
 }
 
 // usage returns the help screen.
-func usage() string {
-	lines := []color.UsageLine{
-		{Flag: "-d, --distinct", Desc: "Keep only names with no repeated character"},
-		{Flag: "-r, --require CHARS", Desc: "Keep only names containing every character in CHARS"},
-		{Flag: "-n, --dry-run", Desc: "Print the names and send no request"},
-		{Flag: "-f, --free CODES", Desc: "Status codes that mean free, comma-separated (default 404)"},
-		{Flag: "-w, --wait MS", Desc: "Pause MS milliseconds between requests (default 300)"},
-		{Flag: "-l, --list", Desc: "List known sites and exit"},
-		{Flag: "-v, --version", Desc: "Print " + programName + " v" + programVersion + " and exit"},
-		{Flag: "-h, --help", Desc: "Show this help"},
+// helpDoc describes the help screen.
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Find free usernames on any site with a predictable profile URL",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " [flags] SITE CANDIDATE", Meaning: "Check one name, or list every free name a pattern yields"}},
+				Lines: []string{
+					"SITE is a site name or a URL template with {} where the username goes.",
+					"Built-in sites: github, lichess, archive. More come from ~/.config/namehunt/sites,",
+					"one per line: NAME TEMPLATE [FREE_CODES] [PROFILE_TEMPLATE]. The file is written",
+					"with the built-ins on first run. CANDIDATE is one name, a pattern like",
+					"[qk][aeou][qk][aeou], or - for stdin. 404 means free, 2xx means taken, anything",
+					"else is unknown; only signing up confirms a name.",
+				}},
+			{Title: "Options", Rows: []help.Row{
+				{Form: "-d, --distinct", Meaning: "Keep only names with no repeated character"},
+				{Form: "-r, --require CHARS", Meaning: "Keep only names containing every character in CHARS"},
+				{Form: "-n, --dry-run", Meaning: "Print the names and send no request"},
+				{Form: "-f, --free CODES", Meaning: "Status codes that mean free, comma-separated (default 404)"},
+				{Form: "-w, --wait MS", Meaning: "Pause MS milliseconds between requests (default 300)"},
+				{Form: "-l, --list", Meaning: "List known sites and exit"},
+			}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: programName + " github kaqe", Meaning: ""},
+				{Form: programName + " archive qoku", Meaning: ""},
+				{Form: programName + " -d lichess '[qk][aeiou][qk][aeiou]'", Meaning: ""},
+				{Form: programName + " 'https://www.reddit.com/user/{}' kaqe", Meaning: ""},
+			}},
+		},
 	}
-	footer := `SITE is a site name or a URL template with {} where the username goes.
-Built-in sites: github, lichess, archive. More come from ~/.config/namehunt/sites,
-one per line: NAME TEMPLATE [FREE_CODES] [PROFILE_TEMPLATE]. The file is written
-with the built-ins on first run.
-CANDIDATE is one name, a pattern like [qk][aeou][qk][aeou], or - for stdin.
-
-Examples:
-  namehunt github kaqe
-  namehunt archive qoku
-  namehunt -d lichess '[qk][aeiou][qk][aeiou]'
-  namehunt 'https://www.reddit.com/user/{}' kaqe`
-	h := color.Whi10
-	return fmt.Sprintf("%s v%s\n"+
-		"Find free usernames on any site with a predictable profile URL.\n"+
-		"\n"+
-		"%s\n"+
-		"  namehunt sends one HEAD request per name to a site's check URL and\n"+
-		"  reads the status: 404 means free, any 2xx means taken, anything else is\n"+
-		"  reported as unknown. Give it one name for a yes/no answer, or a pattern\n"+
-		"  like [qk][aeou][qk][aeou] to list every free name with the profile URL\n"+
-		"  it would own. Free names are a strong hint; only signing up confirms\n"+
-		"  one. github, lichess, and archive (archive.org) are built in; name more\n"+
-		"  sites in ~/.config/namehunt/sites.\n"+
-		"\n"+
-		"%s",
-		h(programName), programVersion, h("Overview"),
-		color.FormatUsage(programName+" [flags] SITE CANDIDATE", lines, footer))
 }
+
+// usage returns the help screen.
+func usage() string { return helpDoc().String() }
 
 // parseArgs parses flags, which come before positionals, and the SITE and CANDIDATE positionals.
 // No arguments at all asks for the help screen.

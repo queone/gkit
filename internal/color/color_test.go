@@ -486,50 +486,6 @@ func TestShowGrid_reverseEmitsBackgroundSGR(t *testing.T) {
 	}
 }
 
-func TestFormatUsage(t *testing.T) {
-	t.Run("basic", func(t *testing.T) {
-		got := FormatUsage("prog [flags]", []UsageLine{
-			{"-v", "verbose output"},
-			{"-o string", "output file"},
-		}, "")
-		if !strings.HasPrefix(got, "Usage: prog [flags]\n") {
-			t.Errorf("heading mismatch: %q", got)
-		}
-		if !strings.Contains(got, "-v") || !strings.Contains(got, "verbose output") {
-			t.Errorf("missing flag line: %q", got)
-		}
-		if !strings.Contains(got, "-o string") || !strings.Contains(got, "output file") {
-			t.Errorf("missing type-suffix flag line: %q", got)
-		}
-		if strings.HasSuffix(got, "\n\n") {
-			t.Errorf("unexpected trailing blank line with empty footer: %q", got)
-		}
-	})
-
-	t.Run("footer_no_newline", func(t *testing.T) {
-		got := FormatUsage("prog", nil, "See docs.")
-		if !strings.Contains(got, "\nSee docs.\n") {
-			t.Errorf("footer missing or not newline-terminated: %q", got)
-		}
-	})
-
-	t.Run("footer_with_newline", func(t *testing.T) {
-		got := FormatUsage("prog", nil, "See docs.\n")
-		if strings.HasSuffix(got, "docs.\n\n") {
-			t.Errorf("footer double-newlined: %q", got)
-		}
-	})
-
-	t.Run("long_flag", func(t *testing.T) {
-		got := FormatUsage("prog", []UsageLine{
-			{"--very-long-flag-name-that-exceeds-column string", "desc"},
-		}, "")
-		if !strings.Contains(got, "string  desc") {
-			t.Errorf("long flag alignment wrong: %q", got)
-		}
-	})
-}
-
 func TestClearCodeStripsAnsiSGR(t *testing.T) {
 	cases := []struct {
 		in   string
@@ -688,5 +644,36 @@ func TestContrastFgThreshold(t *testing.T) {
 		if got := contrastFg(tc.idx); got != tc.want {
 			t.Errorf("contrastFg(%d) = %d, want %d (%s)", tc.idx, got, tc.want, tc.note)
 		}
+	}
+}
+
+func TestHeadingEmitsOneBoldWhiteSequence(t *testing.T) {
+	defer SetEnabled(true)()
+	defer Set256(true)()
+	if got, want := Heading("Usage"), "\x1b[1;38;5;231mUsage\x1b[0m"; got != want {
+		t.Fatalf("Heading = %q, want %q", got, want)
+	}
+	if strings.Contains(Heading("Usage"), "\x1b[1m") {
+		t.Fatal("Heading emits a separate bold sequence")
+	}
+}
+
+func TestHeadingIsPlainWithoutColor(t *testing.T) {
+	defer SetEnabled(false)()
+	defer Set256(true)()
+	if got := Heading("Usage"); got != "Usage" {
+		t.Fatalf("Heading = %q, want plain text", got)
+	}
+}
+
+func TestSet256RestoresThePriorValue(t *testing.T) {
+	prev := color256
+	restore := Set256(!prev)
+	if color256 == prev {
+		t.Fatal("Set256 did not change the flag")
+	}
+	restore()
+	if color256 != prev {
+		t.Fatal("Set256 restore did not put the flag back")
 	}
 }

@@ -19,21 +19,20 @@ $ decolor sample.yaml
 
 ### Usage
 
-```bash
-decolor v1.1.1
-Text decolorizer - https://github.com/queone/gkit/blob/main/cmd/decolor/README.md
-Usage
-  decolor [options] [file]
+```text
+decolor v1.2.0
+Strip shell color escape codes from a file or piped text
+github.com/queone/gkit/tree/main/cmd/decolor
 
-  The file can be piped into the utility, or it can be referenced as an argument.
+Usage
+  decolor FILE   Print FILE without its color escape codes
+  ... | decolor  Print piped text without its color escape codes
 
 Options
-  |piped input|       Piped text is decolorized
-  FILENAME            Decolorize given file path
-  -?, --help, -h      Show this help message and exit
+  -v, --version   Print decolor v1.2.0 and exit
+  -h, -?, --help  Show this help and exit
 
 Examples
   cat file | decolor
   decolor /path/to/file
-  decolor -h
 ```

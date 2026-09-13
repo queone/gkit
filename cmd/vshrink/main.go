@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 	"github.com/queone/gkit/internal/vedit"
 )
 
 const (
 	programName    = "vshrink"
-	programVersion = "1.0.0"
+	programVersion = "1.1.0"
 )
 
 // Injectable seams, replaced in tests so no real probe or encode runs and the
@@ -33,32 +34,26 @@ type env struct {
 	stderr io.Writer
 }
 
-// usage returns the help screen.
-func usage() string {
-	lines := []color.UsageLine{
-		{Flag: "-v, --version", Desc: "Print " + programName + " v" + programVersion + " and exit"},
-		{Flag: "-h, --help", Desc: "Show this help"},
+// helpDoc describes the help screen.
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Shrink an MP4 by re-encoding it at a high compression level via ffmpeg",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " INPUT", Meaning: "Write INPUT's stem plus today's date as a smaller MP4 next to it"}},
+				Lines: []string{
+					"INPUT must be an MP4; vshrink checks the container with ffprobe first. It",
+					"refuses to overwrite an existing file and needs ffmpeg and ffprobe (brew install ffmpeg).",
+				}},
+			{Title: "Examples", Rows: []help.Row{{Form: programName + " clip.mp4", Meaning: "writes clip_20260908a.mp4"}}},
+		},
 	}
-	footer := `INPUT must be an MP4; vshrink checks the container with ffprobe first.
-The output is INPUT's stem plus today's date, as in clip_20260908a.mp4, written
-next to it; vshrink refuses to overwrite an existing file.
-Requires ffmpeg and ffprobe (brew install ffmpeg).
-
-Example:
-  vshrink clip.mp4        writes clip_20260908a.mp4`
-	h := color.Whi10
-	return fmt.Sprintf("%s v%s\n"+
-		"Shrink an MP4 by re-encoding it at a high compression level via ffmpeg.\n"+
-		"\n"+
-		"%s\n"+
-		"  vshrink re-encodes INPUT as H.264 at CRF 35, trading visible quality for\n"+
-		"  a much smaller file, and prints a before/after summary. Audio is copied\n"+
-		"  through ffmpeg's defaults.\n"+
-		"\n"+
-		"%s",
-		h(programName), programVersion, h("Overview"),
-		color.FormatUsage(programName+" [flags] INPUT", lines, footer))
 }
+
+// usage returns the help screen.
+func usage() string { return helpDoc().String() }
 
 // fail prints err with the program name and returns the failure exit code.
 func fail(stderr io.Writer, err error) int {

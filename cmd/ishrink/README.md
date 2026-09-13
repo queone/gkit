@@ -14,8 +14,23 @@ output  IMG_4821_20260908a.jpg   188,211
 
 ### Usage
 
-```bash
-ishrink [flags] INPUT
+```text
+ishrink v1.1.0
+Shrink a HEIC, JPEG, or JPG image into a small JPEG via macOS sips
+github.com/queone/gkit/tree/main/cmd/ishrink
+
+Usage
+  ishrink INPUT  Write INPUT's stem plus today's date as a small .jpg next to it
+
+  INPUT is a .heic, .jpeg, or .jpg file. ishrink refuses to overwrite an
+  existing file. sips ships with macOS, so ishrink runs only there.
+
+Options
+  -v, --version   Print ishrink v1.1.0 and exit
+  -h, -?, --help  Show this help and exit
+
+Examples
+  ishrink photo.heic  writes photo_20260908a.jpg
 ```
 
 `INPUT` is a `.heic`, `.jpeg`, or `.jpg` file, in any letter case. The output is the input's stem plus `_YYYYMMDDa.jpg`, written next to it. `ishrink` refuses to overwrite an existing file.

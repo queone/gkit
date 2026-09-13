@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/queone/gkit/internal/help"
 )
 
 // ANSI color codes
@@ -20,7 +22,7 @@ const (
 
 const (
 	programName    = "brew-update"
-	programVersion = "1.3.5"
+	programVersion = "1.4.0"
 )
 
 // runCommand executes a command and streams its output
@@ -68,10 +70,28 @@ func upgradeCasks() error {
 	return nil
 }
 
+func usage() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Update, upgrade, and clean up Homebrew formulae and casks",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName, Meaning: "Run brew update, brew upgrade, cask upgrades, and brew cleanup -s"}}},
+		},
+	}.String()
+}
+
 func main() {
-	if len(os.Args) == 2 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
-		fmt.Printf("%s v%s\n", programName, programVersion)
-		return
+	if len(os.Args) == 2 {
+		switch os.Args[1] {
+		case "-v", "--version":
+			fmt.Printf("%s v%s\n", programName, programVersion)
+			return
+		case "-h", "-?", "--help":
+			fmt.Print(usage())
+			return
+		}
 	}
 
 	fmt.Printf("%s %s\n\n", programName, programVersion)

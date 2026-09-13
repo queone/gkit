@@ -6,8 +6,20 @@ Joining clips with different orientations and dimensions requires a filter graph
 
 ### Usage
 
-```bash
-vjoin INPUT1 INPUT2
+```text
+vjoin v0.2.0
+Join two videos into one normalized MP4 by driving ffmpeg
+github.com/queone/gkit/tree/main/cmd/vjoin
+
+Usage
+  vjoin INPUT1 INPUT2  Write merged.mp4 here with INPUT1 followed by INPUT2
+
+  Each input needs one video and one audio stream. vjoin refuses to overwrite
+  merged.mp4 and needs ffmpeg and ffprobe on PATH (brew install ffmpeg).
+
+Options
+  -v, --version   Print vjoin v0.2.0 and exit
+  -h, -?, --help  Show this help and exit
 ```
 
 The output is always `merged.mp4` in the current directory. `vjoin` refuses to overwrite an existing output; move or remove it before retrying.

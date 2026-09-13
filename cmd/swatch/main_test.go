@@ -128,7 +128,7 @@ func TestSwatchDefaultToken(t *testing.T) {
 }
 
 func TestSwatchVersionOutput(t *testing.T) {
-	for _, args := range [][]string{{"-v"}, {"--version"}} {
+	for _, args := range [][]string{{"-v"}, {"--version"}, {"version"}} {
 		code, out, errOut := captureRun(t, args)
 		if code != 0 {
 			t.Errorf("%v: code = %d, want 0", args, code)
@@ -160,7 +160,7 @@ func TestSwatchVersionCombinationRejected(t *testing.T) {
 }
 
 func TestSwatchHelpOutput(t *testing.T) {
-	for _, args := range [][]string{{}, {"-h"}, {"--help"}, {"-?"}} {
+	for _, args := range [][]string{{}, {"-h"}, {"--help"}, {"-?"}, {"help"}} {
 		code, out, errOut := captureRun(t, args)
 		if code != 0 {
 			t.Errorf("%v: code = %d, want 0", args, code)
@@ -277,5 +277,13 @@ func TestSwatchColorPolicySuppressesSGR(t *testing.T) {
 				t.Errorf("case %s: missing expected palette content: %q", tc.name, out)
 			}
 		})
+	}
+}
+
+// The help screen follows the shared standard: three header lines, then the
+// sections the renderer accepts, with the standard rows left to the renderer.
+func TestHelpDocFollowsTheStandard(t *testing.T) {
+	if err := helpDoc().Check(); err != nil {
+		t.Fatal(err)
 	}
 }

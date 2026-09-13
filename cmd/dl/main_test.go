@@ -177,3 +177,11 @@ func TestVersionAliases(t *testing.T) {
 		})
 	}
 }
+
+// The help screen follows the shared standard: three header lines, then the
+// sections the renderer accepts, with the standard rows left to the renderer.
+func TestHelpDocFollowsTheStandard(t *testing.T) {
+	if err := helpDoc().Check(); err != nil {
+		t.Fatal(err)
+	}
+}

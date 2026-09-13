@@ -165,7 +165,7 @@ func (h *harness) pointer() string {
 func TestVersionAndHelp(t *testing.T) {
 	h := newHarness(t)
 	for _, arg := range []string{"--version", "-v", "v", "version"} {
-		if code, out, errs := h.runRaw(arg); code != 0 || out != "macfit v1.6.0\n" || errs != "" {
+		if code, out, errs := h.runRaw(arg); code != 0 || out != "macfit v"+programVersion+"\n" || errs != "" {
 			t.Fatalf("%s: code %d stdout %q stderr %q", arg, code, out, errs)
 		}
 	}
@@ -175,7 +175,7 @@ func TestVersionAndHelp(t *testing.T) {
 	if code, out, _ := h.run(); code != 1 || !strings.Contains(out, "store: "+h.store+" (flag)") {
 		t.Fatalf("bare invocation with -s must run st on that store: code %d out %q", code, out)
 	}
-	if code, out, _ := h.runRaw("help"); code != 0 || !strings.Contains(out, "macfit key show") {
+	if code, out, _ := h.runRaw("help"); code != 0 || !strings.Contains(out, "  key show") {
 		t.Fatalf("help: code %d out %q", code, out)
 	}
 	if code, _, errs := h.run("bogus"); code != 2 || !strings.Contains(errs, "unknown command") {
@@ -194,21 +194,21 @@ func TestHelpLayoutMatchesTheOtherUtilities(t *testing.T) {
 			t.Fatalf("%s: code %d", arg, code)
 		}
 		lines := strings.Split(out, "\n")
-		if lines[0] != "macfit v1.6.0" {
+		if lines[0] != "macfit v"+programVersion {
 			t.Fatalf("%s: first line %q", arg, lines[0])
 		}
-		if lines[1] != "Keep Mac config files in one encrypted store and restore them on any Mac." {
+		if lines[1] != "Keep Mac config files in one encrypted store and restore them on any Mac" {
 			t.Fatalf("%s: second line %q", arg, lines[1])
 		}
 		last := -1
-		for _, section := range []string{"\nOverview\n", "\nUsage\n", "\nOptions\n", "\nNotes\n"} {
+		for _, section := range []string{"\nUsage\n", "\nCommands\n", "\nOptions\n"} {
 			idx := strings.Index(out, section)
 			if idx < 0 || idx < last {
 				t.Fatalf("%s: section %q missing or out of order", arg, strings.TrimSpace(section))
 			}
 			last = idx
 		}
-		for _, want := range []string{"  -N, --new ", "  -h, -?, --help     Show this help message and exit", "Store path order: -s, then MACFIT_STORE", "plan the restore, or write it with -f", "Print the pull plan; the default", "  macfit render [-o DIR] [-a] [-f]", "  macfit cat TARGET [-H HOST]", "  -o, --out DIR ", "  -a, --all ", "  macfit [st] ", "  macfit set TARGET [flags]", "  -g, --global ", "  -m, --mode MODE ", "  -F, --from WHICH ", "  -S, --sort FIELD ", "  macfit ls [-S FIELD]", "register live files for this Mac"} {
+		for _, want := range []string{"  -N, --new ", "  -h, -?, --help", "Store path order: -s, then MACFIT_STORE", "plan the restore, or write it with -f", "Print the pull plan; the default", "  render [-o DIR] [-a] [-f]", "  cat TARGET [-H HOST]", "  -o, --out DIR ", "  -a, --all ", "  st ", "  set TARGET [flags]", "  -g, --global ", "  -m, --mode MODE ", "  -F, --from WHICH ", "  -S, --sort FIELD ", "  ls [-S FIELD]", "register live files for this Mac"} {
 			if !strings.Contains(out, want) {
 				t.Fatalf("%s: help lacks %q", arg, want)
 			}
@@ -220,16 +220,20 @@ func TestHelpHeaderAndHeadingsAreColoredLikeSkout(t *testing.T) {
 	h := newHarness(t)
 	plain := color.ClearCode(usage())
 	defer color.SetEnabled(true)()
+	defer color.Set256(true)()
 	_, out, _ := h.runRaw("help")
 	lines := strings.Split(out, "\n")
-	if lines[0] != color.Bold(color.Gra10("macfit"))+" v1.6.0" {
+	if lines[0] != color.Heading("macfit")+" v"+programVersion {
 		t.Fatalf("first line %q", lines[0])
 	}
-	if lines[1] != color.Gra5("Keep Mac config files in one encrypted store and restore them on any Mac.") {
+	if lines[1] != color.Gra5("Keep Mac config files in one encrypted store and restore them on any Mac") {
 		t.Fatalf("second line %q", lines[1])
 	}
-	for _, name := range []string{"Overview", "Usage", "Options", "Notes"} {
-		if !strings.Contains(out, "\n"+color.Bold(color.Gra10(name))+"\n") {
+	if lines[2] != color.Gra4("github.com/queone/gkit/tree/main/cmd/macfit") {
+		t.Fatalf("third line %q", lines[2])
+	}
+	for _, name := range []string{"Usage", "Commands", "Options"} {
+		if !strings.Contains(out, "\n"+color.Heading(name)+"\n") {
 			t.Fatalf("heading %s is not bold white: %q", name, out)
 		}
 	}
@@ -1144,5 +1148,13 @@ func mustNotPrompt(t *testing.T) func(string) (string, error) {
 	return func(string) (string, error) {
 		t.Fatal("prompt reached unexpectedly")
 		return "", errors.New("unreachable")
+	}
+}
+
+// The help screen follows the shared standard: three header lines, then the
+// sections the renderer accepts, with the standard rows left to the renderer.
+func TestHelpDocFollowsTheStandard(t *testing.T) {
+	if err := helpDoc().Check(); err != nil {
+		t.Fatal(err)
 	}
 }

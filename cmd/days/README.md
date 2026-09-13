@@ -35,19 +35,25 @@ This utility is part of a collection of Go utilities. To compile and install fol
 
 ### Usage
 
-```bash
-$ days
-days v1.1.0
-Calendar days calculator — https://github.com/queone/gkit/blob/main/cmd/days/README.md
-Overview
-  This utility works with calendar dates expressed as YYYY-MM-DD (or the equivalent
-  YYYY-MMM-DD format), and reports the relationship between today's date and the supplied
-  argument(s). Supported invocations are:
+```text
+days v1.2.0
+Count calendar days between dates, or find the date N days away
+github.com/queone/gkit/tree/main/cmd/days
 
-    days -v, --version            Prints days v1.1.0 and exits.
-    days -N                       Prints the calendar date N days ago (e.g. -11).
-    days +N                       Prints the calendar date N days in the future (e.g. +6 or just 6).
-    days YYYY-MM-DD               Prints the number of days between today and the given date (positive
-                                  if the date is in the future, negative if it is in the past).
-    days YYYY-MM-DD YYYY-MM-DD    Prints the number of days between the two supplied dates.
+Usage
+  days -N         Print the date N days ago
+  days +N         Print the date N days ahead; a bare N means +N
+  days DATE       Print the days from today to DATE, negative when DATE is past
+  days DATE DATE  Print the days between the two dates
+
+  DATE is YYYY-MM-DD or YYYY-MMM-DD.
+
+Options
+  -v, --version   Print days v1.2.0 and exit
+  -h, -?, --help  Show this help and exit
+
+Examples
+  days -11         The date eleven days ago
+  days 6           The date six days ahead
+  days 2026-12-25  Days until that date
 ```

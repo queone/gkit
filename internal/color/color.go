@@ -44,6 +44,15 @@ func SetEnabled(b bool) func() {
 	return func() { enabled = prev }
 }
 
+// Set256 is the SetEnabled counterpart for the 256-color capability flag, so
+// a test outside this package can force colored output. Same concurrency
+// caveat as SetEnabled; the returned closure restores the prior value.
+func Set256(b bool) func() {
+	prev := color256
+	color256 = b
+	return func() { color256 = prev }
+}
+
 // color256 is true when the terminal advertises 256-color support. Only used
 // by ShowPalette to print a mode label; the color helpers themselves always
 // emit 256-color SGR (uncolored when enabled is false).
@@ -107,6 +116,10 @@ func bgWrap(code string, v any) string {
 // nested color blocks (otherwise the inner reset would clear the modifier
 // and only the first colored segment would render bold/reverse).
 var resetCodeRe = regexp.MustCompile(`\x1b\[0m`)
+
+// Heading renders v in bold white (xterm 231) as one SGR sequence, the form
+// every help name and section heading uses.
+func Heading(v any) string { return wrap("1;38;5;231", v) }
 
 // Bold wraps s with the ANSI bold attribute. Composable with hue / heat
 // helpers: color.Bold(color.Grn5("text")) renders bold-green. Internal
@@ -326,7 +339,7 @@ func ShowPalette() {
 	if color256 {
 		mode = "256-color"
 	}
-	fmt.Printf("%s (%s)\n", Bold(Whi5("Color palette v1.0")), mode)
+	fmt.Printf("%s (%s)\n", Heading("Color palette v1.0"), mode)
 	fmt.Println()
 	showAllIndices()
 	showHueRamps()
@@ -539,56 +552,4 @@ func contrastFg(idx int) int {
 		return 15
 	}
 	return 16
-}
-
-// ─── FormatUsage ─────────────────────────────────────────────────────────────
-
-// UsageLine is a single flag+description pair for FormatUsage.
-type UsageLine struct {
-	Flag string
-	Desc string
-}
-
-func formatFlag(flag string) (string, int) {
-	rawLen := len(flag)
-	idx := strings.LastIndex(flag, " ")
-	if idx < 0 {
-		return flag, rawLen
-	}
-	suffix := flag[idx+1:]
-	switch suffix {
-	case "string", "int", "float", "bool", "duration":
-		return flag[:idx+1] + Gra5(suffix), rawLen
-	}
-	return flag, rawLen
-}
-
-// FormatUsage builds a formatted help string with a heading, flag table, and optional footer.
-func FormatUsage(heading string, lines []UsageLine, footer string) string {
-	var b strings.Builder
-	b.WriteString(Bold(Whi5("Usage:")))
-	b.WriteString(" ")
-	b.WriteString(heading)
-	b.WriteString("\n")
-	for _, l := range lines {
-		flag, flagLen := formatFlag(l.Flag)
-		col := 2 + flagLen
-		b.WriteString("  ")
-		b.WriteString(flag)
-		if col < 38 {
-			b.WriteString(strings.Repeat(" ", 38-col))
-		} else {
-			b.WriteString("  ")
-		}
-		b.WriteString(l.Desc)
-		b.WriteString("\n")
-	}
-	if footer != "" {
-		b.WriteString("\n")
-		b.WriteString(footer)
-		if !strings.HasSuffix(footer, "\n") {
-			b.WriteString("\n")
-		}
-	}
-	return b.String()
 }

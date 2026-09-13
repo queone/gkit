@@ -15,26 +15,25 @@ This utility is part of a collection of Go utilities. To compile and install fol
 
 ### Usage
 
-```bash
-jy v1.6.0
-JSON / YAML converter - https://github.com/queone/gkit/blob/main/cmd/jy/README.md
-Usage
-  jy [options] [file]
+```text
+jy v1.7.0
+Convert JSON to YAML and YAML to JSON
+github.com/queone/gkit/tree/main/cmd/jy
 
-  Options can be specified in any order. The file can be piped into the utility, or it
-  can be referenced as an argument. If the file is YAML, the output will be JSON, or
-  vice versa.
+Usage
+  jy [options] [FILE]  Convert FILE, or piped input, to the other format
+
+  Options may come in any order. YAML input prints as JSON and JSON input as YAML.
 
 Options
-  -c                     Colorize the output for the specified file.
-  -d                     Decolorize the output for piped input or file.
-  -v, --version          Print version and exit.
-  -?, --help, -h         Show this help message and exit.
+  -c              Print FILE colorized without converting it
+  -d              Strip color from the output
+  -v, --version   Print jy v1.7.0 and exit
+  -h, -?, --help  Show this help and exit
 
 Examples
   cat file | jy
   jy /path/to/file
   jy /path/to/file -d
-  jy file.yaml -c        Prints a colorized version of the file. Does not convert.
-  jy -h
+  jy file.yaml -c      A colorized copy of the file, not converted
 ```

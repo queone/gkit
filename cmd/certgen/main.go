@@ -12,22 +12,44 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	programName    = "certgen"
-	programVersion = "2.0.0"
+	programVersion = "2.1.0"
 )
 
+func helpText() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Generate a self-signed TLS certificate, private key, and CSR for a common name",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " COMMON_NAME", Meaning: "Write COMMON_NAME.key, .csr, and .crt here after a confirmation prompt"}}},
+			{Title: "Examples", Rows: []help.Row{{Form: programName + " www.example.com", Meaning: ""}}},
+		},
+	}.String()
+}
+
+// usage prints the help to stderr and exits 1 for a bad command line.
 func usage() {
-	fmt.Printf("Usage: %s <common-name>\n", programName)
+	fmt.Fprint(os.Stderr, helpText())
 	os.Exit(1)
 }
 
 func main() {
-	if len(os.Args) == 2 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
-		fmt.Printf("%s v%s\n", programName, programVersion)
-		return
+	if len(os.Args) == 2 {
+		switch os.Args[1] {
+		case "-v", "--version":
+			fmt.Printf("%s v%s\n", programName, programVersion)
+			return
+		case "-h", "-?", "--help":
+			fmt.Print(helpText())
+			return
+		}
 	}
 
 	if len(os.Args) != 2 {

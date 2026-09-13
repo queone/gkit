@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 
 	"github.com/spf13/cobra"
 )
 
 const (
 	programName     = "cash5"
-	programVersion  = "0.14.0"
+	programVersion  = "0.15.0"
 	lottery_warning = "This is basically lighting money on fire! Play for fun, not profit 😀"
 )
 
@@ -493,42 +494,46 @@ func generateRandomUnwonCombo(winners map[[5]int]bool) []int {
 	return generateRandomCombo()
 }
 
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Recommend NJ Cash 5 numbers from the draw history",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " [options]", Meaning: "Show recent draws, the jackpot, closest matches, and recommended sets"}}},
+			{Title: "Options", Rows: []help.Row{
+				{Form: "-f", Meaning: "Fetch new draws since last run (within last year)"},
+				{Form: "-a", Meaning: "Display all previous drawings"},
+				{Form: "-s", Meaning: "Show statistics about historical data"},
+				{Form: "-m [N]", Meaning: "Show closest-match analysis for last N drawings (default: 30)"},
+				{Form: "-o [N]", Meaning: "Show odds table for 1 to N combos played (default: 30)"},
+				{Form: "-d DATE", Meaning: "Show raw JSON for draws on DATE (format: 2026-02-06)"},
+			}},
+			{Title: "Default", Lines: []string{
+				"Without options " + programName + " will",
+				"1. Display the last 10 draws",
+				"2. Show current jackpot, last winning numbers, and closest matches",
+				"3. Recommend 4 sets of numbers based on statistics",
+				"",
+				color.Red3(lottery_warning),
+			}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: programName, Meaning: ""},
+				{Form: programName + " -f", Meaning: ""},
+				{Form: programName + " -s", Meaning: ""},
+				{Form: programName + " -m 50", Meaning: ""},
+				{Form: programName + " -o 100", Meaning: ""},
+				{Form: programName + " -o", Meaning: ""},
+			}},
+		},
+	}
+}
+
+func usage() string { return helpDoc().String() }
+
 func printUsage() {
-	n := color.Whi5(programName)
-	v := programVersion
-	usage := fmt.Sprintf("%s v%s\n"+
-		"NJ Cash 5 daily numbers recommender\n"+
-		"\n"+
-		"%s\n"+
-		"  %s [options]\n"+
-		"\n"+
-		"%s\n"+
-		"  -f             Fetch new draws since last run (within last year)\n"+
-		"  -a             Display all previous drawings\n"+
-		"  -s             Show statistics about historical data\n"+
-		"  -m [N]         Show closest-match analysis for last N drawings (default: 30)\n"+
-		"  -o [N]         Show odds table for 1 to N combos played (default: 30)\n"+
-		"  -d DATE        Show raw JSON for draws on DATE (format: 2026-02-06)\n"+
-		"  -v, --version  Print %s v%s and exit\n"+
-		"  -h, -?         Show this help message and exit\n"+
-		"\n"+
-		"%s\n"+
-		"  1. Display the last 10 draws\n"+
-		"  2. Show current jackpot, last winning numbers, and closest matches\n"+
-		"  3. Recommend 4 sets of numbers based on statistics\n"+
-		"\n"+
-		"%s\n"+
-		"  %s\n"+
-		"  %s -f\n"+
-		"  %s -s\n"+
-		"  %s -m 50\n"+
-		"  %s -o 100\n"+
-		"  %s -o\n",
-		n, v, color.Whi5("Usage"), n, color.Whi5("Options"), programName, programVersion,
-		color.Whi5("Running without switches will"), color.Whi5("Examples"),
-		n, n, n, n, n, n)
-	usage += "\n" + color.Red3(lottery_warning) + "\n"
-	fmt.Print(usage)
+	fmt.Print(usage())
 }
 
 func runCLI() {

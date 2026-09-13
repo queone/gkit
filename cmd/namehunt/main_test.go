@@ -423,12 +423,12 @@ func TestListShowsFileAndBuiltInSites(t *testing.T) {
 
 func TestHelpOpensLikeOtherUtilitiesAndListsEveryFlag(t *testing.T) {
 	flags := []string{"-d, --distinct", "-r, --require CHARS", "-n, --dry-run", "-f, --free CODES", "-w, --wait MS", "-l, --list", "-v, --version"}
-	header := "namehunt v1.1.0\nFind free usernames on any site with a predictable profile URL.\n\nOverview\n  "
+	header := "namehunt v" + programVersion + "\nFind free usernames on any site with a predictable profile URL\ngithub.com/queone/gkit/tree/main/cmd/namehunt\n\nUsage\n  "
 	bare := runWith(t, "", nil, "")
 	if bare.code != 0 || !strings.HasPrefix(bare.stdout, header) {
 		t.Errorf("bare namehunt = exit %d, stdout %q; want 0 and the vkeep-style header", bare.code, bare.stdout)
 	}
-	if !strings.Contains(bare.stdout, "\nUsage: namehunt [flags] SITE CANDIDATE\n") {
+	if !strings.Contains(bare.stdout, "\nUsage\n  namehunt [flags] SITE CANDIDATE") {
 		t.Errorf("bare namehunt lacks the Usage block: %q", bare.stdout)
 	}
 	for _, f := range flags {
@@ -447,10 +447,10 @@ func TestHelpOpensLikeOtherUtilitiesAndListsEveryFlag(t *testing.T) {
 			t.Errorf("%s = exit %d; stdout differs from bare namehunt: %q", h, r.code, r.stdout)
 		}
 	}
-	if r := runWith(t, "", nil, "", "-v"); r.code != 0 || r.stdout != "namehunt v1.1.0\n" {
+	if r := runWith(t, "", nil, "", "-v"); r.code != 0 || r.stdout != "namehunt v"+programVersion+"\n" {
 		t.Errorf("-v = exit %d, stdout %q", r.code, r.stdout)
 	}
-	if r := runWith(t, "", nil, "", "--version"); r.stdout != "namehunt v1.1.0\n" {
+	if r := runWith(t, "", nil, "", "--version"); r.stdout != "namehunt v"+programVersion+"\n" {
 		t.Errorf("--version stdout = %q", r.stdout)
 	}
 }
@@ -658,5 +658,13 @@ func TestFreeOutputShowsProfileURLAndSignupNote(t *testing.T) {
 	}
 	if got := fill("https://p.test/u/{}", "a b"); got != "https://p.test/u/a%20b" {
 		t.Errorf("fill escaped %q, want a%%20b", got)
+	}
+}
+
+// The help screen follows the shared standard: three header lines, then the
+// sections the renderer accepts, with the standard rows left to the renderer.
+func TestHelpDocFollowsTheStandard(t *testing.T) {
+	if err := helpDoc().Check(); err != nil {
+		t.Fatal(err)
 	}
 }

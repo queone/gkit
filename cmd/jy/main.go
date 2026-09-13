@@ -11,12 +11,13 @@ import (
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mattn/go-isatty"
 	icolor "github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 	"gopkg.in/yaml.v3"
 )
 
 const (
 	programName    = "jy"
-	programVersion = "1.6.0"
+	programVersion = "1.7.0"
 )
 
 // die prints an error message to stderr and exits with status 1.
@@ -61,32 +62,32 @@ func loadFileYamlBytes(filePath string) (yamlBytes []byte, err error) {
 	return yamlBytes, nil
 }
 
+func usage() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Convert JSON to YAML and YAML to JSON",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " [options] [FILE]", Meaning: "Convert FILE, or piped input, to the other format"}},
+				Lines: []string{"Options may come in any order. YAML input prints as JSON and JSON input as YAML."}},
+			{Title: "Options", Rows: []help.Row{
+				{Form: "-c", Meaning: "Print FILE colorized without converting it"},
+				{Form: "-d", Meaning: "Strip color from the output"},
+			}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: "cat file | " + programName, Meaning: ""},
+				{Form: programName + " /path/to/file", Meaning: ""},
+				{Form: programName + " /path/to/file -d", Meaning: ""},
+				{Form: programName + " file.yaml -c", Meaning: "A colorized copy of the file, not converted"},
+			}},
+		},
+	}.String()
+}
+
+// printUsage prints the help and exits 0; it also answers a run with no input.
 func printUsage() {
-	n := icolor.Whi10(programName)
-	v := programVersion
-	usage := fmt.Sprintf("%s v%s\n"+
-		"JSON / YAML converter - https://github.com/queone/gkit/blob/main/cmd/jy/README.md\n"+
-		"%s\n"+
-		"  %s [options] [file]\n"+
-		"\n"+
-		"  Options can be specified in any order. The file can be piped into the utility, or it\n"+
-		"  can be referenced as an argument. If the file is YAML, the output will be JSON, or\n"+
-		"  vice versa.\n"+
-		"\n"+
-		"%s\n"+
-		"  -c                     Colorize the output for the specified file.\n"+
-		"  -d                     Decolorize the output for piped input or file.\n"+
-		"  -v, --version          Print version and exit.\n"+
-		"  -?, --help, -h         Show this help message and exit.\n"+
-		"\n"+
-		"%s\n"+
-		"  cat file | %s\n"+
-		"  %s /path/to/file\n"+
-		"  %s /path/to/file -d\n"+
-		"  %s file.yaml -c        Prints a colorized version of the file. Does not convert.\n"+
-		"  %s -h\n",
-		n, v, icolor.Whi10("Usage"), n, icolor.Whi10("Options"), icolor.Whi10("Examples"), n, n, n, n, n)
-	fmt.Print(usage)
+	fmt.Print(usage())
 	os.Exit(0)
 }
 

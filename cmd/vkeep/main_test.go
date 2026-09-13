@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+
+	"github.com/queone/gkit/internal/vedit"
 )
 
 func TestVersionAliases(t *testing.T) {
@@ -36,5 +38,13 @@ func TestVersionAliases(t *testing.T) {
 				t.Errorf("stderr = %q, want empty", got)
 			}
 		})
+	}
+}
+
+// The help screen follows the shared standard: three header lines, then the
+// sections the renderer accepts, with the standard rows left to the renderer.
+func TestHelpDocFollowsTheStandard(t *testing.T) {
+	if err := vedit.Help(programName, programVersion).Check(); err != nil {
+		t.Fatal(err)
 	}
 }

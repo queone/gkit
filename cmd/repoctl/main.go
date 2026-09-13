@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/queone/gkit/internal/help"
 	"io"
 	"os"
 	"os/exec"
@@ -19,7 +20,7 @@ import (
 
 const (
 	programName    = "repoctl"
-	programVersion = "0.4.0"
+	programVersion = "0.5.0"
 	yellow         = "\033[38;5;226m"
 	reset          = "\033[0m"
 )
@@ -63,9 +64,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 	color := colorEnabled(stdout)
 	switch cmd.name {
 	case "help":
-		_, err = fmt.Fprint(stdout, helpText(color))
+		_, err = fmt.Fprint(stdout, helpText())
 	case "version":
-		_, err = fmt.Fprintf(stdout, "%s %s\n", programName, programVersion)
+		_, err = fmt.Fprintf(stdout, "%s v%s\n", programName, programVersion)
 	case "status", "pull", "build":
 		err = runLocal(cmd.name, cmd.args, color, stdout)
 	case "clone":
@@ -681,7 +682,30 @@ func isTerminal(f *os.File) bool {
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
-func helpText(color bool) string {
-	name := paint(programName, color)
-	return fmt.Sprintf("%s v%s\nControl a collection of local Git repositories.\n\nUsage\n  %s COMMAND [REPO ...]\n  %s clone NAME\n  %s clone OWNER REPO ...\n  %s clone OWNER/REPO\n\nCommands\n  s, status  Show repository status\n  p, pull    Pull selected repositories\n  c, clone   Clone a repository\n  l, list    List repositories in scope\n  b, build   Run ./build.sh in selected repositories\n\nOptions\n  -v, --version  Print version and exit\n  -h, -?, --help Print this help message and exit\n", name, programVersion, name, name, name, name)
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Control a collection of local Git repositories",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{
+				{Form: programName + " COMMAND [REPO ...]", Meaning: "Run COMMAND on every immediate Git repository here, or only on REPO"},
+				{Form: programName + " clone NAME", Meaning: ""},
+				{Form: programName + " clone OWNER REPO ...", Meaning: ""},
+				{Form: programName + " clone OWNER/REPO", Meaning: ""},
+			}},
+			{Title: "Commands", Rows: []help.Row{
+				{Form: "s, status", Meaning: "Show repository status"},
+				{Form: "p, pull", Meaning: "Pull selected repositories"},
+				{Form: "c, clone", Meaning: "Clone a repository"},
+				{Form: "l, list", Meaning: "List repositories in scope"},
+				{Form: "b, build", Meaning: "Run ./build.sh in selected repositories"},
+				{Form: "version", Meaning: "Print " + programName + " v" + programVersion},
+				{Form: "help", Meaning: "Show this help"},
+			}},
+		},
+	}
 }
+
+func helpText() string { return helpDoc().String() }

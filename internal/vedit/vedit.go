@@ -9,6 +9,7 @@ package vedit
 import (
 	"errors"
 	"fmt"
+	"github.com/queone/gkit/internal/help"
 	"io"
 	"os"
 	"os/exec"
@@ -311,13 +312,11 @@ func Drop(accurate bool, crossfade float64, startTok, endTok, input string) erro
 	return process(true, accurate, crossfade, startTok, endTok, input)
 }
 
-// Usage returns the shared help screen printed by both vkeep and vdrop. invoked
-// is the command name the user typed; its rows in the cheatsheet are highlighted
-// so each tool points the reader at its own shorter form. The body is identical
-// for both tools apart from that highlight and the header line, so the pair is
-// documented from a single source.
-func Usage(invoked, version string) string {
-	h := color.Whi10
+// Help describes the shared help screen of vkeep and vdrop. invoked is the
+// command name the user typed; its cheatsheet rows are highlighted so each tool
+// points the reader at its own shorter form. The two screens differ only in the
+// header lines and that highlight, so the pair is documented from one source.
+func Help(invoked, version string) help.Doc {
 	rows := []struct{ goal, cmd string }{
 		{"Copy the whole file", "vkeep 0 FILE"},
 		{"Keep from beginning to 1:00", "vkeep 0 1:00 FILE"},
@@ -327,59 +326,49 @@ func Usage(invoked, version string) string {
 		{"Keep only the middle 1:00..8:31", "vkeep 1:00 8:31 FILE"},
 		{"Drop only the middle 1:00..8:31", "vdrop 1:00 8:31 FILE"},
 	}
-	var table strings.Builder
-	fmt.Fprintf(&table, "  %-34s%s\n", "What you want", "Use this")
+	cheat := []help.Row{{Form: "What you want", Meaning: "Use this"}}
 	for _, r := range rows {
 		cmd := r.cmd
 		if strings.HasPrefix(cmd, invoked+" ") {
-			cmd = h(cmd)
+			cmd = color.Whi10(cmd)
 		}
-		fmt.Fprintf(&table, "  %-34s%s\n", r.goal, cmd)
+		cheat = append(cheat, help.Row{Form: r.goal, Meaning: cmd})
 	}
-
-	return fmt.Sprintf("%s v%s\n"+
-		"Keep or drop a section of a video by driving ffmpeg.\n"+
-		"\n"+
-		"%s\n"+
-		"  vkeep keeps the part you want. vdrop removes the part you don't want\n"+
-		"  (and joins the remainder). They are counterparts — every result is\n"+
-		"  reachable from either, but one form is usually shorter.\n"+
-		"\n"+
-		"%s\n"+
-		"  vkeep START [END] [-a] <input>     keep START..END\n"+
-		"  vdrop START [END] [-a] <input>     drop START..END, join the rest\n"+
-		"\n"+
-		"%s\n"+
-		"  MM:SS by default (8:31); a bare integer is whole seconds (90); HH:MM:SS\n"+
-		"  only when the source is longer than one hour. END is optional — omit it\n"+
-		"  (or pass the literal 'end') to reach the source end.\n"+
-		"\n"+
-		"%s\n"+
-		"%s"+
-		"\n"+
-		"%s\n"+
-		"  -a, --accurate         Frame-accurate re-encode (default: fast keyframe copy)\n"+
-		"  -x, --crossfade[=SECS] Dissolve the interior join (vdrop only; re-encodes;\n"+
-		"                         default 0.5s)\n"+
-		"  -v, --version          Print %s v%s and exit\n"+
-		"  -h, -?, --help         Show this help message and exit\n"+
-		"\n"+
-		"%s\n"+
-		"  vkeep 0 FILE copies the whole file. vdrop has no whole-file form —\n"+
-		"  dropping 0..end would remove everything, which vdrop refuses.\n"+
-		"  A vdrop crossfade (-x) overlaps SECS seconds, so the output is that much\n"+
-		"  shorter than a hard cut.\n"+
-		"  Requires ffmpeg and ffprobe on PATH (brew install ffmpeg).\n",
-		h(invoked), version,
-		h("Overview"),
-		h("Usage"),
-		h("Timestamps"),
-		h("Cheatsheet"),
-		table.String(),
-		h("Options"),
-		invoked, version,
-		h("Notes"))
+	description := "Keep one section of a video by driving ffmpeg"
+	if invoked == "vdrop" {
+		description = "Drop one section of a video and join the rest by driving ffmpeg"
+	}
+	return help.Doc{
+		Name:        invoked,
+		Version:     version,
+		Description: description,
+		URL:         help.URL(invoked),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{
+				{Form: "vkeep START [END] [-a] FILE", Meaning: "keep START..END"},
+				{Form: "vdrop START [END] [-a] [-x] FILE", Meaning: "drop START..END, join the rest"},
+			}, Lines: []string{
+				"START and END are MM:SS, a bare number of seconds, or HH:MM:SS past one hour.",
+				"END is optional; omit it or write end to reach the source end. The output is",
+				"written next to FILE and never overwrites. Requires ffmpeg and ffprobe on PATH.",
+			}},
+			{Title: "Options", Rows: []help.Row{
+				{Form: "-a, --accurate", Meaning: "Frame-accurate re-encode (default: fast keyframe copy)"},
+				{Form: "-x, --crossfade[=SECS]", Meaning: "Dissolve the interior join (vdrop only; re-encodes; default 0.5s)"},
+			}, Lines: []string{
+				"A vdrop crossfade overlaps SECS seconds, so the output is that much shorter",
+				"than a hard cut.",
+			}},
+			{Title: "Cheatsheet", Rows: cheat, Lines: []string{
+				"vkeep 0 FILE copies the whole file. vdrop has no whole-file form:",
+				"dropping 0..end would remove everything, which vdrop refuses.",
+			}},
+		},
+	}
 }
+
+// Usage returns the shared help screen printed by both vkeep and vdrop.
+func Usage(invoked, version string) string { return Help(invoked, version).String() }
 
 // process is the shared driver for Keep and Drop: it validates tooling and input,
 // probes duration, resolves and validates the range, refuses to overwrite, then

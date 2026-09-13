@@ -15,24 +15,23 @@ This utility is part of a collection of Go utilities. To compile and install fol
 
 ### Usage
 
-```bash
-$ tree -?
+```text
+tree v1.1.0
+Print a directory tree, with each file's full path on request
+github.com/queone/gkit/tree/main/cmd/tree
 
-tree v1.0.3
-Directory tree printer — https://github.com/queone/gkit/blob/main/cmd/tree/README.md
 Usage
-  tree [options] [directory]
+  tree [-f] [DIRECTORY]  Print the tree under DIRECTORY, default the current directory
 
-  Options can be specified in any order. The last specified directory will be used if
-  multiple directories are provided.
+  The flag and the directory may come in any order; the last directory given wins.
 
 Options
-  -f                Show full file paths. Can be placed before or after the dir path.
-  -?, --help, -h    Show this help message and exit
+  -f              Show each file's full path beside its name
+  -v, --version   Print tree v1.1.0 and exit
+  -h, -?, --help  Show this help and exit
 
 Examples
   tree
   tree -f /path/to/directory
   tree /path/to/directory -f
-  tree -h
 ```

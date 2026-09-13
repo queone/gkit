@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"github.com/queone/gkit/internal/help"
 	"html"
 	"html/template"
 	"io"
@@ -20,7 +21,7 @@ import (
 
 const (
 	programName    = "mdview"
-	programVersion = "0.1.0"
+	programVersion = "0.2.0"
 
 	// Source: https://raw.githubusercontent.com/sindresorhus/github-markdown-css/v5.9.0/github-markdown.css
 	// SHA-256: 6112686f954db5d3806fb96116d2ab20ad3018469ab1015c587fd8efe7d25cf4
@@ -92,19 +93,20 @@ html {
 </html>
 `
 
-func usage() string {
-	return fmt.Sprintf(`%s v%s
-View GitHub Flavored Markdown in a browser or write it as HTML.
-
-Usage
-  %s [-o FILE] FILE
-
-Options
-  -o, --output FILE  write HTML to FILE without opening a browser
-  -v, --version      print %s v%s and exit
-  -h, -?, --help     show this help message and exit
-`, programName, programVersion, programName, programName, programVersion)
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "View GitHub Flavored Markdown in a browser or write it as HTML",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " [-o FILE] FILE", Meaning: "Render FILE and open it in the browser"}}},
+			{Title: "Options", Rows: []help.Row{{Form: "-o, --output FILE", Meaning: "Write the HTML to FILE without opening a browser"}}},
+		},
+	}
 }
+
+func usage() string { return helpDoc().String() }
 
 func isHelp(arg string) bool {
 	return arg == "-h" || arg == "-?" || arg == "--help"

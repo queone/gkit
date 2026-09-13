@@ -8,11 +8,12 @@ import (
 	"strings"
 
 	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	programName    = "swatch"
-	programVersion = "1.0.0"
+	programVersion = "1.1.0"
 )
 
 func main() {
@@ -28,11 +29,11 @@ func run(args []string) int {
 		fmt.Print(helpText())
 		return 0
 	}
-	if len(args) == 1 && isVersionFlag(args[0]) {
+	if len(args) == 1 && (isVersionFlag(args[0]) || args[0] == "version") {
 		fmt.Printf("%s v%s\n", programName, programVersion)
 		return 0
 	}
-	if len(args) == 1 && isHelpFlag(args[0]) {
+	if len(args) == 1 && (isHelpFlag(args[0]) || args[0] == "help") {
 		fmt.Print(helpText())
 		return 0
 	}
@@ -172,34 +173,34 @@ func diagnostic(message string) int {
 	return 2
 }
 
-func helpText() string {
-	n := color.Whi10(programName)
-	return fmt.Sprintf(
-		"%s v%s\nXterm palette and ramp inspector\n"+
-			"%s\n  %s <subcommand> [options] [TOKEN]\n"+
-			"\n"+
-			"Subcommands\n"+
-			"  p, palette       Print the complete xterm palette and color ramps\n"+
-			"  g, grid          Print the bordered ramp-by-step grid\n"+
-			"  b, backgrounds   Print background-ramp swatch rows\n"+
-			"\n"+
-			"%s\n"+
-			"  -r, --reverse          Use ramp colors as grid cell backgrounds\n"+
-			"  -f, --foreground INDEX Set grid or swatch text to xterm INDEX (0-255)\n"+
-			"  -v, --version          Print version and exit\n"+
-			"  -?, -h, --help         Print this usage page\n"+
-			"\n"+
-			"  TOKEN defaults to TOKEN when omitted or empty. Grid --foreground requires --reverse.\n"+
-			"\n"+
-			"%s\n"+
-			"  %s p\n"+
-			"  %s palette\n"+
-			"  %s g --reverse HEADER\n"+
-			"  %s b --foreground 15 LABEL\n",
-		n, programVersion,
-		color.Whi10("Usage"), n,
-		color.Whi10("Options"),
-		color.Whi10("Examples"),
-		n, n, n, n,
-	)
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Inspect the xterm 256-color palette and the color ramps",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " COMMAND [options] [TOKEN]", Meaning: "Print one view of the palette, with TOKEN as the sample text"}},
+				Lines: []string{"TOKEN defaults to TOKEN when omitted or empty. Grid --foreground requires --reverse."}},
+			{Title: "Commands", Rows: []help.Row{
+				{Form: "p, palette", Meaning: "Print the complete xterm palette and color ramps"},
+				{Form: "g, grid", Meaning: "Print the bordered ramp-by-step grid"},
+				{Form: "b, backgrounds", Meaning: "Print background-ramp swatch rows"},
+				{Form: "version", Meaning: "Print " + programName + " v" + programVersion},
+				{Form: "help", Meaning: "Show this help"},
+			}},
+			{Title: "Options", Rows: []help.Row{
+				{Form: "-r, --reverse", Meaning: "Use ramp colors as grid cell backgrounds"},
+				{Form: "-f, --foreground INDEX", Meaning: "Set grid or swatch text to xterm INDEX (0-255)"},
+			}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: programName + " p", Meaning: ""},
+				{Form: programName + " palette", Meaning: ""},
+				{Form: programName + " g --reverse HEADER", Meaning: ""},
+				{Form: programName + " b --foreground 15 LABEL", Meaning: ""},
+			}},
+		},
+	}
 }
+
+func helpText() string { return helpDoc().String() }

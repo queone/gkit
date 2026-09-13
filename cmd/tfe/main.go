@@ -11,12 +11,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	programName    = "tfe"
-	programVersion = "2.0.0"
+	programVersion = "2.1.0"
 )
 
 // env carries the streams, the environment, the config path, and the client
@@ -30,45 +30,46 @@ type env struct {
 }
 
 // usage returns the help screen.
-func usage() string {
-	lines := []color.UsageLine{
-		{Flag: "-a, --all", Desc: "mods: list every version instead of the latest"},
-		{Flag: "-j, --json", Desc: "mods: print a single matching module as JSON"},
-		{Flag: "-v, --version", Desc: "Print " + programName + " v" + programVersion + " and exit"},
-		{Flag: "-h, --help", Desc: "Show this help"},
+// helpDoc describes the help screen.
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "List, show, and clone Terraform Cloud workspaces, modules, and organizations",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " [flags] COMMAND [ARGS]", Meaning: "Talk to a Terraform Cloud or Terraform Enterprise instance"}},
+				Lines: []string{
+					"Authentication, in this order: TF_ORG, TF_DOMAIN, and TF_TOKEN in the",
+					"environment, all three set; then the same three keys in",
+					"$XDG_CONFIG_HOME/tfe/config.yaml or ~/.config/tfe/config.yaml, created as a",
+					"skeleton when missing.",
+				}},
+			{Title: "Commands", Rows: []help.Row{
+				{Form: "orgs [FILTER]", Meaning: "List organizations"},
+				{Form: "mods [-a] [-j] [FILTER]", Meaning: "List registry modules; one match prints its details"},
+				{Form: "ws [FILTER]", Meaning: "List workspaces"},
+				{Form: "show NAME", Meaning: "Show one workspace with its variables"},
+				{Form: "clone SRC DEST", Meaning: "Clone workspace SRC as DEST, variables included"},
+				{Form: "version", Meaning: "Print " + programName + " v" + programVersion},
+				{Form: "help", Meaning: "Show this help"},
+			}, Lines: []string{"FILTER is a case-insensitive substring of the name."}},
+			{Title: "Options", Rows: []help.Row{
+				{Form: "-a, --all", Meaning: "mods: list every version instead of the latest"},
+				{Form: "-j, --json", Meaning: "mods: print a single matching module as JSON"},
+			}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: programName + " orgs", Meaning: ""},
+				{Form: programName + " mods -a network", Meaning: ""},
+				{Form: programName + " show prod-network", Meaning: ""},
+				{Form: programName + " clone prod-network staging-network", Meaning: ""},
+			}},
+		},
 	}
-	footer := `Subcommands:
-  orgs [FILTER]            List organizations
-  mods [-a] [-j] [FILTER]  List registry modules; one match prints its details
-  ws [FILTER]              List workspaces
-  show NAME                Show one workspace with its variables
-  clone SRC DEST           Clone workspace SRC as DEST, variables included
-
-FILTER is a case-insensitive substring of the name.
-
-Authentication, in this order:
-  1. TF_ORG, TF_DOMAIN, and TF_TOKEN in the environment, all three set.
-  2. The same three keys in $XDG_CONFIG_HOME/tfe/config.yaml, or
-     ~/.config/tfe/config.yaml. A missing file is created as a skeleton.
-
-Examples:
-  tfe orgs
-  tfe mods -a network
-  tfe show prod-network
-  tfe clone prod-network staging-network`
-	h := color.Whi10
-	return fmt.Sprintf("%s v%s\n"+
-		"Terraform Cloud command-line utility.\n"+
-		"\n"+
-		"%s\n"+
-		"  tfe lists organizations, registry modules, and workspaces of a Terraform\n"+
-		"  Cloud or Terraform Enterprise instance, shows one workspace with its\n"+
-		"  variables, and clones a workspace, which the web interface cannot do.\n"+
-		"\n"+
-		"%s",
-		h(programName), programVersion, h("Overview"),
-		color.FormatUsage(programName+" [flags] SUBCOMMAND [ARGS]", lines, footer))
 }
+
+// usage returns the help screen.
+func usage() string { return helpDoc().String() }
 
 // fail prints err with the program name and returns the failure exit code.
 func fail(stderr io.Writer, err error) int {
@@ -121,8 +122,12 @@ func parseArgs(args []string) (request, error) {
 
 // run executes the utility with the given arguments and returns its exit code.
 func run(args []string, e env) int {
-	if len(args) == 0 {
+	if len(args) == 0 || args[0] == "help" {
 		fmt.Fprint(e.stdout, usage())
+		return 0
+	}
+	if args[0] == "version" {
+		fmt.Fprintf(e.stdout, "%s v%s\n", programName, programVersion)
 		return 0
 	}
 	for _, a := range args {

@@ -69,56 +69,54 @@ A TARGET is either the template as `ls` shows it (`$XDG_CONFIG_HOME/git/config`)
 ### Usage
 
 ```text
-macfit v1.6.0
-Keep Mac config files in one encrypted store and restore them on any Mac.
-
-Overview
-  The store is a single sealed file. Keep it in a synced folder and every Mac
-  that sees the folder can open it. push sends live files into the store,
-  pull restores them from the store, and diff shows what differs. The key
-  lives in the login keychain, with a passphrase-wrapped copy in the store
-  for other Macs.
+macfit v1.7.0
+Keep Mac config files in one encrypted store and restore them on any Mac
+github.com/queone/gkit/tree/main/cmd/macfit
 
 Usage
-  macfit [st]                         status of the store, key, and drift; no command means st
-  macfit init [-N]                    unlock an existing store, or create one with -N
-  macfit add PATH... [-H HOST|-g]     register live files for this Mac and capture them
-  macfit set TARGET [flags]           change an entry's Mac binding or mode (-H, -g, -m, -F)
-  macfit rm TARGET [-H HOST]          forget a file and its stored versions
-  macfit ls [-S FIELD]                list entries by host, or by target or captured
-  macfit push [TARGET...]             send changed live files into the store
-  macfit pull [TARGET...] [-f]        plan the restore, or write it with -f
-  macfit diff [TARGET...] [-V]        show drift between the store and this Mac
-  macfit render [-o DIR] [-a] [-f]    write the stored files into a browsable directory
-  macfit cat TARGET [-H HOST]         print one stored file
-  macfit key show                     store path, key id, keychain and store state
-  macfit key restore                  put the key back in the keychain with the passphrase
-  macfit key rm [-f]                  delete the keychain item after a prompt
-  macfit key passphrase               change the recovery passphrase
+  macfit [COMMAND] [flags]  Work with the store; no command means st
 
-Options
-  -s, --store PATH   Store file for this command; init -s also remembers it
-  -N, --new          Create a new store (init)
-  -H, --host NAME    Bind the entry to another Mac (add, set, rm, cat)
-  -g, --global       Make the entry apply on every Mac (add, set)
-  -m, --mode MODE    Store a new mode, three or four octal digits (set)
-  -F, --from WHICH   Pick the entry to change by its binding: a host name or global (set)
-  -S, --sort FIELD   Sort ls by host (the default), target, or captured, newest first
-  -l, --literal      Keep the path under ~ instead of an XDG variable (add)
-  -n, --dry-run      Print the pull plan; the default, kept for scripts
-  -f, --force        Write the pull plan, overwriting live files that differ; skip the key rm prompt
-  -V, --verbose      Add a unified diff to diff output
-  -o, --out DIR      Render into DIR instead of a fresh private temp directory (render)
-  -a, --all          Render every stored version too, under versions/ (render)
-  -v, --version      Print macfit v1.6.0 and exit
-  -h, -?, --help     Show this help message and exit
-
-Notes
   Store path order: -s, then MACFIT_STORE, then the path init -s remembered in
   $XDG_CONFIG_HOME/macfit/store, then $XDG_DATA_HOME/macfit/macfit.store.
+  init needs a terminal for the passphrase prompt and creates only the default folder.
+
+Commands
+  st                         status of the store, key, and drift
+  init [-N]                  unlock an existing store, or create one with -N
+  add PATH... [-H HOST|-g]   register live files for this Mac and capture them
+  set TARGET [flags]         change an entry's Mac binding or mode (-H, -g, -m, -F)
+  rm TARGET [-H HOST]        forget a file and its stored versions
+  ls [-S FIELD]              list entries by host, or by target or captured
+  push [TARGET...]           send changed live files into the store
+  pull [TARGET...] [-f]      plan the restore, or write it with -f
+  diff [TARGET...] [-V]      show drift between the store and this Mac
+  render [-o DIR] [-a] [-f]  write the stored files into a browsable directory
+  cat TARGET [-H HOST]       print one stored file
+  key show                   store path, key id, keychain and store state
+  key restore                put the key back in the keychain with the passphrase
+  key rm [-f]                delete the keychain item after a prompt
+  key passphrase             change the recovery passphrase
+  version                    print macfit v1.7.0
+  help                       show this help
+
   A TARGET is the template ls shows ($XDG_CONFIG_HOME/git/config) or the live path.
   add binds a file to this Mac unless -g; on a Mac, its own entry wins over a global one.
-  init needs a terminal for the passphrase prompt and creates only the default folder.
-  render writes plaintext copies of the store; delete the directory when done.
-  Files only: no directories, globs, or symlinks. macOS defaults settings are a planned addition.
+  Files only: no directories, globs, or symlinks.
+
+Options
+  -s, --store PATH  Store file for this command; init -s also remembers it
+  -N, --new         Create a new store (init)
+  -H, --host NAME   Bind the entry to another Mac (add, set, rm, cat)
+  -g, --global      Make the entry apply on every Mac (add, set)
+  -m, --mode MODE   Store a new mode, three or four octal digits (set)
+  -F, --from WHICH  Pick the entry to change by its binding: a host name or global (set)
+  -S, --sort FIELD  Sort ls by host (the default), target, or captured, newest first
+  -l, --literal     Keep the path under ~ instead of an XDG variable (add)
+  -n, --dry-run     Print the pull plan; the default, kept for scripts
+  -f, --force       Write the pull plan, overwriting live files that differ; skip the key rm prompt
+  -V, --verbose     Add a unified diff to diff output
+  -o, --out DIR     Render into DIR instead of a fresh private temp directory (render)
+  -a, --all         Render every stored version too, under versions/ (render)
+  -v, --version     Print macfit v1.7.0 and exit
+  -h, -?, --help    Show this help and exit
 ```

@@ -8,20 +8,34 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	programName    = "certls"
-	programVersion = "2.0.0"
+	programVersion = "2.1.0"
 )
 
+func helpText() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Print the TLS certificate details of a host and port",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " FQDN[:PORT]", Meaning: "Connect and print the certificate; PORT defaults to 443"}}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: programName + " microsoft.com", Meaning: "Uses port 443"},
+				{Form: programName + " mysite.com:1473", Meaning: "Uses port 1473"},
+			}},
+		},
+	}.String()
+}
+
+// usage prints the help to stderr and exits 1 for a bad command line.
 func usage() {
-	fmt.Println("Print SSL certificate details for given FQDN:Port.")
-	fmt.Println()
-	fmt.Printf("Usage: %s FQDN[:PORT]\n", programName)
-	fmt.Println("  Examples:")
-	fmt.Printf("    %s microsoft.com     Uses 443 by default\n", programName)
-	fmt.Printf("    %s mysite.com:1473   Uses port 1473\n", programName)
+	fmt.Fprint(os.Stderr, helpText())
 	os.Exit(1)
 }
 
@@ -43,9 +57,15 @@ func parseTarget(arg string) (string, string) {
 }
 
 func main() {
-	if len(os.Args) == 2 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
-		fmt.Printf("%s v%s\n", programName, programVersion)
-		return
+	if len(os.Args) == 2 {
+		switch os.Args[1] {
+		case "-v", "--version":
+			fmt.Printf("%s v%s\n", programName, programVersion)
+			return
+		case "-h", "-?", "--help":
+			fmt.Print(helpText())
+			return
+		}
 	}
 
 	if len(os.Args) != 2 {

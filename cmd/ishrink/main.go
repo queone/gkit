@@ -13,12 +13,13 @@ import (
 	"time"
 
 	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 	"github.com/queone/gkit/internal/numfmt"
 )
 
 const (
 	programName    = "ishrink"
-	programVersion = "1.0.0"
+	programVersion = "1.1.0"
 	usageLine      = "usage: ishrink FILE.[heic|jpeg|jpg]"
 )
 
@@ -45,31 +46,26 @@ type env struct {
 	stderr io.Writer
 }
 
-// usage returns the help screen.
-func usage() string {
-	lines := []color.UsageLine{
-		{Flag: "-v, --version", Desc: "Print " + programName + " v" + programVersion + " and exit"},
-		{Flag: "-h, --help", Desc: "Show this help"},
+// helpDoc describes the help screen.
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Shrink a HEIC, JPEG, or JPG image into a small JPEG via macOS sips",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " INPUT", Meaning: "Write INPUT's stem plus today's date as a small .jpg next to it"}},
+				Lines: []string{
+					"INPUT is a .heic, .jpeg, or .jpg file. ishrink refuses to overwrite an",
+					"existing file. sips ships with macOS, so ishrink runs only there.",
+				}},
+			{Title: "Examples", Rows: []help.Row{{Form: programName + " photo.heic", Meaning: "writes photo_20260908a.jpg"}}},
+		},
 	}
-	footer := `INPUT is a .heic, .jpeg, or .jpg file. The output is INPUT's stem plus
-today's date with a .jpg extension, as in photo_20260908a.jpg, written next
-to it; ishrink refuses to overwrite an existing file.
-sips ships with macOS, so ishrink runs only there.
-
-Example:
-  ishrink photo.heic        writes photo_20260908a.jpg`
-	h := color.Whi10
-	return fmt.Sprintf("%s v%s\n"+
-		"Shrink a HEIC, JPEG, or JPG image into a small JPEG via macOS sips.\n"+
-		"\n"+
-		"%s\n"+
-		"  ishrink re-encodes INPUT as JPEG at 10%% quality, which cuts a phone photo\n"+
-		"  to a fraction of its size for sharing, and prints the before/after sizes.\n"+
-		"\n"+
-		"%s",
-		h(programName), programVersion, h("Overview"),
-		color.FormatUsage(programName+" [flags] INPUT", lines, footer))
 }
+
+// usage returns the help screen.
+func usage() string { return helpDoc().String() }
 
 // fail prints err with the program name and returns the failure exit code.
 func fail(stderr io.Writer, err error) int {

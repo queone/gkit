@@ -6,17 +6,37 @@ import (
 	"os"
 	"strings"
 	"unicode"
+
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	programName    = "rncap"
-	programVersion = "2.0.0"
+	programVersion = "2.1.0"
 )
 
+func usage() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Capitalize every word of every file name in the current directory",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName, Meaning: "Ask for confirmation, then rename every file in the current directory"}}},
+		},
+	}.String()
+}
+
 func main() {
-	if len(os.Args) == 2 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
-		fmt.Printf("%s v%s\n", programName, programVersion)
-		return
+	if len(os.Args) == 2 {
+		switch os.Args[1] {
+		case "-v", "--version":
+			fmt.Printf("%s v%s\n", programName, programVersion)
+			return
+		case "-h", "-?", "--help":
+			fmt.Print(usage())
+			return
+		}
 	}
 
 	reader := bufio.NewReader(os.Stdin)

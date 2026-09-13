@@ -5,25 +5,49 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	blue           = "\033[34m"
 	reset          = "\033[0m"
 	programName    = "dos2unix"
-	programVersion = "2.0.0"
+	programVersion = "2.1.0"
 )
 
+func helpText() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Preview or convert CRLF line endings to LF",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{
+				{Form: programName + " FILE", Meaning: "Print FILE with each CRLF shown in blue"},
+				{Form: programName + " FILE -f", Meaning: "Rewrite FILE with LF line endings"},
+			}},
+			{Title: "Options", Rows: []help.Row{{Form: "-f", Meaning: "Convert in place instead of previewing"}}},
+		},
+	}.String()
+}
+
+// usage prints the help to stderr and exits 1 for a bad command line.
 func usage() {
-	fmt.Fprintf(os.Stderr, "usage: %s FILE [-f]\n", programName)
-	fmt.Fprintf(os.Stderr, "       %s -v | --version\n", programName)
+	fmt.Fprint(os.Stderr, helpText())
 	os.Exit(1)
 }
 
 func main() {
-	if len(os.Args) == 2 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
-		fmt.Printf("%s v%s\n", programName, programVersion)
-		return
+	if len(os.Args) == 2 {
+		switch os.Args[1] {
+		case "-v", "--version":
+			fmt.Printf("%s v%s\n", programName, programVersion)
+			return
+		case "-h", "-?", "--help":
+			fmt.Print(helpText())
+			return
+		}
 	}
 
 	if len(os.Args) < 2 || len(os.Args) > 3 {

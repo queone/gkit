@@ -11,13 +11,13 @@ import (
 	"github.com/alexflint/go-arg"
 	fzf "github.com/koki-develop/go-fzf"
 	"github.com/mattn/go-runewidth"
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 	"github.com/skratchdot/open-golang/open"
 )
 
 const (
 	programName    = "web"
-	programVersion = "1.0.0"
+	programVersion = "1.1.0"
 )
 
 type Options struct {
@@ -30,29 +30,28 @@ type Options struct {
 	Version    bool     `arg:"-v, --version" help:"show version"`
 }
 
-func printUsage() {
-	n := color.Whi10(programName)
-	v := programVersion
-	usage := fmt.Sprintf("%s v%s\n"+
-		"DuckDuckGo search utility with fuzzy finder\n"+
-		"\n"+
-		"%s\n"+
-		"  %s [options] [query]\n"+
-		"\n"+
-		"%s\n"+
-		"  -j, --json         Output results in JSON format\n"+
-		"  -t, --timeout      Timeout in seconds (default: 5)\n"+
-		"  -u, --user-agent   Custom User-Agent header\n"+
-		"  -r, --referrer     Custom Referrer header\n"+
-		"  -b, --browser      Browser command to open URLs\n"+
-		"  -v, --version      Show version and exit\n"+
-		"\n"+
-		"%s\n"+
-		"  %s golang\n"+
-		"  %s -j golang\n"+
-		"  %s -t 10 -b firefox golang\n",
-		n, v, color.Whi10("Usage"), n, color.Whi10("Options"), color.Whi10("Examples"), n, n, n)
-	fmt.Print(usage)
+func usage() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Search DuckDuckGo and open a result picked with a fuzzy finder",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " [options] QUERY...", Meaning: "Search, pick a result, and open it in the browser"}}},
+			{Title: "Options", Rows: []help.Row{
+				{Form: "-j, --json", Meaning: "Print the results as JSON instead of opening one"},
+				{Form: "-t, --timeout N", Meaning: "Give up after N seconds (default 5)"},
+				{Form: "-u, --user-agent UA", Meaning: "Send UA as the User-Agent header"},
+				{Form: "-r, --referrer URL", Meaning: "Send URL as the Referer header"},
+				{Form: "-b, --browser CMD", Meaning: "Open the result with CMD instead of the default browser"},
+			}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: programName + " golang", Meaning: ""},
+				{Form: programName + " -j golang", Meaning: ""},
+				{Form: programName + " -t 10 -b firefox golang", Meaning: ""},
+			}},
+		},
+	}.String()
 }
 
 func parseArgs(args []string) (*Options, error) {
@@ -69,8 +68,8 @@ func parseArgs(args []string) (*Options, error) {
 	if err := p.Parse(args); err != nil {
 		switch {
 		case errors.Is(err, arg.ErrHelp):
-			printUsage()
-			return &opts, nil
+			fmt.Print(usage())
+			os.Exit(0)
 		case errors.Is(err, arg.ErrVersion):
 			fmt.Fprintf(os.Stdout, "%s v%s\n", programName, programVersion)
 			return &opts, nil
@@ -154,6 +153,12 @@ func find(result []SearchResult) ([]int, error) {
 }
 
 func main() {
+	for _, a := range os.Args[1:] {
+		if a == "-h" || a == "-?" || a == "--help" {
+			fmt.Print(usage())
+			return
+		}
+	}
 	opts, err := parseArgs(os.Args[1:])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

@@ -9,35 +9,36 @@ import (
 
 	"github.com/mattn/go-isatty"
 	icolor "github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	programName    = "decolor"
-	programVersion = "1.1.1"
+	programVersion = "1.2.0"
 )
 
+func usage() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Strip shell color escape codes from a file or piped text",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{
+				{Form: programName + " FILE", Meaning: "Print FILE without its color escape codes"},
+				{Form: "... | " + programName, Meaning: "Print piped text without its color escape codes"},
+			}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: "cat file | " + programName, Meaning: ""},
+				{Form: programName + " /path/to/file", Meaning: ""},
+			}},
+		},
+	}.String()
+}
+
+// printUsage prints the help and exits 0; it also answers a run with no input.
 func printUsage() {
-	n := icolor.Whi10(programName)
-	v := programVersion
-	usage := fmt.Sprintf("%s v%s\n"+
-		"Text decolorizer - https://github.com/queone/gkit/blob/main/cmd/decolor/README.md\n"+
-		"%s\n"+
-		"  %s [options] [file]\n"+
-		"\n"+
-		"  The file can be piped into the utility, or it can be referenced as an argument.\n"+
-		"\n"+
-		"%s\n"+
-		"  |piped input|       Piped text is decolorized\n"+
-		"  FILENAME            Decolorize given file path\n"+
-		"  -v, --version       Print version and exit\n"+
-		"  -?, --help, -h      Show this help message and exit\n"+
-		"\n"+
-		"%s\n"+
-		"  cat file | %s\n"+
-		"  %s /path/to/file\n"+
-		"  %s -h\n",
-		n, v, icolor.Whi10("Usage"), n, icolor.Whi10("Options"), icolor.Whi10("Examples"), n, n, n)
-	fmt.Print(usage)
+	fmt.Print(usage())
 	os.Exit(0)
 }
 

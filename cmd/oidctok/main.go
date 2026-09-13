@@ -16,11 +16,12 @@ import (
 	"time"
 
 	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	programName    = "oidctok"
-	programVersion = "1.0.0"
+	programVersion = "1.1.0"
 
 	defaultAudience = "api://AzureADTokenExchange"
 	assertionType   = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
@@ -66,38 +67,36 @@ func defaultTokenEndpoint(tenant string) string {
 }
 
 // usage returns the help screen.
-func usage() string {
-	lines := []color.UsageLine{
-		{Flag: "-a, --audience AUD", Desc: "Audience for the OIDC token (default " + defaultAudience + ")"},
-		{Flag: "-v, --version", Desc: "Print " + programName + " v" + programVersion + " and exit"},
-		{Flag: "-h, --help", Desc: "Show this help"},
+// helpDoc describes the help screen.
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Exchange a GitHub Actions OIDC token for Azure tokens",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " [-a AUD]", Meaning: "Fetch the job's OIDC token, print its claims, and exchange it"}},
+				Lines: []string{
+					"The job must define CLIENT_ID and TENANT_ID for the app registration whose",
+					"federated credential trusts this workflow, and grant permissions: id-token: write",
+					"so GitHub sets ACTIONS_ID_TOKEN_REQUEST_TOKEN and ACTIONS_ID_TOKEN_REQUEST_URL.",
+					"oidctok appends AZ_TOKEN (Azure Resource Manager) and MG_TOKEN (Microsoft Graph)",
+					"to the file named by GITHUB_ENV, so later steps see them as variables. Only the",
+					"first four characters of any token are ever printed.",
+				}},
+			{Title: "Options", Rows: []help.Row{{Form: "-a, --audience AUD", Meaning: "Audience for the OIDC token (default " + defaultAudience + ")"}}},
+			{Title: "Examples", Lines: []string{
+				"- run: oidctok",
+				"  env:",
+				"    CLIENT_ID: ${{ vars.CLIENT_ID }}",
+				"    TENANT_ID: ${{ vars.TENANT_ID }}",
+			}},
+		},
 	}
-	footer := `The job must define CLIENT_ID and TENANT_ID for the app registration whose
-federated credential trusts this workflow, and grant permissions: id-token: write
-so GitHub sets ACTIONS_ID_TOKEN_REQUEST_TOKEN and ACTIONS_ID_TOKEN_REQUEST_URL.
-oidctok appends AZ_TOKEN (Azure Resource Manager) and MG_TOKEN (Microsoft Graph)
-to the file named by GITHUB_ENV, so later steps see them as variables. Only the
-first four characters of any token are ever printed.
-
-Example step:
-  - run: oidctok
-    env:
-      CLIENT_ID: ${{ vars.CLIENT_ID }}
-      TENANT_ID: ${{ vars.TENANT_ID }}`
-	h := color.Whi10
-	return fmt.Sprintf("%s v%s\n"+
-		"Exchange a GitHub Actions OIDC token for Azure tokens.\n"+
-		"\n"+
-		"%s\n"+
-		"  oidctok fetches the running job's OIDC token, prints its claims, exchanges\n"+
-		"  it at the Microsoft identity platform for a Resource Manager token and a\n"+
-		"  Graph token, and hands both to later steps through GITHUB_ENV. It needs no\n"+
-		"  Python, pip, or Azure CLI.\n"+
-		"\n"+
-		"%s",
-		h(programName), programVersion, h("Overview"),
-		color.FormatUsage(programName+" [flags]", lines, footer))
 }
+
+// usage returns the help screen.
+func usage() string { return helpDoc().String() }
 
 // fail prints err with the program name and returns the failure exit code.
 func fail(stderr io.Writer, err error) int {

@@ -12,14 +12,17 @@ import (
 )
 
 func TestVersionHelpAndBadArguments(t *testing.T) {
-	if r := runWith(t, newFake(), nil, "-v"); r.code != 0 || r.stdout != "tfe v2.0.0\n" {
+	if r := runWith(t, newFake(), nil, "-v"); r.code != 0 || r.stdout != "tfe v"+programVersion+"\n" {
 		t.Errorf("-v: exit %d stdout %q", r.code, r.stdout)
 	}
-	if r := runWith(t, newFake(), nil, "--version"); r.stdout != "tfe v2.0.0\n" {
+	if r := runWith(t, newFake(), nil, "--version"); r.stdout != "tfe v"+programVersion+"\n" {
 		t.Errorf("--version: stdout %q", r.stdout)
 	}
-	for _, args := range [][]string{{}, {"-h"}, {"--help"}, {"-?"}} {
-		if r := runWith(t, newFake(), nil, args...); r.code != 0 || !strings.Contains(r.stdout, "Usage:") || !strings.Contains(r.stdout, "clone SRC DEST") {
+	if r := runWith(t, newFake(), nil, "version"); r.code != 0 || r.stdout != "tfe v"+programVersion+"\n" {
+		t.Errorf("version word: exit %d stdout %q", r.code, r.stdout)
+	}
+	for _, args := range [][]string{{}, {"-h"}, {"--help"}, {"-?"}, {"help"}} {
+		if r := runWith(t, newFake(), nil, args...); r.code != 0 || !strings.Contains(r.stdout, "\nUsage\n") || !strings.Contains(r.stdout, "clone SRC DEST") {
 			t.Errorf("%v: exit %d stdout %q", args, r.code, r.stdout)
 		}
 	}
@@ -89,5 +92,13 @@ func TestRealClientSendsTheTokenToTheConfiguredAddress(t *testing.T) {
 	}
 	if got := color.ClearCode(out.String()); got != "acme\n" {
 		t.Errorf("stdout %q", got)
+	}
+}
+
+// The help screen follows the shared standard: three header lines, then the
+// sections the renderer accepts, with the standard rows left to the renderer.
+func TestHelpDocFollowsTheStandard(t *testing.T) {
+	if err := helpDoc().Check(); err != nil {
+		t.Fatal(err)
 	}
 }

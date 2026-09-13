@@ -18,6 +18,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/queone/gkit/internal/help"
 	"io"
 	"net/http"
 	"net/url"
@@ -30,7 +31,7 @@ import (
 
 const (
 	programName    = "sms"
-	programVersion = "1.3.0"
+	programVersion = "1.4.0"
 )
 
 // Global variables
@@ -42,10 +43,19 @@ var (
 // usageText returns the help message body. Pure function so tests can
 // inspect output without intercepting stdout or hitting os.Exit.
 func usageText() string {
-	return fmt.Sprintf(
-		"SMS CLI utility %s\n%s <CellPhoneNum> <Message>\n%s -v | --version\n%s -y Create skeleton ~/.config/%s/config.ini file\nVisit https://textbelt.com for more info.\n",
-		programVersion, programName, programName, programName, programName,
-	)
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Send an SMS message through textbelt.com",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{
+				{Form: programName + " NUMBER MESSAGE", Meaning: "Send MESSAGE to NUMBER with the key in ~/.config/" + programName + "/config.ini"},
+				{Form: programName + " -y", Meaning: "Create a skeleton ~/.config/" + programName + "/config.ini"},
+			}, Lines: []string{"Visit https://textbelt.com for more info."}},
+			{Title: "Options", Rows: []help.Row{{Form: "-y", Meaning: "Write the skeleton config file and exit"}}},
+		},
+	}.String()
 }
 
 // Print usage information

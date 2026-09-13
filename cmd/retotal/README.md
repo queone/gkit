@@ -6,9 +6,21 @@ Keeping a running financial summary — a budget, an expense sheet — means edi
 
 ### Usage
 
-```bash
-retotal FILE
-retotal -h | --help
+```text
+retotal v1.1.0
+Consolidate financial data into a signed TOTALS summary, and re-tally it after edits
+github.com/queone/gkit/tree/main/cmd/retotal
+
+Usage
+  retotal FILE  Consolidate FILE into <stem>.txt, or re-tally a signed output file in place
+
+  FILE is CSV or space-aligned financial data; the consolidation writes an aligned
+  summary with computed TOTALS and a signature line. When FILE is already a signed
+  retotal output file, its TOTALS are recomputed in place after you edit it.
+
+Options
+  -v, --version   Print retotal v1.1.0 and exit
+  -h, -?, --help  Show this help and exit
 ```
 
 `retotal -h` (or `--help`, or any wrong argument count) prints the information screen and exits 0.

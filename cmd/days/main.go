@@ -10,13 +10,13 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	// Global constants
 	programName    = "days"
-	programVersion = "1.1.0"
+	programVersion = "1.2.0"
 )
 
 // die prints an error message to stderr and exits with status 1.
@@ -29,24 +29,33 @@ func die(format string, args ...any) {
 	os.Exit(1)
 }
 
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Count calendar days between dates, or find the date N days away",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{
+				{Form: "days -N", Meaning: "Print the date N days ago"},
+				{Form: "days +N", Meaning: "Print the date N days ahead; a bare N means +N"},
+				{Form: "days DATE", Meaning: "Print the days from today to DATE, negative when DATE is past"},
+				{Form: "days DATE DATE", Meaning: "Print the days between the two dates"},
+			}, Lines: []string{"DATE is YYYY-MM-DD or YYYY-MMM-DD."}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: "days -11", Meaning: "The date eleven days ago"},
+				{Form: "days 6", Meaning: "The date six days ahead"},
+				{Form: "days 2026-12-25", Meaning: "Days until that date"},
+			}},
+		},
+	}
+}
+
+func usage() string { return helpDoc().String() }
+
+// printUsage prints the help and exits 0; it also answers a bad command line.
 func printUsage() {
-	n := color.Whi10(programName)
-	v := programVersion
-	usage := fmt.Sprintf("%s v%s\n"+
-		"Calendar days calculator — https://github.com/queone/gkit/blob/main/cmd/days/README.md\n"+
-		"%s\n"+
-		"  This utility works with calendar dates expressed as YYYY-MM-DD (or the equivalent\n"+
-		"  YYYY-MMM-DD format), and reports the relationship between today's date and the supplied\n"+
-		"  argument(s). Supported invocations are:\n"+
-		"\n"+
-		"    days -v, --version            Prints %s v%s and exits.\n"+
-		"    days -N                       Prints the calendar date N days ago (e.g. -11).\n"+
-		"    days +N                       Prints the calendar date N days in the future (e.g. +6 or just 6).\n"+
-		"    days YYYY-MM-DD               Prints the number of days between today and the given date (positive\n"+
-		"                                  if the date is in the future, negative if it is in the past).\n"+
-		"    days YYYY-MM-DD YYYY-MM-DD    Prints the number of days between the two supplied dates.\n",
-		n, v, color.Whi10("Overview"), programName, programVersion)
-	fmt.Print(usage)
+	fmt.Print(usage())
 	os.Exit(0)
 }
 
@@ -63,6 +72,8 @@ func main() {
 		arg1 := os.Args[1]
 		if arg1 == "-v" || arg1 == "--version" {
 			fmt.Printf("%s v%s\n", programName, programVersion)
+		} else if arg1 == "-h" || arg1 == "-?" || arg1 == "--help" {
+			printUsage()
 		} else if validDate(arg1, "2006-01-02") {
 			days, err := getDaysSinceOrTo(arg1)
 			if err != nil {

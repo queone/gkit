@@ -319,11 +319,11 @@ func TestHintMasksSecrets(t *testing.T) {
 
 func TestVersionHelpAndBadArgs(t *testing.T) {
 	f := newFakeIssuer(t)
-	if r := runWith(t, f, nil, "-v"); r.code != 0 || r.stdout != "oidctok v1.0.0\n" {
+	if r := runWith(t, f, nil, "-v"); r.code != 0 || r.stdout != "oidctok v"+programVersion+"\n" {
 		t.Errorf("-v: exit %d stdout %q", r.code, r.stdout)
 	}
 	for _, flag := range []string{"-h", "--help", "-?"} {
-		if r := runWith(t, f, nil, flag); r.code != 0 || !strings.Contains(r.stdout, "Usage:") || !strings.Contains(r.stdout, "-a, --audience") {
+		if r := runWith(t, f, nil, flag); r.code != 0 || !strings.Contains(r.stdout, "\nUsage\n") || !strings.Contains(r.stdout, "-a, --audience") {
 			t.Errorf("%s: exit %d stdout %q", flag, r.code, r.stdout)
 		}
 	}
@@ -332,5 +332,13 @@ func TestVersionHelpAndBadArgs(t *testing.T) {
 	}
 	if f.requests() != 0 {
 		t.Errorf("%d requests sent by flag handling, want 0", f.requests())
+	}
+}
+
+// The help screen follows the shared standard: three header lines, then the
+// sections the renderer accepts, with the standard rows left to the renderer.
+func TestHelpDocFollowsTheStandard(t *testing.T) {
+	if err := helpDoc().Check(); err != nil {
+		t.Fatal(err)
 	}
 }

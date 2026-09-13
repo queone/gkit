@@ -20,8 +20,31 @@ A workflow that manages Azure should not carry a client secret. With a federated
 
 ### Usage
 
-```bash
-oidctok [flags]
+```text
+oidctok v1.1.0
+Exchange a GitHub Actions OIDC token for Azure tokens
+github.com/queone/gkit/tree/main/cmd/oidctok
+
+Usage
+  oidctok [-a AUD]  Fetch the job's OIDC token, print its claims, and exchange it
+
+  The job must define CLIENT_ID and TENANT_ID for the app registration whose
+  federated credential trusts this workflow, and grant permissions: id-token: write
+  so GitHub sets ACTIONS_ID_TOKEN_REQUEST_TOKEN and ACTIONS_ID_TOKEN_REQUEST_URL.
+  oidctok appends AZ_TOKEN (Azure Resource Manager) and MG_TOKEN (Microsoft Graph)
+  to the file named by GITHUB_ENV, so later steps see them as variables. Only the
+  first four characters of any token are ever printed.
+
+Options
+  -a, --audience AUD  Audience for the OIDC token (default api://AzureADTokenExchange)
+  -v, --version       Print oidctok v1.1.0 and exit
+  -h, -?, --help      Show this help and exit
+
+Examples
+  - run: oidctok
+    env:
+      CLIENT_ID: ${{ vars.CLIENT_ID }}
+      TENANT_ID: ${{ vars.TENANT_ID }}
 ```
 
 Flags: `-a, --audience AUD` overrides the audience requested from GitHub (default `api://AzureADTokenExchange`, which is what an Azure federated credential expects). `-v, --version` and `-h, --help` behave as usual.

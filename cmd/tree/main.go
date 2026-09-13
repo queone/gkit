@@ -8,36 +8,36 @@ import (
 	"unicode/utf8"
 
 	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	programName    = "tree"
-	programVersion = "1.0.3"
+	programVersion = "1.1.0"
 )
 
+func usage() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Print a directory tree, with each file's full path on request",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " [-f] [DIRECTORY]", Meaning: "Print the tree under DIRECTORY, default the current directory"}},
+				Lines: []string{"The flag and the directory may come in any order; the last directory given wins."}},
+			{Title: "Options", Rows: []help.Row{{Form: "-f", Meaning: "Show each file's full path beside its name"}}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: programName, Meaning: ""},
+				{Form: programName + " -f /path/to/directory", Meaning: ""},
+				{Form: programName + " /path/to/directory -f", Meaning: ""},
+			}},
+		},
+	}.String()
+}
+
+// printUsage prints the help and exits 0.
 func printUsage() {
-	n := color.Whi10(programName)
-	v := programVersion
-	usage := fmt.Sprintf("%s v%s\n"+
-		"Directory tree printer — https://github.com/queone/gkit/blob/main/cmd/tree/README.md\n"+
-		"%s\n"+
-		"  %s [options] [directory]\n"+
-		"\n"+
-		"  Options can be specified in any order. The last specified directory will be used if\n"+
-		"  multiple directories are provided.\n"+
-		"\n"+
-		"%s\n"+
-		"  -f                Show full file paths. Can be placed before or after the dir path.\n"+
-		"  -v, --version     Print version and exit\n"+
-		"  -?, --help, -h    Show this help message and exit\n"+
-		"\n"+
-		"%s\n"+
-		"  %s\n"+
-		"  %s -f /path/to/directory\n"+
-		"  %s /path/to/directory -f\n"+
-		"  %s -h\n",
-		n, v, color.Whi10("Usage"), n, color.Whi10("Options"), color.Whi10("Examples"), n, n, n, n)
-	fmt.Print(usage)
+	fmt.Print(usage())
 	os.Exit(0)
 }
 

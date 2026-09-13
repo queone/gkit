@@ -17,11 +17,15 @@ import (
 	"time"
 
 	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 	"github.com/queone/gkit/internal/lockbox"
 	"golang.org/x/term"
 )
 
-const programVersion = "1.6.0"
+const (
+	programName    = "macfit"
+	programVersion = "1.7.0"
+)
 
 // storeSource names where the store path came from.
 type storeSource string
@@ -101,58 +105,64 @@ func isHelpArg(a string) bool {
 }
 
 // heading renders a help heading in bold white, like the name on line one.
-func heading(s string) string { return color.Bold(color.Gra10(s)) }
-
-func usage() string {
-	return heading("macfit") + " v" + programVersion + "\n" +
-		color.Gra5("Keep Mac config files in one encrypted store and restore them on any Mac.") + "\n\n" +
-		heading("Overview") + "\n" +
-		"  The store is a single sealed file. Keep it in a synced folder and every Mac\n" +
-		"  that sees the folder can open it. push sends live files into the store,\n" +
-		"  pull restores them from the store, and diff shows what differs. The key\n" +
-		"  lives in the login keychain, with a passphrase-wrapped copy in the store\n" +
-		"  for other Macs.\n\n" +
-		heading("Usage") + "\n" +
-		"  macfit [st]                         status of the store, key, and drift; no command means st\n" +
-		"  macfit init [-N]                    unlock an existing store, or create one with -N\n" +
-		"  macfit add PATH... [-H HOST|-g]     register live files for this Mac and capture them\n" +
-		"  macfit set TARGET [flags]           change an entry's Mac binding or mode (-H, -g, -m, -F)\n" +
-		"  macfit rm TARGET [-H HOST]          forget a file and its stored versions\n" +
-		"  macfit ls [-S FIELD]                list entries by host, or by target or captured\n" +
-		"  macfit push [TARGET...]             send changed live files into the store\n" +
-		"  macfit pull [TARGET...] [-f]        plan the restore, or write it with -f\n" +
-		"  macfit diff [TARGET...] [-V]        show drift between the store and this Mac\n" +
-		"  macfit render [-o DIR] [-a] [-f]    write the stored files into a browsable directory\n" +
-		"  macfit cat TARGET [-H HOST]         print one stored file\n" +
-		"  macfit key show                     store path, key id, keychain and store state\n" +
-		"  macfit key restore                  put the key back in the keychain with the passphrase\n" +
-		"  macfit key rm [-f]                  delete the keychain item after a prompt\n" +
-		"  macfit key passphrase               change the recovery passphrase\n\n" +
-		heading("Options") + "\n" +
-		"  -s, --store PATH   Store file for this command; init -s also remembers it\n" +
-		"  -N, --new          Create a new store (init)\n" +
-		"  -H, --host NAME    Bind the entry to another Mac (add, set, rm, cat)\n" +
-		"  -g, --global       Make the entry apply on every Mac (add, set)\n" +
-		"  -m, --mode MODE    Store a new mode, three or four octal digits (set)\n" +
-		"  -F, --from WHICH   Pick the entry to change by its binding: a host name or global (set)\n" +
-		"  -S, --sort FIELD   Sort ls by host (the default), target, or captured, newest first\n" +
-		"  -l, --literal      Keep the path under ~ instead of an XDG variable (add)\n" +
-		"  -n, --dry-run      Print the pull plan; the default, kept for scripts\n" +
-		"  -f, --force        Write the pull plan, overwriting live files that differ; skip the key rm prompt\n" +
-		"  -V, --verbose      Add a unified diff to diff output\n" +
-		"  -o, --out DIR      Render into DIR instead of a fresh private temp directory (render)\n" +
-		"  -a, --all          Render every stored version too, under versions/ (render)\n" +
-		"  -v, --version      Print macfit v" + programVersion + " and exit\n" +
-		"  -h, -?, --help     Show this help message and exit\n\n" +
-		heading("Notes") + "\n" +
-		"  Store path order: -s, then MACFIT_STORE, then the path init -s remembered in\n" +
-		"  $XDG_CONFIG_HOME/macfit/store, then $XDG_DATA_HOME/macfit/macfit.store.\n" +
-		"  A TARGET is the template ls shows ($XDG_CONFIG_HOME/git/config) or the live path.\n" +
-		"  add binds a file to this Mac unless -g; on a Mac, its own entry wins over a global one.\n" +
-		"  init needs a terminal for the passphrase prompt and creates only the default folder.\n" +
-		"  render writes plaintext copies of the store; delete the directory when done.\n" +
-		"  Files only: no directories, globs, or symlinks. macOS defaults settings are a planned addition.\n"
+// helpDoc describes the help screen.
+func helpDoc() help.Doc {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Keep Mac config files in one encrypted store and restore them on any Mac",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " [COMMAND] [flags]", Meaning: "Work with the store; no command means st"}},
+				Lines: []string{
+					"Store path order: -s, then MACFIT_STORE, then the path init -s remembered in",
+					"$XDG_CONFIG_HOME/macfit/store, then $XDG_DATA_HOME/macfit/macfit.store.",
+					"init needs a terminal for the passphrase prompt and creates only the default folder.",
+				}},
+			{Title: "Commands", Rows: []help.Row{
+				{Form: "st", Meaning: "status of the store, key, and drift"},
+				{Form: "init [-N]", Meaning: "unlock an existing store, or create one with -N"},
+				{Form: "add PATH... [-H HOST|-g]", Meaning: "register live files for this Mac and capture them"},
+				{Form: "set TARGET [flags]", Meaning: "change an entry's Mac binding or mode (-H, -g, -m, -F)"},
+				{Form: "rm TARGET [-H HOST]", Meaning: "forget a file and its stored versions"},
+				{Form: "ls [-S FIELD]", Meaning: "list entries by host, or by target or captured"},
+				{Form: "push [TARGET...]", Meaning: "send changed live files into the store"},
+				{Form: "pull [TARGET...] [-f]", Meaning: "plan the restore, or write it with -f"},
+				{Form: "diff [TARGET...] [-V]", Meaning: "show drift between the store and this Mac"},
+				{Form: "render [-o DIR] [-a] [-f]", Meaning: "write the stored files into a browsable directory"},
+				{Form: "cat TARGET [-H HOST]", Meaning: "print one stored file"},
+				{Form: "key show", Meaning: "store path, key id, keychain and store state"},
+				{Form: "key restore", Meaning: "put the key back in the keychain with the passphrase"},
+				{Form: "key rm [-f]", Meaning: "delete the keychain item after a prompt"},
+				{Form: "key passphrase", Meaning: "change the recovery passphrase"},
+				{Form: "version", Meaning: "print macfit v" + programVersion},
+				{Form: "help", Meaning: "show this help"},
+			}, Lines: []string{
+				"A TARGET is the template ls shows ($XDG_CONFIG_HOME/git/config) or the live path.",
+				"add binds a file to this Mac unless -g; on a Mac, its own entry wins over a global one.",
+				"Files only: no directories, globs, or symlinks.",
+			}},
+			{Title: "Options", Rows: []help.Row{
+				{Form: "-s, --store PATH", Meaning: "Store file for this command; init -s also remembers it"},
+				{Form: "-N, --new", Meaning: "Create a new store (init)"},
+				{Form: "-H, --host NAME", Meaning: "Bind the entry to another Mac (add, set, rm, cat)"},
+				{Form: "-g, --global", Meaning: "Make the entry apply on every Mac (add, set)"},
+				{Form: "-m, --mode MODE", Meaning: "Store a new mode, three or four octal digits (set)"},
+				{Form: "-F, --from WHICH", Meaning: "Pick the entry to change by its binding: a host name or global (set)"},
+				{Form: "-S, --sort FIELD", Meaning: "Sort ls by host (the default), target, or captured, newest first"},
+				{Form: "-l, --literal", Meaning: "Keep the path under ~ instead of an XDG variable (add)"},
+				{Form: "-n, --dry-run", Meaning: "Print the pull plan; the default, kept for scripts"},
+				{Form: "-f, --force", Meaning: "Write the pull plan, overwriting live files that differ; skip the key rm prompt"},
+				{Form: "-V, --verbose", Meaning: "Add a unified diff to diff output"},
+				{Form: "-o, --out DIR", Meaning: "Render into DIR instead of a fresh private temp directory (render)"},
+				{Form: "-a, --all", Meaning: "Render every stored version too, under versions/ (render)"},
+			}},
+		},
+	}
 }
+
+// usage returns the help screen.
+func usage() string { return helpDoc().String() }
 
 func (a *app) errorf(format string, args ...any) {
 	fmt.Fprintf(a.stderr, "macfit: "+format+"\n", args...)

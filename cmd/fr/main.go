@@ -11,11 +11,12 @@ import (
 	"strings"
 
 	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	programName    = "fr"
-	programVersion = "1.0.2"
+	programVersion = "1.1.0"
 )
 
 // ---------------------------------------------------------------------
@@ -61,14 +62,37 @@ func highlightLine(line, pattern string) string {
 	})
 }
 
+func usage() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Find a regular expression in the text files under the current directory, or replace it",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{
+				{Form: programName + " REGEX", Meaning: "Print every matching line with its file and line number"},
+				{Form: programName + " FROM TO", Meaning: "Print the lines that FROM matches without changing any file"},
+				{Form: programName + " FROM TO -f", Meaning: "Replace FROM with TO in every matching file"},
+			}, Lines: []string{"Hidden directories are skipped. Only files the file command reports as text are read."}},
+			{Title: "Options", Rows: []help.Row{{Form: "-f", Meaning: "Write the replacement instead of showing matches"}}},
+		},
+	}.String()
+}
+
 // ---------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------
 
 func main() {
-	if len(os.Args) == 2 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
-		fmt.Printf("%s v%s\n", programName, programVersion)
-		return
+	if len(os.Args) == 2 {
+		switch os.Args[1] {
+		case "-v", "--version":
+			fmt.Printf("%s v%s\n", programName, programVersion)
+			return
+		case "-h", "-?", "--help":
+			fmt.Print(usage())
+			return
+		}
 	}
 
 	var from, to string
@@ -93,10 +117,7 @@ func main() {
 		}
 		replaceMode = true
 	default:
-		fmt.Fprintf(os.Stderr, "Usage:\n")
-		fmt.Fprintf(os.Stderr, "  %s <REGEX>                -> search-only mode\n", programName)
-		fmt.Fprintf(os.Stderr, "  %s <FROM> <TO>            -> show-only mode\n", programName)
-		fmt.Fprintf(os.Stderr, "  %s <FROM> <TO> -f         -> replace-and-write mode\n", programName)
+		fmt.Fprint(os.Stderr, usage())
 		os.Exit(1)
 	}
 

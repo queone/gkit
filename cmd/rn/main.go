@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/queone/gkit/internal/help"
 	"os"
 	"strings"
 
@@ -10,38 +11,31 @@ import (
 
 const (
 	programName    = "rn"
-	programVersion = "1.5.0"
+	programVersion = "1.6.0"
 )
 
+func usage() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Rename files in the current directory by replacing a substring",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + ` "OLD" "NEW" [-f]`, Meaning: "Show every file name where OLD becomes NEW; rename with -f"}},
+				Lines: []string{`An empty NEW ("") removes OLD from the name.`}},
+			{Title: "Options", Rows: []help.Row{{Form: "-f", Meaning: "Rename the files instead of only showing the plan"}}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: programName + ` "_draft" ""`, Meaning: "Show the files that would be renamed"},
+				{Form: programName + ` "_draft" "" -f`, Meaning: "Rename them"},
+				{Form: programName + ` "temp" "final" -f`, Meaning: "Replace one substring with another"},
+			}},
+		},
+	}.String()
+}
+
+// printUsage prints the help and exits 0; it also answers a bad command line.
 func printUsage() {
-	n := icolor.Whi10(programName)
-	v := programVersion
-	usage := fmt.Sprintf("%s v%s\n"+
-		"Bulk file re-namer — https://github.com/queone/gkit/blob/main/cmd/rn/README.md\n"+
-		"\n"+
-		"%s\n"+
-		"  %s \"OldString\" \"NewString\" [-f]\n"+
-		"\n"+
-		"  Renames all files in the current directory by replacing occurrences of OldString\n"+
-		"  in filenames with NewString. If NewString is empty (\"\"), the OldString is removed.\n"+
-		"\n"+
-		"%s\n"+
-		"  -f                     Perform actual renaming (required to make changes).\n"+
-		"  -v, --version          Print version and exit.\n"+
-		"  -?, --help, -h         Show this help message and exit.\n"+
-		"\n"+
-		"%s\n"+
-		"  %s \"_draft\" \"\"           Show files that would be renamed (dry run).\n"+
-		"  %s \"_draft\" \"\" -f       Actually rename files.\n"+
-		"  %s \"temp\" \"final\" -f     Replace one substring with another.\n"+
-		"  %s -v                   Print version.\n"+
-		"  %s -h                   Display this help message.\n",
-		n, v,
-		icolor.Whi10("Usage"), n,
-		icolor.Whi10("Options"),
-		icolor.Whi10("Examples"),
-		n, n, n, n, n)
-	fmt.Print(usage)
+	fmt.Print(usage())
 	os.Exit(0)
 }
 

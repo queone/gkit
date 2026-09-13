@@ -13,8 +13,40 @@ output  SOURCE_1.mp4    82,330,112  00:37:57
 
 ### Usage
 
-```bash
-vkeep START [END] [-a] <input>
+```text
+vkeep v0.4.0
+Keep one section of a video by driving ffmpeg
+github.com/queone/gkit/tree/main/cmd/vkeep
+
+Usage
+  vkeep START [END] [-a] FILE       keep START..END
+  vdrop START [END] [-a] [-x] FILE  drop START..END, join the rest
+
+  START and END are MM:SS, a bare number of seconds, or HH:MM:SS past one hour.
+  END is optional; omit it or write end to reach the source end. The output is
+  written next to FILE and never overwrites. Requires ffmpeg and ffprobe on PATH.
+
+Options
+  -a, --accurate          Frame-accurate re-encode (default: fast keyframe copy)
+  -x, --crossfade[=SECS]  Dissolve the interior join (vdrop only; re-encodes; default 0.5s)
+  -v, --version           Print vkeep v0.4.0 and exit
+  -h, -?, --help          Show this help and exit
+
+  A vdrop crossfade overlaps SECS seconds, so the output is that much shorter
+  than a hard cut.
+
+Cheatsheet
+  What you want                    Use this
+  Copy the whole file              vkeep 0 FILE
+  Keep from beginning to 1:00      vkeep 0 1:00 FILE
+  Drop from beginning to 1:00      vdrop 0 1:00 FILE
+  Keep from 1:00 to the end        vkeep 1:00 FILE
+  Drop from 1:00 to the end        vdrop 1:00 FILE
+  Keep only the middle 1:00..8:31  vkeep 1:00 8:31 FILE
+  Drop only the middle 1:00..8:31  vdrop 1:00 8:31 FILE
+
+  vkeep 0 FILE copies the whole file. vdrop has no whole-file form:
+  dropping 0..end would remove everything, which vdrop refuses.
 ```
 
 `START` and `END` mark the section to keep. `END` is optional: omit it (or pass the literal `end`) to keep through to the source end.
@@ -23,14 +55,14 @@ vkeep START [END] [-a] <input>
 `vkeep` and `vdrop` are counterparts — every result is reachable from either, but one form is usually shorter. Pick the row that matches your goal:
 
 ```
-What you want                     Use this
-  Copy the whole file             vkeep 0 FILE
-  Keep from beginning to 1:00       vkeep 0 1:00 FILE
-  Drop from beginning to 1:00       vdrop 0 1:00 FILE
-  Keep from 1:00 to the end       vkeep 1:00 FILE
-  Drop from 1:00 to the end       vdrop 1:00 FILE
-  Keep only the middle 1:00..8:31 vkeep 1:00 8:31 FILE
-  Drop only the middle 1:00..8:31 vdrop 1:00 8:31 FILE
+  What you want                    Use this
+  Copy the whole file              vkeep 0 FILE
+  Keep from beginning to 1:00      vkeep 0 1:00 FILE
+  Drop from beginning to 1:00      vdrop 0 1:00 FILE
+  Keep from 1:00 to the end        vkeep 1:00 FILE
+  Drop from 1:00 to the end        vdrop 1:00 FILE
+  Keep only the middle 1:00..8:31  vkeep 1:00 8:31 FILE
+  Drop only the middle 1:00..8:31  vdrop 1:00 8:31 FILE
 ```
 
 `vkeep 0 FILE` copies the whole file. `vdrop` has no whole-file form — dropping `0..end` would remove everything, which `vdrop` refuses.

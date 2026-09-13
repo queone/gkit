@@ -6,15 +6,34 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/queone/gkit/internal/help"
 )
 
 const (
 	programName    = "bak"
-	programVersion = "2.0.0"
+	programVersion = "2.1.0"
 )
 
+func helpText() string {
+	return help.Doc{
+		Name:        programName,
+		Version:     programVersion,
+		Description: "Create a dated backup copy of a file or directory",
+		URL:         help.URL(programName),
+		Sections: []help.Section{
+			{Title: "Usage", Rows: []help.Row{{Form: programName + " PATH", Meaning: "Copy PATH to PATH.YYYYMMDD, adding a letter suffix when that name exists"}}},
+			{Title: "Examples", Rows: []help.Row{
+				{Form: programName + " notes.txt", Meaning: "Writes notes.txt.20260912, then notes.txt.20260912a on the next run"},
+				{Form: programName + " project/", Meaning: "Copies the directory tree"},
+			}},
+		},
+	}.String()
+}
+
+// usage prints the help to stderr and exits 1 for a bad command line.
 func usage() {
-	fmt.Printf("Usage: %s <file|directory>\n", programName)
+	fmt.Fprint(os.Stderr, helpText())
 	os.Exit(1)
 }
 
@@ -73,9 +92,15 @@ func copyDir(src, dst string) error {
 }
 
 func main() {
-	if len(os.Args) == 2 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
-		fmt.Printf("%s v%s\n", programName, programVersion)
-		return
+	if len(os.Args) == 2 {
+		switch os.Args[1] {
+		case "-v", "--version":
+			fmt.Printf("%s v%s\n", programName, programVersion)
+			return
+		case "-h", "-?", "--help":
+			fmt.Print(helpText())
+			return
+		}
 	}
 
 	if len(os.Args) != 2 {
