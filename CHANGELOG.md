@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.79.0 | AC101: cash5 v0.16.0 fills missing draws, sorted backup rows, website line |
 | 0.78.0 | AC93+AC100: one help style for all 34 utilities; canon v0.57.0; README rule |
 | 0.77.1 | AC99: govna canon v0.55.0; release summary lines, no doubled temp-path slash |
 | 0.77.0 | AC92: attune v1.4.0 store-only specs, edit verb, store commands; bashrc 1.3.1 |

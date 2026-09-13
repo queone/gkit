@@ -179,8 +179,9 @@ func parseSingleLottoNumbersDraw(drawNode *html.Node) (Draw, error) {
 	if err != nil {
 		return d, fmt.Errorf("cannot parse date %q: %w", dateText, err)
 	}
-	// Draw time is 10:57 PM ET
-	t = time.Date(t.Year(), t.Month(), t.Day(), 22, 57, 0, 0, easternTime())
+	// Stamp midnight Eastern on the draw date, the API's convention, so both
+	// sources agree on calendar arithmetic.
+	t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, easternTime())
 	d.DrawTime = t.UnixMilli()
 	d.ID = fmt.Sprintf("lottonumbers-%s", t.Format("2006-01-02"))
 
@@ -205,7 +206,21 @@ func parseSingleLottoNumbersDraw(drawNode *html.Node) (Draw, error) {
 	if len(numbers) < 5 {
 		return d, fmt.Errorf("expected 5 numbers, got %d", len(numbers))
 	}
-	d.Results = []Result{{Primary: numbers[:5]}}
+	// The page lists the bullseye ball last; the API lists the five ascending.
+	five := make([]int, 0, 5)
+	for _, text := range numbers[:5] {
+		n, err := strconv.Atoi(text)
+		if err != nil {
+			return d, fmt.Errorf("ball %q is not a number", text)
+		}
+		five = append(five, n)
+	}
+	sort.Ints(five)
+	sorted := make([]string, 0, 5)
+	for _, n := range five {
+		sorted = append(sorted, strconv.Itoa(n))
+	}
+	d.Results = []Result{{Primary: sorted}}
 
 	// Extract jackpot from resultBoxStats if present.
 	// <p>Jackpot: <strong>$764,968</strong></p>
@@ -368,9 +383,8 @@ func fetchDrawsByDateRange(from, to time.Time, existing []Draw, saveCallback fun
 			break
 		}
 
-		all = append(all, draws...)
+		all = mergeDraws(all, draws)
 		newDrawsCount += len(draws)
-		sort.Slice(all, func(i, j int) bool { return all[i].DrawTime < all[j].DrawTime })
 
 		if saveCallback != nil {
 			if err := saveCallback(all); err != nil {
@@ -467,6 +481,45 @@ func fetchCurrentJackpot() (int64, error) {
 	return 0, fmt.Errorf("no draws found")
 }
 
+// isBackupRow reports whether d came from a backup scraper rather than the API.
+func isBackupRow(d Draw) bool { return strings.HasPrefix(d.ID, "lottonumbers-") }
+
+// easternDate is the Eastern calendar date of a drawTime, the key both
+// sources share even though they stamp different clock times.
+func easternDate(drawTime int64) string {
+	return time.UnixMilli(drawTime).In(easternTime()).Format("2006-01-02")
+}
+
+// mergeDraws combines rows by Eastern calendar date. An API row replaces a
+// backup row for the same date; a backup row never replaces an API row; a
+// second row of the same kind for a date is dropped. The result is sorted by
+// drawTime. Existing rows are merged first, so duplicates already in the
+// store collapse too.
+func mergeDraws(existing, fetched []Draw) []Draw {
+	var out []Draw
+	byDate := make(map[string]int, len(existing)+len(fetched))
+	add := func(d Draw) {
+		key := easternDate(d.DrawTime)
+		i, seen := byDate[key]
+		if !seen {
+			byDate[key] = len(out)
+			out = append(out, d)
+			return
+		}
+		if isBackupRow(out[i]) && !isBackupRow(d) {
+			out[i] = d
+		}
+	}
+	for _, d := range existing {
+		add(d)
+	}
+	for _, d := range fetched {
+		add(d)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].DrawTime < out[j].DrawTime })
+	return out
+}
+
 // saveDrawsCallback persists draws to the canonical XDG state path resolved
 // by configPath() (defaults to $HOME/.local/state/cash5/draws.json).
 func saveDrawsCallback(draws []Draw) error {
@@ -506,22 +559,10 @@ func tryBackupFetchers(existing []Draw, dateFrom, dateTo time.Time) []Draw {
 			continue
 		}
 
-		// Merge: add draws not already in existing (match by date, since IDs differ
-		// between primary and backup sources)
-		existingDates := make(map[string]bool)
-		for _, d := range existing {
-			existingDates[time.UnixMilli(d.DrawTime).Format("2006-01-02")] = true
-		}
-		added := 0
-		for _, d := range draws {
-			dateKey := time.UnixMilli(d.DrawTime).Format("2006-01-02")
-			if !existingDates[dateKey] {
-				existing = append(existing, d)
-				added++
-			}
-		}
-
-		sort.Slice(existing, func(i, j int) bool { return existing[i].DrawTime < existing[j].DrawTime })
+		// Merge by calendar date; a backup row never replaces an API row.
+		before := len(existing)
+		existing = mergeDraws(existing, draws)
+		added := len(existing) - before
 
 		if added > 0 {
 			fmt.Printf("  %s: added %d draw(s) via backup\n", fetcher.Name(), added)

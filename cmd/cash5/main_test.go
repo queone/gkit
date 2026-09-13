@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
+
+	"github.com/queone/gkit/internal/color"
 )
 
 func TestVersionAliases(t *testing.T) {
@@ -44,5 +47,20 @@ func TestVersionAliases(t *testing.T) {
 func TestHelpDocFollowsTheStandard(t *testing.T) {
 	if err := helpDoc().Check(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// The bare run ends with the official website, URL in dark gray.
+func TestWebsiteLineEndsTheBareRun(t *testing.T) {
+	restore := color.SetEnabled(false)
+	if got, want := websiteLine(), "  Website: https://www.njlottery.com/en-us/drawgames/jerseycash.html"; got != want {
+		t.Errorf("plain = %q, want %q", got, want)
+	}
+	restore()
+	defer color.SetEnabled(true)()
+	defer color.Set256(true)()
+	got := websiteLine()
+	if !strings.HasPrefix(got, "  Website: \x1b[38;5;242mhttps://www.njlottery.com/en-us/drawgames/jerseycash.html\x1b[0m") {
+		t.Errorf("colored = %q", got)
 	}
 }

@@ -17,7 +17,7 @@ import (
 
 const (
 	programName     = "cash5"
-	programVersion  = "0.15.0"
+	programVersion  = "0.16.0"
 	lottery_warning = "This is basically lighting money on fire! Play for fun, not profit 😀"
 )
 
@@ -72,16 +72,9 @@ func runDailyWithRand() error {
 	// trigger doesn't fire spuriously when the stored drawTime is at UTC
 	// midnight and the operator is in a TZ west of UTC.
 	if online && len(existing) > 0 {
-		sort.Slice(existing, func(i, j int) bool { return existing[i].DrawTime < existing[j].DrawTime })
-		newestDrawTime := existing[len(existing)-1].DrawTime
-		now := time.Now()
-		needs, newest, yesterday := needsRecentFetch(newestDrawTime, now)
+		dateFrom, dateTo, dates, needs := recentFetchWindow(existing, time.Now())
 		if needs {
-			fmt.Printf("Missing recent draws (newest: %s, need up to: %s). Fetching...\n",
-				narrativeDate(newest), narrativeDate(yesterday))
-
-			dateFrom := newest.AddDate(0, 0, 1)
-			dateTo := now
+			fmt.Printf("Missing recent draws (%s). Fetching...\n", describeDates(dates))
 
 			recentDraws, err := fetchDrawsByDateRange(dateFrom, dateTo, existing, saveDrawsCallback)
 			if err == nil {
@@ -248,6 +241,7 @@ func runDailyWithRand() error {
 	}
 
 	fmt.Printf("\n  %s\n", color.Red3(lottery_warning))
+	fmt.Println(websiteLine())
 
 	return nil
 }
@@ -255,6 +249,87 @@ func runDailyWithRand() error {
 // recommendationPreamble is the line printed under the RECOMMENDATION header
 // asserting that none of the listed combinations has won previously.
 const recommendationPreamble = "(none of these has previously won)"
+
+// websiteURL is the official Jersey Cash 5 page, printed as the bare run's last line.
+const websiteURL = "https://www.njlottery.com/en-us/drawgames/jerseycash.html"
+
+// websiteLine renders the bare run's closing line with the URL in dark gray.
+func websiteLine() string { return "  Website: " + color.Gra4(websiteURL) }
+
+// gapLookbackDays bounds how far back missingDrawDates looks for holes.
+const gapLookbackDays = 60
+
+// missingDrawDates returns, as Eastern calendar dates, every date from now
+// minus lookback days through yesterday that has no API row, skipping
+// December 25 (no draw that day, every year since 2015). A date that has only
+// a backup row counts as missing, because that row is provisional until the
+// API supplies the day.
+func missingDrawDates(draws []Draw, now time.Time, lookback int) []string {
+	loc := easternTime()
+	have := make(map[string]bool, len(draws))
+	for _, d := range draws {
+		if !isBackupRow(d) {
+			have[easternDate(d.DrawTime)] = true
+		}
+	}
+	n := now.In(loc)
+	today := time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, loc)
+	var missing []string
+	for day := today.AddDate(0, 0, -lookback); day.Before(today); day = day.AddDate(0, 0, 1) {
+		if day.Month() == time.December && day.Day() == 25 {
+			continue
+		}
+		if key := day.Format("2006-01-02"); !have[key] {
+			missing = append(missing, key)
+		}
+	}
+	return missing
+}
+
+// recentFetchWindow decides whether the bare run must fetch and returns the
+// window: from is one hour before midnight Eastern on the earliest date to
+// fetch, which is the earliest missing or provisional date or the day after
+// the newest row; to is now. dates lists the missing dates for the message.
+func recentFetchWindow(draws []Draw, now time.Time) (from, to time.Time, dates []string, ok bool) {
+	if len(draws) == 0 {
+		return from, to, nil, false
+	}
+	loc := easternTime()
+	newest := draws[0].DrawTime
+	for _, d := range draws[1:] {
+		if d.DrawTime > newest {
+			newest = d.DrawTime
+		}
+	}
+	needs, newestT, _ := needsRecentFetch(newest, now)
+	dates = missingDrawDates(draws, now, gapLookbackDays)
+	if !needs && len(dates) == 0 {
+		return from, to, nil, false
+	}
+	var first time.Time
+	if len(dates) > 0 {
+		first, _ = time.ParseInLocation("2006-01-02", dates[0], loc)
+	}
+	if needs {
+		n := newestT.In(loc)
+		next := time.Date(n.Year(), n.Month(), n.Day()+1, 0, 0, 0, 0, loc)
+		if first.IsZero() || next.Before(first) {
+			first = next
+		}
+	}
+	return first.Add(-time.Hour), now, dates, true
+}
+
+// describeDates names the dates a fetch is about to fill.
+func describeDates(dates []string) string {
+	switch {
+	case len(dates) == 0:
+		return "newest row is stale"
+	case len(dates) <= 5:
+		return strings.Join(dates, ", ")
+	}
+	return fmt.Sprintf("%d days from %s to %s", len(dates), dates[0], dates[len(dates)-1])
+}
 
 // needsRecentFetch reports whether the newest cached drawTime is at least one
 // full calendar day older than `now` in `now`'s local timezone. It returns
@@ -503,7 +578,7 @@ func helpDoc() help.Doc {
 		Sections: []help.Section{
 			{Title: "Usage", Rows: []help.Row{{Form: programName + " [options]", Meaning: "Show recent draws, the jackpot, closest matches, and recommended sets"}}},
 			{Title: "Options", Rows: []help.Row{
-				{Form: "-f", Meaning: "Fetch new draws since last run (within last year)"},
+				{Form: "-f", Meaning: "Backfill one more year of draws before the oldest stored draw"},
 				{Form: "-a", Meaning: "Display all previous drawings"},
 				{Form: "-s", Meaning: "Show statistics about historical data"},
 				{Form: "-m [N]", Meaning: "Show closest-match analysis for last N drawings (default: 30)"},
