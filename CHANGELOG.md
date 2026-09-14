@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.79.1 | AC102: govna canon v0.58.0; empty release batch, prep accepts no-AC message |
 | 0.79.0 | AC101: cash5 v0.16.0 fills missing draws, sorted backup rows, website line |
 | 0.78.0 | AC93+AC100: one help style for all 34 utilities; canon v0.57.0; README rule |
 | 0.77.1 | AC99: govna canon v0.55.0; release summary lines, no doubled temp-path slash |

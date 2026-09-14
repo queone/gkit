@@ -1804,10 +1804,6 @@ _prep_find_ac_files() { # $1=root $2=acnums -> sorted govna/ac<N>-*.md paths
 
 _prep_validate_ac_selection() { # $1=root $2=acnums $3=acfiles
   local root="$1" acnums="$2" acfiles="$3" number count path name
-  if [ -z "$acnums" ]; then
-    printf 'prep: release message must name at least one AC<number> reference\n' >&2
-    return 1
-  fi
   while IFS= read -r number; do
     [ -n "$number" ] || continue
     count=0
