@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.79.4 | AC105: govna canon v0.61.0 |
 | 0.79.3 | AC104: govna canon v0.60.0 |
 | 0.79.2 | AC103: govna canon v0.59.1; prep bumps and validates README usage lines |
 | 0.79.1 | AC102: govna canon v0.58.0; empty release batch, prep accepts no-AC message |
