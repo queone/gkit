@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.79.5 | AC106 adopt Govna governance files v0.62.0 |
 | 0.79.4 | AC105: govna canon v0.61.0 |
 | 0.79.3 | AC104: govna canon v0.60.0 |
 | 0.79.2 | AC103: govna canon v0.59.1; prep bumps and validates README usage lines |
