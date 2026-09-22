@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.81.0 | AC110: mdview renamed to mdv v0.3.0; opens several files in separate tabs |
 | 0.80.0 | AC109: lslan v1.0.0 lists live LAN hosts in ~1s without sudo; IE5-IE6 in plan |
 | 0.79.7 | AC108 adopt Govna governance files v0.64.0; remove the CLAUDE.md link |
 | 0.79.6 | AC107 adopt Govna governance files v0.63.0 |

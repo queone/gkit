@@ -363,7 +363,7 @@ func TestParseUsagePrecedenceAndLiteralPath(t *testing.T) {
 		}
 	}
 	opts, show, err := parseArgs([]string{"--", "--help"})
-	if err != nil || show || opts.input != "--help" {
+	if err != nil || show || len(opts.inputs) != 1 || opts.inputs[0] != "--help" {
 		t.Fatalf("literal help path = %#v, show %v, err %v", opts, show, err)
 	}
 }
@@ -376,7 +376,7 @@ func TestParseOutputFormsAndFailures(t *testing.T) {
 		{"--output=out.html", "in.md"},
 	} {
 		opts, show, err := parseArgs(args)
-		if err != nil || show || opts.input != "in.md" || opts.output != "out.html" {
+		if err != nil || show || len(opts.inputs) != 1 || opts.inputs[0] != "in.md" || opts.output != "out.html" {
 			t.Errorf("parseArgs(%q) = %#v, show %v, err %v", args, opts, show, err)
 		}
 	}
@@ -386,10 +386,39 @@ func TestParseOutputFormsAndFailures(t *testing.T) {
 		{"--output="},
 		{"-o", "one.html", "--output", "two.html", "in.md"},
 		{"--unknown", "in.md"},
-		{"a.md", "b.md"},
 	} {
-		if _, _, err := parseArgs(args); err == nil || !strings.Contains(err.Error(), "see mdview --help") {
+		if _, _, err := parseArgs(args); err == nil || !strings.Contains(err.Error(), "see mdv --help") {
 			t.Errorf("parseArgs(%q) error = %v", args, err)
+		}
+	}
+}
+
+func TestParseSeveralInputs(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want []string
+	}{
+		{[]string{"a.md", "b.md", "c.md"}, []string{"a.md", "b.md", "c.md"}},
+		{[]string{"a.md", "a.md"}, []string{"a.md", "a.md"}},
+		{[]string{"--", "--a.md", "-b.md"}, []string{"--a.md", "-b.md"}},
+	} {
+		opts, show, err := parseArgs(tc.args)
+		if err != nil || show || opts.output != "" || strings.Join(opts.inputs, "\n") != strings.Join(tc.want, "\n") {
+			t.Errorf("parseArgs(%q) = %#v, show %v, err %v; want inputs %q", tc.args, opts, show, err, tc.want)
+		}
+	}
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"-o", "out.html", "a.md", "b.md"}, "-o writes one FILE"},
+		{[]string{"a.md", "--output=out.html", "b.md"}, "-o writes one FILE"},
+		{[]string{"-o", "out.html"}, "expected at least one FILE"},
+		{[]string{"--"}, "expected at least one FILE"},
+	} {
+		_, _, err := parseArgs(tc.args)
+		if err == nil || !strings.Contains(err.Error(), tc.want) || !strings.Contains(err.Error(), "see mdv --help") {
+			t.Errorf("parseArgs(%q) error = %v, want %q", tc.args, err, tc.want)
 		}
 	}
 }
@@ -399,18 +428,23 @@ func TestRunCLIUsageAndErrorStatus(t *testing.T) {
 	if status := runCLI(nil, &stdout, &stderr); status != 0 {
 		t.Fatalf("usage status = %d", status)
 	}
-	if !strings.Contains(stdout.String(), "mdview v"+programVersion) ||
-		!strings.Contains(stdout.String(), "mdview [-o FILE] FILE") ||
-		!strings.Contains(stdout.String(), "-o, --output FILE") ||
-		!strings.Contains(stdout.String(), "Print mdview v"+programVersion+" and exit") {
-		t.Errorf("usage missing contract:\n%s", stdout.String())
+	for _, want := range []string{
+		"mdv v" + programVersion,
+		"mdv FILE...",
+		"mdv -o PATH FILE",
+		"-o, --output PATH",
+		"Print mdv v" + programVersion + " and exit",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("usage missing %q:\n%s", want, stdout.String())
+		}
 	}
 
 	stdout.Reset()
-	if status := runCLI([]string{"a", "b"}, &stdout, &stderr); status == 0 {
+	if status := runCLI([]string{"-o", "out.html"}, &stdout, &stderr); status == 0 {
 		t.Fatal("invalid arguments returned success")
 	}
-	if !strings.Contains(stderr.String(), "mdview: expected FILE (see mdview --help)") {
+	if !strings.Contains(stderr.String(), "mdv: expected at least one FILE (see mdv --help)") {
 		t.Errorf("stderr missing prefix and recovery hint: %s", stderr.String())
 	}
 }
@@ -422,7 +456,7 @@ func TestRunCLIVersionAliases(t *testing.T) {
 			if status := runCLI([]string{flag}, &stdout, &stderr); status != 0 {
 				t.Fatalf("status = %d, want 0", status)
 			}
-			if got, want := stdout.String(), "mdview v"+programVersion+"\n"; got != want {
+			if got, want := stdout.String(), "mdv v"+programVersion+"\n"; got != want {
 				t.Errorf("stdout = %q, want %q", got, want)
 			}
 			if got := stderr.String(); got != "" {
@@ -446,7 +480,7 @@ func TestRunCLISpecialFlagPrecedence(t *testing.T) {
 	if status := runCLI([]string{"--version", "--help"}, &stdout, &stderr); status != 0 {
 		t.Fatalf("version-first status = %d, want 0", status)
 	}
-	if got, want := stdout.String(), "mdview v"+programVersion+"\n"; got != want {
+	if got, want := stdout.String(), "mdv v"+programVersion+"\n"; got != want {
 		t.Errorf("version-first stdout = %q, want %q", got, want)
 	}
 	if got := stderr.String(); got != "" {
@@ -659,7 +693,7 @@ func TestTemporaryOutputLifecycleAndOpener(t *testing.T) {
 			if (err != nil) != (openerErr != nil) {
 				t.Fatalf("run error = %v, opener error = %v", err, openerErr)
 			}
-			if !filepath.IsAbs(opened) || !strings.HasPrefix(filepath.Base(opened), "mdview-") ||
+			if !filepath.IsAbs(opened) || !strings.HasPrefix(filepath.Base(opened), "mdv-") ||
 				filepath.Ext(opened) != ".html" {
 				t.Errorf("opened path = %q", opened)
 			}
@@ -676,8 +710,156 @@ func TestTemporaryOutputLifecycleAndOpener(t *testing.T) {
 	}
 }
 
+// recordTemporaryPages creates temporary pages in a test directory and records
+// each path so a test can check which pages remain.
+func recordTemporaryPages(t *testing.T) *[]string {
+	t.Helper()
+	dir := t.TempDir()
+	var pages []string
+	createTempFile = func(_, pattern string) (*os.File, error) {
+		if pattern != "mdv-*.html" {
+			t.Errorf("temporary pattern = %q", pattern)
+		}
+		f, err := os.CreateTemp(dir, pattern)
+		if err == nil {
+			pages = append(pages, f.Name())
+		}
+		return f, err
+	}
+	return &pages
+}
+
+func assertPagesRemoved(t *testing.T, paths ...string) {
+	t.Helper()
+	for _, path := range paths {
+		if _, err := os.Lstat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("temporary page %q remains: %v", path, err)
+		}
+	}
+}
+
+func TestSeveralInputsOpenInOrderAfterEveryPageIsWritten(t *testing.T) {
+	restoreGlobals(t)
+	pages := recordTemporaryPages(t)
+	inputs := []string{writeInput(t, "a.md", "# A"), writeInput(t, "b.md", "# B"), writeInput(t, "c.md", "# C")}
+	var opened []string
+	openInBrowser = func(path string) error {
+		if len(*pages) != len(inputs) {
+			t.Errorf("opened %q after %d of %d pages were written", path, len(*pages), len(inputs))
+		}
+		opened = append(opened, path)
+		return nil
+	}
+	if err := run(inputs, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if len(opened) != len(inputs) || strings.Join(opened, "\n") != strings.Join(*pages, "\n") {
+		t.Fatalf("opened %q, written %q", opened, *pages)
+	}
+	seen := map[string]bool{}
+	for i, path := range opened {
+		if !filepath.IsAbs(path) || seen[path] {
+			t.Errorf("opened path %q is relative or repeated", path)
+		}
+		seen[path] = true
+		page, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := "<title>" + filepath.Base(inputs[i]) + "</title>"; !strings.Contains(string(page), want) {
+			t.Errorf("page %d missing %q", i, want)
+		}
+	}
+}
+
+func TestMissingInputOpensNoTabAndRemovesPages(t *testing.T) {
+	restoreGlobals(t)
+	pages := recordTemporaryPages(t)
+	missing := filepath.Join(t.TempDir(), "missing.md")
+	openInBrowser = func(path string) error { t.Errorf("opened %q", path); return nil }
+	err := run([]string{writeInput(t, "a.md", "# A"), missing, writeInput(t, "c.md", "# C")}, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), missing) {
+		t.Fatalf("missing input error = %v", err)
+	}
+	if len(*pages) != 1 {
+		t.Fatalf("pages written before the missing input = %d, want 1", len(*pages))
+	}
+	assertPagesRemoved(t, *pages...)
+}
+
+func TestRenderFailureOpensNoTabAndRemovesPages(t *testing.T) {
+	restoreGlobals(t)
+	pages := recordTemporaryPages(t)
+	calls := 0
+	renderSource = func(source []byte) ([]byte, error) {
+		if calls++; calls == 2 {
+			return nil, errors.New("render failed")
+		}
+		return renderMarkdown(source)
+	}
+	openInBrowser = func(path string) error { t.Errorf("opened %q", path); return nil }
+	inputs := []string{writeInput(t, "a.md", "# A"), writeInput(t, "b.md", "# B"), writeInput(t, "c.md", "# C")}
+	if err := run(inputs, io.Discard); err == nil || !strings.Contains(err.Error(), "render failed") {
+		t.Fatalf("render failure error = %v", err)
+	}
+	if len(*pages) != 2 {
+		t.Fatalf("pages created before the render failure = %d, want 2", len(*pages))
+	}
+	assertPagesRemoved(t, *pages...)
+}
+
+func TestOpenerFailureKeepsOpenedTabsAndRemovesTheRest(t *testing.T) {
+	restoreGlobals(t)
+	pages := recordTemporaryPages(t)
+	var opened []string
+	openInBrowser = func(path string) error {
+		if opened = append(opened, path); len(opened) == 2 {
+			return errors.New("open failed")
+		}
+		return nil
+	}
+	inputs := []string{writeInput(t, "a.md", "# A"), writeInput(t, "b.md", "# B"), writeInput(t, "c.md", "# C")}
+	err := run(inputs, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "open failed") || !strings.Contains(err.Error(), "verify a default browser") {
+		t.Fatalf("opener error = %v", err)
+	}
+	if len(opened) != 2 || len(*pages) != 3 {
+		t.Fatalf("opened %d of %d pages, want 2 of 3", len(opened), len(*pages))
+	}
+	if _, err := os.Stat((*pages)[0]); err != nil {
+		t.Errorf("opened page removed: %v", err)
+	}
+	assertPagesRemoved(t, (*pages)[1:]...)
+}
+
+func TestCleanupContinuesAfterAFailedRemoval(t *testing.T) {
+	restoreGlobals(t)
+	pages := recordTemporaryPages(t)
+	openInBrowser = func(string) error { return errors.New("open failed") }
+	var stuck string
+	removeFile = func(path string) error {
+		if stuck == "" {
+			stuck = path
+			return errors.New("remove failed")
+		}
+		return os.Remove(path)
+	}
+	err := run([]string{writeInput(t, "a.md", "# A"), writeInput(t, "b.md", "# B")}, io.Discard)
+	if len(*pages) != 2 || stuck != (*pages)[0] {
+		t.Fatalf("pages %q, failed removal %q", *pages, stuck)
+	}
+	if err == nil || !strings.Contains(err.Error(), "open failed") ||
+		!strings.Contains(err.Error(), stuck) || !strings.Contains(err.Error(), "remove it manually") {
+		t.Fatalf("cleanup error = %v", err)
+	}
+	if _, err := os.Stat(stuck); err != nil {
+		t.Errorf("page whose removal failed is gone: %v", err)
+	}
+	assertPagesRemoved(t, (*pages)[1])
+}
+
 func TestProgramIdentityAndStylesheetChecksum(t *testing.T) {
-	if programName != "mdview" || programVersion != "0.2.0" {
+	if programName != "mdv" || programVersion != "0.3.0" {
 		t.Errorf("identity = %s %s", programName, programVersion)
 	}
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(stylesheet)))

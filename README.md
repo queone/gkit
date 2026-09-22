@@ -26,7 +26,7 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 - [`jy`](cmd/jy/README.md): Convert JSON to YAML and YAML to JSON.
 - [`lslan`](cmd/lslan/README.md): List the live hosts on the local network.
 - [`macfit`](cmd/macfit/README.md): Keep Mac config files in one encrypted store and restore them on any Mac.
-- [`mdview`](cmd/mdview/README.md): View GitHub Flavored Markdown in a browser or write it as HTML.
+- [`mdv`](cmd/mdv/README.md): View GitHub Flavored Markdown in a browser or write it as HTML.
 - [`namehunt`](cmd/namehunt/README.md): Find free usernames on any site with a predictable profile URL.
 - [`oidctok`](cmd/oidctok/README.md): Exchange a GitHub Actions OIDC token for Azure tokens.
 - [`pgen`](cmd/pgen/README.md): Generate memorable passwords from diceware words.

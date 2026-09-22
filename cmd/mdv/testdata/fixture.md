@@ -1,4 +1,4 @@
-# mdview fixture
+# mdv fixture
 
 This paragraph contains ~~removed text~~ and an autolink: https://example.com.
 
@@ -17,7 +17,7 @@ This paragraph contains ~~removed text~~ and an autolink: https://example.com.
 ## Code
 
 ```go
-fmt.Println("mdview")
+fmt.Println("mdv")
 ```
 
 ![Relative fixture](fixture.svg)

@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	programName    = "mdview"
-	programVersion = "0.2.0"
+	programName    = "mdv"
+	programVersion = "0.3.0"
 
 	// Source: https://raw.githubusercontent.com/sindresorhus/github-markdown-css/v5.9.0/github-markdown.css
 	// SHA-256: 6112686f954db5d3806fb96116d2ab20ad3018469ab1015c587fd8efe7d25cf4
@@ -45,7 +45,7 @@ var (
 )
 
 type options struct {
-	input  string
+	inputs []string
 	output string
 }
 
@@ -100,8 +100,11 @@ func helpDoc() help.Doc {
 		Description: "View GitHub Flavored Markdown in a browser or write it as HTML",
 		URL:         help.URL(programName),
 		Sections: []help.Section{
-			{Title: "Usage", Rows: []help.Row{{Form: programName + " [-o FILE] FILE", Meaning: "Render FILE and open it in the browser"}}},
-			{Title: "Options", Rows: []help.Row{{Form: "-o, --output FILE", Meaning: "Write the HTML to FILE without opening a browser"}}},
+			{Title: "Usage", Rows: []help.Row{
+				{Form: programName + " FILE...", Meaning: "Render each FILE and open it in its own browser tab"},
+				{Form: programName + " -o PATH FILE", Meaning: "Write FILE as HTML to PATH without opening a browser"},
+			}},
+			{Title: "Options", Rows: []help.Row{{Form: "-o, --output PATH", Meaning: "Write the HTML to PATH without opening a browser"}}},
 		},
 	}
 }
@@ -147,7 +150,7 @@ func parseArgs(args []string) (options, bool, error) {
 				return options{}, false, fmt.Errorf("output option specified more than once (see %s --help)", programName)
 			}
 			if i+1 >= len(args) || args[i+1] == "" {
-				return options{}, false, fmt.Errorf("%s requires a non-empty FILE (see %s --help)", arg, programName)
+				return options{}, false, fmt.Errorf("%s requires a non-empty PATH (see %s --help)", arg, programName)
 			}
 			i++
 			opts.output = args[i]
@@ -158,7 +161,7 @@ func parseArgs(args []string) (options, bool, error) {
 			}
 			opts.output = strings.TrimPrefix(arg, "-o=")
 			if opts.output == "" {
-				return options{}, false, fmt.Errorf("-o requires a non-empty FILE (see %s --help)", programName)
+				return options{}, false, fmt.Errorf("-o requires a non-empty PATH (see %s --help)", programName)
 			}
 			outputSet = true
 		case strings.HasPrefix(arg, "--output="):
@@ -167,7 +170,7 @@ func parseArgs(args []string) (options, bool, error) {
 			}
 			opts.output = strings.TrimPrefix(arg, "--output=")
 			if opts.output == "" {
-				return options{}, false, fmt.Errorf("--output requires a non-empty FILE (see %s --help)", programName)
+				return options{}, false, fmt.Errorf("--output requires a non-empty PATH (see %s --help)", programName)
 			}
 			outputSet = true
 		case strings.HasPrefix(arg, "-"):
@@ -176,10 +179,13 @@ func parseArgs(args []string) (options, bool, error) {
 			positional = append(positional, arg)
 		}
 	}
-	if len(positional) != 1 {
-		return options{}, false, fmt.Errorf("expected FILE (see %s --help)", programName)
+	if len(positional) == 0 {
+		return options{}, false, fmt.Errorf("expected at least one FILE (see %s --help)", programName)
 	}
-	opts.input = positional[0]
+	if outputSet && len(positional) > 1 {
+		return options{}, false, fmt.Errorf("-o writes one FILE; drop -o to open several files in the browser (see %s --help)", programName)
+	}
+	opts.inputs = positional
 	return opts, false, nil
 }
 
@@ -630,24 +636,64 @@ func writePersistent(path string, source []byte, resolvedInput string, stdout io
 	return nil
 }
 
-func openTemporary(source []byte, resolvedInput string) error {
-	dst, err := createTempFile("", "mdview-*.html")
+// removePages removes every page, even after one removal fails, and names each page left behind.
+func removePages(paths []string, cause error) error {
+	for _, path := range paths {
+		cause = removePartial(path, cause)
+	}
+	return cause
+}
+
+func writeTemporary(source []byte, resolvedInput string) (string, error) {
+	dst, err := createTempFile("", "mdv-*.html")
 	if err != nil {
-		return fmt.Errorf("creating temporary HTML output: %w; verify the temporary directory is writable", err)
+		return "", fmt.Errorf("creating temporary HTML output: %w; verify the temporary directory is writable", err)
 	}
 	path, err := filepath.Abs(dst.Name())
 	if err != nil {
 		_ = dst.Close()
 		_ = removeFile(dst.Name())
-		return fmt.Errorf("resolving temporary HTML path: %w; verify the temporary directory", err)
+		return "", fmt.Errorf("resolving temporary HTML path: %w; verify the temporary directory", err)
 	}
 	if err := writeDocument(dst, path, source, resolvedInput); err != nil {
-		return removePartial(path, err)
+		return "", removePartial(path, err)
 	}
-	if err := openInBrowser(path); err != nil {
-		return removePartial(path, fmt.Errorf("opening temporary HTML %q: %w; verify a default browser is configured", path, err))
+	return path, nil
+}
+
+// openTemporaries writes a page for every input before opening any, so a bad
+// input opens no tab and leaves no page behind.
+func openTemporaries(inputs []string) error {
+	var pages []string
+	for _, input := range inputs {
+		resolved, source, err := loadInput(input)
+		if err != nil {
+			return removePages(pages, err)
+		}
+		path, err := writeTemporary(source, resolved)
+		if err != nil {
+			return removePages(pages, err)
+		}
+		pages = append(pages, path)
+	}
+	for i, path := range pages {
+		if err := openInBrowser(path); err != nil {
+			return removePages(pages[i:], fmt.Errorf("opening temporary HTML %q: %w; verify a default browser is configured", path, err))
+		}
 	}
 	return nil
+}
+
+func loadInput(input string) (string, []byte, error) {
+	resolved, err := resolveInput(input)
+	if err != nil {
+		return "", nil, err
+	}
+	source, err := readFile(resolved)
+	if err != nil {
+		return "", nil, fmt.Errorf("reading input %q: %w; verify the file is readable", input, err)
+	}
+	return resolved, source, nil
 }
 
 func run(args []string, stdout io.Writer) error {
@@ -659,18 +705,14 @@ func run(args []string, stdout io.Writer) error {
 		fmt.Fprint(stdout, usage())
 		return nil
 	}
-	resolved, err := resolveInput(opts.input)
-	if err != nil {
-		return err
-	}
-	source, err := readFile(resolved)
-	if err != nil {
-		return fmt.Errorf("reading input %q: %w; verify the file is readable", opts.input, err)
-	}
 	if opts.output != "" {
+		resolved, source, err := loadInput(opts.inputs[0])
+		if err != nil {
+			return err
+		}
 		return writePersistent(opts.output, source, resolved, stdout)
 	}
-	return openTemporary(source, resolved)
+	return openTemporaries(opts.inputs)
 }
 
 func runCLI(args []string, stdout, stderr io.Writer) int {
