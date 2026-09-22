@@ -24,6 +24,7 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 - [`ishrink`](cmd/ishrink/README.md): Shrink a HEIC, JPEG, or JPG image into a small JPEG via macOS sips.
 - [`repoctl`](cmd/repoctl/README.md): Control a collection of local Git repositories.
 - [`jy`](cmd/jy/README.md): Convert JSON to YAML and YAML to JSON.
+- [`lslan`](cmd/lslan/README.md): List the live hosts on the local network.
 - [`macfit`](cmd/macfit/README.md): Keep Mac config files in one encrypted store and restore them on any Mac.
 - [`mdview`](cmd/mdview/README.md): View GitHub Flavored Markdown in a browser or write it as HTML.
 - [`namehunt`](cmd/namehunt/README.md): Find free usernames on any site with a predictable profile URL.
