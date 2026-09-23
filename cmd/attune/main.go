@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/queone/gkit/internal/color"
 	"github.com/queone/gkit/internal/help"
@@ -19,7 +20,7 @@ import (
 
 const (
 	programName    = "attune"
-	programVersion = "1.5.0"
+	programVersion = "1.6.0"
 )
 
 var validKinds = []string{
@@ -57,6 +58,7 @@ type app struct {
 	readSecret func(prompt string) ([]byte, error)
 	readLine   func(prompt string) (string, error)
 	editor     func(path string) error
+	now        func() time.Time
 }
 
 func newApp() *app {
@@ -73,6 +75,7 @@ func newApp() *app {
 		isTerminal: func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
 		readSecret: terminalSecret,
 		editor:     terminalEditor,
+		now:        time.Now,
 	}
 	a.readLine = a.terminalLine
 	return a
@@ -506,7 +509,7 @@ func helpDoc() help.Doc {
 				{Form: "(p|plan) [flags]", Meaning: "read live state and show the changes"},
 				{Form: "(a|apply) [flags]", Meaning: "create, update, and permitted prune operations"},
 				{Form: "init [-N] [-t PATH]", Meaning: "unlock an existing store, or create one with -N"},
-				{Form: "st", Meaning: "status of the store, key, and entries"},
+				{Form: "st", Meaning: "status of the store, key, entries, and last save"},
 				{Form: "add DIR | NAME [FILE]", Meaning: "import a directory of specs, or store one from a file or stdin"},
 				{Form: "edit NAME", Meaning: "change a stored spec in $EDITOR and save a validated version"},
 				{Form: "rename OLD NEW", Meaning: "change an entry's name, keeping its versions"},

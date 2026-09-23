@@ -3,9 +3,11 @@ package lockbox
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func newTestStore(t *testing.T, dir string) (*Store, []byte) {
@@ -357,5 +359,123 @@ func TestSetTargetRenamesAndRefusesCollision(t *testing.T) {
 	}
 	if err := st.SetTarget(999, "x.yaml"); err == nil {
 		t.Fatal("renaming a missing entry succeeded")
+	}
+}
+
+// saveLogCount counts the rows in a store's save log.
+func saveLogCount(t *testing.T, st *Store) int {
+	t.Helper()
+	var n int
+	if err := st.conn.QueryRowContext(bg, "select count(*) from saves").Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func TestSaveLoggedKeepsTheNewestRowsAndLooksThemUp(t *testing.T) {
+	dir := t.TempDir()
+	st, key := newTestStore(t, dir)
+	defer st.Close()
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if n := saveLogCount(t, st); n != 0 {
+		t.Fatalf("an unlogged save wrote %d log rows", n)
+	}
+	at := time.Date(2026, 9, 23, 17, 32, 37, 0, time.UTC)
+	seen := map[string]bool{}
+	var recs []SaveRecord
+	for i := range saveLogLimit + 5 {
+		r, err := st.SaveLogged("np10", fmt.Sprintf("push ~/.f%d", i), at)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if seen[r.ID] || len(r.ID) != 32 {
+			t.Fatalf("save id %q repeated or not 32 hex digits", r.ID)
+		}
+		seen[r.ID] = true
+		if r.Generation != st.Header.Generation || r.Host != "np10" || !r.At.Equal(at) {
+			t.Fatalf("record %+v after saving generation %d", r, st.Header.Generation)
+		}
+		recs = append(recs, r)
+	}
+	if n := saveLogCount(t, st); n != saveLogLimit {
+		t.Fatalf("log holds %d rows, want %d", n, saveLogLimit)
+	}
+
+	re, err := Load(filepath.Join(dir, "macfit.store"), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer re.Close()
+	newest := recs[len(recs)-1]
+	found, oldest, err := re.LookupSave(newest.ID)
+	if err != nil || !found {
+		t.Fatalf("newest save: found=%v err=%v", found, err)
+	}
+	if want := recs[5].Generation; oldest != want {
+		t.Fatalf("oldest kept generation %d, want %d", oldest, want)
+	}
+	if found, _, _ := re.LookupSave(recs[4].ID); found {
+		t.Fatal("a trimmed save is still in the log")
+	}
+	var gen int64
+	var host, when, action string
+	if err := re.conn.QueryRowContext(bg, "select generation, host, at, action from saves where id = ?", newest.ID).Scan(&gen, &host, &when, &action); err != nil {
+		t.Fatal(err)
+	}
+	if uint64(gen) != newest.Generation || host != "np10" || when != "2026-09-23T17:32:37Z" || action != fmt.Sprintf("push ~/.f%d", saveLogLimit+4) {
+		t.Fatalf("stored row: %d %q %q %q", gen, host, when, action)
+	}
+	if found, oldest, err := re.LookupSave("nope"); err != nil || found || oldest == 0 {
+		t.Fatalf("unknown id: found=%v oldest=%d err=%v", found, oldest, err)
+	}
+}
+
+func TestUnloggedSaveKeepsTheSaveLog(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "macfit.store")
+	st, key := newTestStore(t, dir)
+	first, err := st.SaveLogged("np10", "init", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := st.SaveLogged("np11", "add ~/.bashrc", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+
+	older, err := Load(path, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := older.Save(); err != nil {
+		t.Fatal(err)
+	}
+	older.Close()
+
+	re, err := Load(path, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer re.Close()
+	if n := saveLogCount(t, re); n != 2 {
+		t.Fatalf("log holds %d rows after an unlogged save, want 2", n)
+	}
+	for _, r := range []SaveRecord{first, second} {
+		found, oldest, err := re.LookupSave(r.ID)
+		if err != nil || !found || oldest != first.Generation {
+			t.Fatalf("%s: found=%v oldest=%d err=%v", r.Action, found, oldest, err)
+		}
+	}
+}
+
+func TestLookupSaveOnAnEmptyLog(t *testing.T) {
+	st, _ := newTestStore(t, t.TempDir())
+	defer st.Close()
+	found, oldest, err := st.LookupSave("abc")
+	if err != nil || found || oldest != 0 {
+		t.Fatalf("empty log: found=%v oldest=%d err=%v", found, oldest, err)
 	}
 }

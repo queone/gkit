@@ -133,14 +133,25 @@ func (a *app) cmdSet(ref storeRef, args []string) int {
 			pick.Host = target
 		}
 	}
+	action := "set " + pick.Target
+	if hasFrom {
+		action += " -F " + from
+	}
+	switch {
+	case hasHost:
+		action += " -H " + newHost
+	case global:
+		action += " -g"
+	}
 	if hasMode {
 		if err := st.SetMode(pick.ID, mode); err != nil {
 			a.errorf("set: %s", err)
 			return 1
 		}
 		pick.Mode = mode.Perm()
+		action += fmt.Sprintf(" -m %04o", pick.Mode)
 	}
-	if err := st.Save(); err != nil {
+	if err := a.save(st, action); err != nil {
 		a.errorf("set: %s", err)
 		return 1
 	}

@@ -158,7 +158,7 @@ func (a *app) keyPassphrase(ref storeRef, args []string) int {
 		a.errorf("key passphrase: %s", err)
 		return 1
 	}
-	if err := st.Save(); err != nil {
+	if err := a.save(st, "key passphrase"); err != nil {
 		a.errorf("key passphrase: %s", err)
 		return 1
 	}

@@ -24,7 +24,7 @@ import (
 
 const (
 	programName    = "macfit"
-	programVersion = "1.7.0"
+	programVersion = "1.8.0"
 )
 
 // storeSource names where the store path came from.
@@ -57,6 +57,7 @@ type app struct {
 	isTerminal func() bool
 	readSecret func(prompt string) ([]byte, error)
 	readLine   func(prompt string) (string, error)
+	now        func() time.Time
 }
 
 func newApp() *app {
@@ -72,6 +73,7 @@ func newApp() *app {
 		storeEnv:   os.Getenv("MACFIT_STORE"),
 		isTerminal: func() bool { return term.IsTerminal(int(os.Stdin.Fd())) },
 		readSecret: terminalSecret,
+		now:        time.Now,
 	}
 	a.readLine = a.terminalLine
 	return a
@@ -120,7 +122,7 @@ func helpDoc() help.Doc {
 					"init needs a terminal for the passphrase prompt and creates only the default folder.",
 				}},
 			{Title: "Commands", Rows: []help.Row{
-				{Form: "st", Meaning: "status of the store, key, and drift"},
+				{Form: "st", Meaning: "status of the store, key, last save, and drift"},
 				{Form: "init [-N]", Meaning: "unlock an existing store, or create one with -N"},
 				{Form: "add PATH... [-H HOST|-g]", Meaning: "register live files for this Mac and capture them"},
 				{Form: "set TARGET [flags]", Meaning: "change an entry's Mac binding or mode (-H, -g, -m, -F)"},
@@ -399,7 +401,34 @@ func (a *app) openStore(path string) (*lockbox.Store, error) {
 	if copies := lockbox.ConflictCopies(path); len(copies) > 0 {
 		a.errorf("warning: sync conflict copies beside the store: %s", strings.Join(copies, ", "))
 	}
+	if rec, state, err := st.CheckLastSave(a.lastSaveOf(st)); err == nil && state == lockbox.SaveLost {
+		a.errorf("warning: this Mac's last save (%s at %s) is missing from the store; another Mac's copy replaced it. Run it again.",
+			rec.Action, rec.At.Local().Format(time.DateTime))
+	}
 	return st, nil
+}
+
+// lastSaveFile is where this Mac records its last save to the store with keyID.
+func (a *app) lastSaveFile(keyID string) string {
+	return filepath.Join(a.env.StateHome, "macfit", "last-save-"+keyID)
+}
+
+// lastSaveOf is the last-save record path for the loaded store st.
+func (a *app) lastSaveOf(st *lockbox.Store) string {
+	return a.lastSaveFile(lockbox.KeyIDString(st.Header.KeyID))
+}
+
+// save writes the store with a save-log row naming action, then records the
+// save as this Mac's last one. A record that cannot be written only warns.
+func (a *app) save(st *lockbox.Store, action string) error {
+	r, err := st.SaveLogged(a.host, action, a.now())
+	if err != nil {
+		return err
+	}
+	if err := lockbox.RecordLastSave(a.lastSaveOf(st), r); err != nil {
+		a.errorf("warning: could not record this Mac's last save: %s", err)
+	}
+	return nil
 }
 
 func (a *app) cmdInit(ref storeRef, args []string) int {
@@ -529,7 +558,7 @@ func (a *app) initNew(ref storeRef) int {
 		return 1
 	}
 	defer st.Close()
-	if err := st.Save(); err != nil {
+	if err := a.save(st, "init"); err != nil {
 		a.errorf("init: write %s: %s", ref.path, err)
 		return 1
 	}
@@ -568,17 +597,29 @@ func (a *app) cmdAdd(ref storeRef, args []string) int {
 		return 1
 	}
 	defer st.Close()
-	rc, added := 0, false
+	rc := 0
+	var added []string
 	for _, p := range pos {
-		if err := a.addOne(st, p, host, literal); err != nil {
+		target, err := a.addOne(st, p, host, literal)
+		if err != nil {
 			a.errorf("add: %s", err)
 			rc = 1
 			continue
 		}
-		added = true
+		added = append(added, target)
 	}
-	if added {
-		if err := st.Save(); err != nil {
+	if len(added) > 0 {
+		action := "add " + strings.Join(added, " ")
+		switch {
+		case global:
+			action += " -g"
+		case explicitHost:
+			action += " -H " + flags["--host"]
+		}
+		if literal {
+			action += " -l"
+		}
+		if err := a.save(st, action); err != nil {
 			a.errorf("add: %s", err)
 			return 1
 		}
@@ -586,22 +627,22 @@ func (a *app) cmdAdd(ref storeRef, args []string) int {
 	return rc
 }
 
-// addOne registers one live file and captures its content.
-func (a *app) addOne(st *lockbox.Store, p, host string, literal bool) error {
+// addOne registers one live file, captures its content, and returns its target.
+func (a *app) addOne(st *lockbox.Store, p, host string, literal bool) (string, error) {
 	abs, err := filepath.Abs(p)
 	if err != nil {
-		return err
+		return "", err
 	}
 	info, err := os.Lstat(abs)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if !info.Mode().IsRegular() {
-		return fmt.Errorf("%s is not a regular file", abs)
+		return "", fmt.Errorf("%s is not a regular file", abs)
 	}
 	content, err := os.ReadFile(abs)
 	if err != nil {
-		return err
+		return "", err
 	}
 	target := a.env.Template(abs)
 	if literal {
@@ -609,16 +650,16 @@ func (a *app) addOne(st *lockbox.Store, p, host string, literal bool) error {
 	}
 	e, err := st.AddEntry(target, info.Mode().Perm(), host, fileOwnership(info))
 	if errors.Is(err, lockbox.ErrExists) {
-		return fmt.Errorf("%s is already registered%s; use `macfit push` to store its current content", target, forHost(host))
+		return "", fmt.Errorf("%s is already registered%s; use `macfit push` to store its current content", target, forHost(host))
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	if _, err := st.AddVersion(e.ID, content, a.host); err != nil {
-		return err
+		return "", err
 	}
 	fmt.Fprintln(a.stdout, status("added", fmt.Sprintf("%s (mode %04o, %s)", target, e.Mode, bindingOf(host))))
-	return nil
+	return target, nil
 }
 
 // targetKeys lists the store targets an argument may name: a template as
@@ -661,7 +702,11 @@ func (a *app) cmdRm(ref storeRef, args []string) int {
 		a.errorf("rm: %s", err)
 		return 1
 	}
-	if err := st.Save(); err != nil {
+	action := "rm " + pick.Target
+	if explicit {
+		action += " -H " + host
+	}
+	if err := a.save(st, action); err != nil {
 		a.errorf("rm: %s", err)
 		return 1
 	}
@@ -824,7 +869,8 @@ func (a *app) cmdPush(ref storeRef, args []string) int {
 		a.errorf("push: %s", err)
 		return 1
 	}
-	rc, changed := 0, false
+	rc := 0
+	var changed []string
 	for _, e := range sel {
 		live := a.env.Expand(e.Target)
 		if li, lerr := os.Lstat(live); lerr == nil && li.Mode()&os.ModeSymlink != 0 {
@@ -880,11 +926,11 @@ func (a *app) cmdPush(ref storeRef, args []string) int {
 				return 1
 			}
 		}
-		changed = true
+		changed = append(changed, e.Target)
 		fmt.Fprintln(a.stdout, status("updated", e.Target))
 	}
-	if changed {
-		if err := st.Save(); err != nil {
+	if len(changed) > 0 {
+		if err := a.save(st, "push "+strings.Join(changed, " ")); err != nil {
 			a.errorf("push: %s", err)
 			return 1
 		}
@@ -1126,6 +1172,7 @@ func (a *app) cmdSt(ref storeRef, args []string) int {
 	// kv prints a plain label with a value; grey prints it in dark grey.
 	kv := func(label, value string) { fmt.Fprintf(a.stdout, "%s: %s\n", label, value) }
 	grey := func(label, value string) { kv(label, color.Gra4(value)) }
+	grey("checked", a.now().Format(time.DateTime))
 	grey("store", fmt.Sprintf("%s (%s)", ref.path, ref.source))
 	if b, err := os.ReadFile(a.pointerFile()); err == nil && strings.TrimSpace(string(b)) != "" {
 		grey("remembered", a.pointerFile()+" -> "+strings.TrimSpace(string(b)))
@@ -1206,8 +1253,24 @@ func (a *app) cmdSt(ref storeRef, args []string) int {
 		grey("conflict copies", "none")
 	}
 	if st == nil {
+		grey("last save here", "unknown")
 		grey("drift", "unknown")
 		return rc
+	}
+	rec, state, err := st.CheckLastSave(a.lastSaveOf(st))
+	when := rec.At.Local().Format(time.DateTime)
+	switch {
+	case err != nil:
+		grey("last save here", "unknown ("+err.Error()+")")
+	case state == lockbox.SaveNone:
+		grey("last save here", "none")
+	case state == lockbox.SaveInStore:
+		kv("last save here", color.Grn5(fmt.Sprintf("in store (generation %d, %s)", rec.Generation, when)))
+	case state == lockbox.SaveTooOld:
+		grey("last save here", "unknown (older than the save log)")
+	default:
+		rc = 1
+		kv("last save here", color.Red5(fmt.Sprintf("lost: %s at %s (generation %d); run it again", rec.Action, when, rec.Generation)))
 	}
 	counts := map[string]int{}
 	for _, e := range sel {

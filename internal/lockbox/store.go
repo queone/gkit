@@ -2,6 +2,7 @@ package lockbox
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -42,7 +43,17 @@ create table if not exists versions(
 	captured_on text not null
 );
 create index if not exists versions_by_entry on versions(entry_id, generation);
+create table if not exists saves(
+	id text primary key,
+	generation integer not null,
+	host text not null,
+	at text not null,
+	action text not null
+);
 `
+
+// saveLogLimit is how many rows the save log keeps, newest first.
+const saveLogLimit = 100
 
 // ErrExists reports a target already registered for the same host.
 var ErrExists = errors.New("target already registered for this host")
@@ -212,6 +223,59 @@ func (s *Store) Save() error {
 	}
 	s.Header = next
 	return nil
+}
+
+// SaveRecord is one row of the save log: one logged save of the store.
+type SaveRecord struct {
+	ID         string
+	Generation uint64
+	Host       string
+	At         time.Time
+	Action     string
+}
+
+// SaveLogged saves the store like Save and adds a save-log row for host and
+// action, dated at, with a fresh random id. The log keeps the newest
+// saveLogLimit rows. It returns the row written. On failure nothing reaches
+// the file.
+func (s *Store) SaveLogged(host, action string, at time.Time) (SaveRecord, error) {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return SaveRecord{}, err
+	}
+	r := SaveRecord{
+		ID:         hex.EncodeToString(raw[:]),
+		Generation: s.Header.Generation + 1,
+		Host:       host,
+		At:         at.UTC().Truncate(time.Second),
+		Action:     action,
+	}
+	if _, err := s.conn.ExecContext(bg, "insert into saves(id, generation, host, at, action) values (?, ?, ?, ?, ?)",
+		r.ID, int64(r.Generation), r.Host, r.At.Format(time.RFC3339), r.Action); err != nil {
+		return SaveRecord{}, err
+	}
+	if _, err := s.conn.ExecContext(bg,
+		"delete from saves where id not in (select id from saves order by generation desc limit ?)", saveLogLimit); err != nil {
+		return SaveRecord{}, err
+	}
+	if err := s.Save(); err != nil {
+		return SaveRecord{}, err
+	}
+	return r, nil
+}
+
+// LookupSave reports whether the save log holds the row with id, and the
+// oldest generation the log still holds, 0 when the log is empty.
+func (s *Store) LookupSave(id string) (found bool, oldest uint64, err error) {
+	var n int
+	if err := s.conn.QueryRowContext(bg, "select count(*) from saves where id = ?", id).Scan(&n); err != nil {
+		return false, 0, err
+	}
+	var low sql.NullInt64
+	if err := s.conn.QueryRowContext(bg, "select min(generation) from saves").Scan(&low); err != nil {
+		return false, 0, err
+	}
+	return n > 0, uint64(low.Int64), nil
 }
 
 // Close releases the in-memory database without writing anything.

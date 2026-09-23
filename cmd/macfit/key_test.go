@@ -89,6 +89,9 @@ func TestKeyPassphraseRewrapsTheKey(t *testing.T) {
 	if h.generation() != gen+1 {
 		t.Fatalf("generation %d, want %d", h.generation(), gen+1)
 	}
+	if rec := h.lastSave(); rec.Action != "key passphrase" || rec.Generation != gen+1 {
+		t.Fatalf("record after key passphrase: %+v", rec)
+	}
 	file, err := os.ReadFile(h.store)
 	if err != nil {
 		t.Fatal(err)

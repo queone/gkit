@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -17,6 +18,9 @@ import (
 
 // testKDF keeps passphrase derivation fast in tests.
 var testKDF = lockbox.KDF{Time: 1, Memory: 8 * 1024, Threads: 1}
+
+// testNow is the fixed clock every harness starts with.
+var testNow = time.Date(2026, 9, 23, 17, 55, 2, 0, time.Local)
 
 // line renders the plain, padded status line the CLI prints for a target.
 func line(word, target string) string {
@@ -63,8 +67,80 @@ func newHarness(t *testing.T) *harness {
 		isTerminal: func() bool { return true },
 		readSecret: func(string) ([]byte, error) { return []byte("pw"), nil },
 		readLine:   func(string) (string, error) { return "", nil },
+		now:        func() time.Time { return testNow },
 	}
 	return h
+}
+
+// keyID returns the key id in the harness store's header.
+func (h *harness) keyID() string {
+	h.t.Helper()
+	b, err := os.ReadFile(h.store)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	hdr, err := lockbox.ParseHeader(b)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return lockbox.KeyIDString(hdr.KeyID)
+}
+
+// lastSave reads this Mac's last-save record for the harness store.
+func (h *harness) lastSave() lockbox.LastSave {
+	h.t.Helper()
+	b, err := os.ReadFile(h.app.lastSaveFile(h.keyID()))
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	var rec lockbox.LastSave
+	if err := json.Unmarshal(b, &rec); err != nil {
+		h.t.Fatal(err)
+	}
+	return rec
+}
+
+// replaceWithOtherMacSave plays Mac b: it opens the store bytes in base,
+// applies change, saves, and puts the result where the harness store was,
+// the way iCloud Drive replaces one Mac's copy with another's.
+func (h *harness) replaceWithOtherMacSave(base []byte, change func(*lockbox.Store)) {
+	h.t.Helper()
+	other := filepath.Join(h.root, "other.store")
+	if err := os.WriteFile(other, base, 0o600); err != nil {
+		h.t.Fatal(err)
+	}
+	hdr, err := lockbox.ParseHeader(base)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	st, err := lockbox.Load(other, h.keys.Keys[lockbox.KeyIDString(hdr.KeyID)])
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	change(st)
+	if _, err := st.SaveLogged("b", "push from b", testNow); err != nil {
+		h.t.Fatal(err)
+	}
+	st.Close()
+	if err := os.Rename(other, h.store); err != nil {
+		h.t.Fatal(err)
+	}
+}
+
+// entryNamed finds the entry with target in st.
+func entryNamed(t *testing.T, st *lockbox.Store, target string) lockbox.Entry {
+	t.Helper()
+	all, err := st.Entries()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range all {
+		if e.Target == target {
+			return e
+		}
+	}
+	t.Fatalf("no entry %s", target)
+	return lockbox.Entry{}
 }
 
 // run executes macfit against the harness store through -s.
@@ -208,7 +284,7 @@ func TestHelpLayoutMatchesTheOtherUtilities(t *testing.T) {
 			}
 			last = idx
 		}
-		for _, want := range []string{"  -N, --new ", "  -h, -?, --help", "Store path order: -s, then MACFIT_STORE", "plan the restore, or write it with -f", "Print the pull plan; the default", "  render [-o DIR] [-a] [-f]", "  cat TARGET [-H HOST]", "  -o, --out DIR ", "  -a, --all ", "  st ", "  set TARGET [flags]", "  -g, --global ", "  -m, --mode MODE ", "  -F, --from WHICH ", "  -S, --sort FIELD ", "  ls [-S FIELD]", "register live files for this Mac"} {
+		for _, want := range []string{"  -N, --new ", "  -h, -?, --help", "Store path order: -s, then MACFIT_STORE", "plan the restore, or write it with -f", "Print the pull plan; the default", "  render [-o DIR] [-a] [-f]", "  cat TARGET [-H HOST]", "  -o, --out DIR ", "  -a, --all ", "  st ", "  set TARGET [flags]", "  -g, --global ", "  -m, --mode MODE ", "  -F, --from WHICH ", "  -S, --sort FIELD ", "  ls [-S FIELD]", "register live files for this Mac", "status of the store, key, last save, and drift"} {
 			if !strings.Contains(out, want) {
 				t.Fatalf("%s: help lacks %q", arg, want)
 			}
@@ -989,6 +1065,7 @@ func TestStatusScreen(t *testing.T) {
 	out, _ := h.mustFail(1, "st")
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
 	want := []string{
+		"checked: 2026-09-23 17:55:02",
 		"store: " + h.store + " (flag)",
 		"remembered: " + h.app.pointerFile() + " -> " + h.store,
 		fmt.Sprintf("store file: present, %d bytes, generation %d, modified %s", info.Size(), h.generation(), info.ModTime().Local().Format(time.DateTime)),
@@ -998,13 +1075,14 @@ func TestStatusScreen(t *testing.T) {
 		"host: a",
 		"entries: 3 total, 2 for this Mac",
 		"conflict copies: none",
+		fmt.Sprintf("last save here: in store (generation %d, 2026-09-23 17:55:02)", h.generation()),
 		"drift: M 1, ? 0",
 	}
 	if len(lines) != len(want) {
 		t.Fatalf("st printed %d lines, want %d:\n%s", len(lines), len(want), out)
 	}
 	for i, w := range want {
-		if i == 3 {
+		if i == 4 {
 			if !strings.HasPrefix(lines[i], w) || len(lines[i]) != len(w)+32 {
 				t.Fatalf("line %d %q, want a 32-hex key id", i, lines[i])
 			}
@@ -1022,14 +1100,20 @@ func TestStatusScreen(t *testing.T) {
 		t.Fatal("colored st does not strip to the plain screen")
 	}
 	colored := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
-	if colored[0] != "store: "+color.Gra4(h.store+" (flag)") {
-		t.Fatalf("store value not grey: %q", colored[0])
+	if colored[0] != "checked: "+color.Gra4("2026-09-23 17:55:02") {
+		t.Fatalf("checked value not grey: %q", colored[0])
 	}
-	if colored[5] != "store opens: "+color.Grn5("yes") {
-		t.Fatalf("store opens not green: %q", colored[5])
+	if colored[1] != "store: "+color.Gra4(h.store+" (flag)") {
+		t.Fatalf("store value not grey: %q", colored[1])
 	}
-	if colored[9] != "drift: "+color.Red5("M 1, ? 0") {
-		t.Fatalf("colored drift line: %q", colored[9])
+	if colored[6] != "store opens: "+color.Grn5("yes") {
+		t.Fatalf("store opens not green: %q", colored[6])
+	}
+	if want := "last save here: " + color.Grn5(fmt.Sprintf("in store (generation %d, 2026-09-23 17:55:02)", h.generation())); colored[10] != want {
+		t.Fatalf("colored last save line: %q", colored[10])
+	}
+	if colored[11] != "drift: "+color.Red5("M 1, ? 0") {
+		t.Fatalf("colored drift line: %q", colored[11])
 	}
 	restore := color.SetEnabled(false)
 	defer restore()
@@ -1051,7 +1135,7 @@ func TestStatusScreen(t *testing.T) {
 	saved := h.keys.Keys
 	h.keys.Keys = map[string][]byte{}
 	out, _ = h.mustFail(1, "st")
-	for _, w := range []string{"login keychain: missing", "store opens: no (key missing)", "host: a", "entries: unknown", "conflict copies: none", "drift: unknown"} {
+	for _, w := range []string{"login keychain: missing", "store opens: no (key missing)", "host: a", "entries: unknown", "conflict copies: none", "last save here: unknown", "drift: unknown"} {
 		if !strings.Contains(out, w+"\n") {
 			t.Fatalf("st without key lacks %q: %q", w, out)
 		}
@@ -1065,7 +1149,7 @@ func TestStatusScreen(t *testing.T) {
 
 	fresh := newHarness(t)
 	out, _ = fresh.mustFail(1, "st")
-	for _, w := range []string{"remembered: none", "store file: missing", "key id: unknown", "login keychain: unknown", "store opens: no (store file missing)", "entries: unknown", "drift: unknown"} {
+	for _, w := range []string{"remembered: none", "store file: missing", "key id: unknown", "login keychain: unknown", "store opens: no (store file missing)", "entries: unknown", "last save here: unknown", "drift: unknown"} {
 		if !strings.Contains(out, w+"\n") {
 			t.Fatalf("st without store lacks %q: %q", w, out)
 		}
@@ -1156,5 +1240,238 @@ func mustNotPrompt(t *testing.T) func(string) (string, error) {
 func TestHelpDocFollowsTheStandard(t *testing.T) {
 	if err := helpDoc().Check(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestEverySaveRecordsTheCommand(t *testing.T) {
+	h := newHarness(t)
+	h.mustRun("init", "-N")
+	check := func(want string) {
+		t.Helper()
+		rec := h.lastSave()
+		if rec.Action != want || rec.Generation != h.generation() || len(rec.ID) != 32 || !rec.At.Equal(testNow) {
+			t.Fatalf("record %+v, want action %q at generation %d", rec, want, h.generation())
+		}
+	}
+	check("init")
+	path := h.app.lastSaveFile(h.keyID())
+	if info, err := os.Stat(path); err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("record file: %v %v", info, err)
+	}
+	if info, err := os.Stat(filepath.Dir(path)); err != nil || info.Mode().Perm() != 0o700 {
+		t.Fatalf("record directory: %v %v", info, err)
+	}
+	if filepath.Dir(path) != filepath.Join(h.home, ".local", "state", "macfit") {
+		t.Fatalf("record path %s", path)
+	}
+
+	h.mustRun("add", h.write(".bashrc", "SECRET-ONE\n", 0o644), h.write(".vimrc", "v\n", 0o644))
+	check("add ~/.bashrc ~/.vimrc")
+	h.mustRun("add", h.write(".profile", "p\n", 0o600), "-g")
+	check("add ~/.profile -g")
+	h.mustRun("add", h.write(".inputrc", "i\n", 0o644), "-H", "other")
+	check("add ~/.inputrc -H other")
+	h.mustRun("add", h.write(".config/git/config", "g\n", 0o644), "-l")
+	check("add ~/.config/git/config -l")
+	h.write(".bashrc", "SECRET-TWO\n", 0o644)
+	h.mustRun("push")
+	check("push ~/.bashrc")
+	h.mustRun("rm", "~/.inputrc", "-H", "other")
+	check("rm ~/.inputrc -H other")
+	h.mustRun("rm", "~/.vimrc")
+	check("rm ~/.vimrc")
+
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "SECRET") {
+		t.Fatalf("record holds file contents: %s", b)
+	}
+	if _, errs := h.mustFail(0, "ls"); errs != "" {
+		t.Fatalf("ls warned after this Mac's own saves: %q", errs)
+	}
+}
+
+// lostSaveSetup pushes ~/.bashrc on Mac a, then replaces the store with a
+// copy Mac b saved from a's starting generation. b pushed the same content
+// with its own ownership, so a sees no drift but its save is gone.
+func lostSaveSetup(t *testing.T) (*harness, lockbox.LastSave) {
+	t.Helper()
+	h := newHarness(t)
+	h.mustRun("init", "-N")
+	h.mustRun("add", h.write(".bashrc", "one\n", 0o644), h.write(".profile", "p\n", 0o644))
+	base, err := os.ReadFile(h.store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.write(".bashrc", "two\n", 0o644)
+	h.mustRun("push", "~/.bashrc")
+	lost := h.lastSave()
+	if lost.Action != "push ~/.bashrc" {
+		t.Fatalf("fixture record: %+v", lost)
+	}
+	h.replaceWithOtherMacSave(base, func(st *lockbox.Store) {
+		e := entryNamed(t, st, "~/.bashrc")
+		if _, err := st.AddVersion(e.ID, []byte("two\n"), "b"); err != nil {
+			t.Fatal(err)
+		}
+		if err := st.SetOwner(e.ID, lockbox.Ownership{UID: 4242, GID: 4242, Owner: "b", Group: "b"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if h.generation() != lost.Generation {
+		t.Fatalf("fixture: store generation %d, lost save generation %d", h.generation(), lost.Generation)
+	}
+	return h, lost
+}
+
+func lostWarning(rec lockbox.LastSave) string {
+	return fmt.Sprintf("macfit: warning: this Mac's last save (%s at %s) is missing from the store; another Mac's copy replaced it. Run it again.\n",
+		rec.Action, rec.At.Local().Format(time.DateTime))
+}
+
+func TestLostSaveIsReportedUntilThisMacSavesAgain(t *testing.T) {
+	h, lost := lostSaveSetup(t)
+	out, errs := h.mustFail(1, "st")
+	wantLost := fmt.Sprintf("lost: push ~/.bashrc at 2026-09-23 17:55:02 (generation %d); run it again", lost.Generation)
+	if !strings.Contains(out, "last save here: "+wantLost+"\n") || !strings.Contains(out, "drift: none\n") {
+		t.Fatalf("st after a lost save: %q", out)
+	}
+	if errs != "" {
+		t.Fatalf("st also warned on stderr: %q", errs)
+	}
+	restore := color.SetEnabled(true)
+	_, out, _ = h.run("st")
+	red := color.Red5(wantLost)
+	restore()
+	if !strings.Contains(out, "last save here: "+red+"\n") {
+		t.Fatalf("lost save not red: %q", out)
+	}
+
+	code, out, errs := h.run("ls")
+	if code != 0 || errs != lostWarning(lost) || !strings.Contains(out, "~/.bashrc") {
+		t.Fatalf("ls after a lost save: code %d stdout %q stderr %q", code, out, errs)
+	}
+	if _, _, errs := h.run("diff"); errs != lostWarning(lost) {
+		t.Fatalf("diff after a lost save: stderr %q", errs)
+	}
+
+	h.write(".profile", "p2\n", 0o644)
+	code, _, errs = h.run("push", "~/.profile")
+	if code != 0 || errs != lostWarning(lost) {
+		t.Fatalf("push of another entry: code %d stderr %q", code, errs)
+	}
+	next := h.lastSave()
+	if next.Action != "push ~/.profile" || next.ID == lost.ID {
+		t.Fatalf("record after the next save: %+v", next)
+	}
+	if _, errs := h.mustFail(0, "ls"); errs != "" {
+		t.Fatalf("warning outlived the next save: %q", errs)
+	}
+	if out := h.mustRun("st"); !strings.Contains(out, fmt.Sprintf("last save here: in store (generation %d, 2026-09-23 17:55:02)\n", next.Generation)) {
+		t.Fatalf("st after the next save: %q", out)
+	}
+}
+
+func TestRerunningTheLostCommandClearsIt(t *testing.T) {
+	h, lost := lostSaveSetup(t)
+	if _, errs := h.mustFail(0, "push", "~/.bashrc"); errs != lostWarning(lost) {
+		t.Fatalf("re-run push: stderr %q", errs)
+	}
+	again := h.lastSave()
+	if again.Action != "push ~/.bashrc" || again.ID == lost.ID || again.Generation != h.generation() {
+		t.Fatalf("record after re-running: %+v", again)
+	}
+	if out := h.mustRun("st"); !strings.Contains(out, fmt.Sprintf("last save here: in store (generation %d, ", again.Generation)) {
+		t.Fatalf("st after re-running: %q", out)
+	}
+}
+
+func TestLastSaveStaysInStoreUnderAnotherMacsLaterSave(t *testing.T) {
+	h := newHarness(t)
+	h.mustRun("init", "-N")
+	h.mustRun("add", h.write(".bashrc", "one\n", 0o644))
+	mine := h.lastSave()
+	current, err := os.ReadFile(h.store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.replaceWithOtherMacSave(current, func(*lockbox.Store) {})
+	if h.generation() != mine.Generation+1 {
+		t.Fatalf("fixture: generation %d", h.generation())
+	}
+	out, errs := h.mustFail(0, "st")
+	if !strings.Contains(out, fmt.Sprintf("last save here: in store (generation %d, 2026-09-23 17:55:02)\n", mine.Generation)) || errs != "" {
+		t.Fatalf("st under a later save: stdout %q stderr %q", out, errs)
+	}
+}
+
+func TestLastSaveNoneAndUnknown(t *testing.T) {
+	h := newHarness(t)
+	h.mustRun("init", "-N")
+	rec := h.lastSave()
+	keyID := h.keyID()
+	if err := os.Remove(h.app.lastSaveFile(keyID)); err != nil {
+		t.Fatal(err)
+	}
+	if out := h.mustRun("st"); !strings.Contains(out, "last save here: none\n") {
+		t.Fatalf("st without a record: %q", out)
+	}
+
+	stale := rec
+	stale.ID = strings.Repeat("0", 32)
+	stale.Generation = 0
+	if err := lockbox.RecordLastSave(h.app.lastSaveFile(keyID), lockbox.SaveRecord{ID: stale.ID, Generation: stale.Generation, At: stale.At, Action: stale.Action}); err != nil {
+		t.Fatal(err)
+	}
+	if out := h.mustRun("st"); !strings.Contains(out, "last save here: unknown (older than the save log)\n") {
+		t.Fatalf("st with a record older than the log: %q", out)
+	}
+
+	// Another build rewrote the store with the same key and no save log.
+	file, err := os.ReadFile(h.store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hdr, err := lockbox.ParseHeader(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := lockbox.Create(h.store, hdr, h.keys.Keys[keyID])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+	stale.Generation = hdr.Generation
+	if err := lockbox.RecordLastSave(h.app.lastSaveFile(keyID), lockbox.SaveRecord{ID: stale.ID, Generation: stale.Generation, At: stale.At, Action: stale.Action}); err != nil {
+		t.Fatal(err)
+	}
+	if out := h.mustRun("st"); !strings.Contains(out, "last save here: unknown (older than the save log)\n") {
+		t.Fatalf("st with an empty save log: %q", out)
+	}
+	if _, errs := h.mustFail(0, "ls"); errs != "" {
+		t.Fatalf("ls warned without a lost save: %q", errs)
+	}
+}
+
+func TestUnwritableRecordOnlyWarns(t *testing.T) {
+	h := newHarness(t)
+	h.mustRun("init", "-N")
+	blocker := filepath.Join(h.root, "state-is-a-file")
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	h.app.env.StateHome = blocker
+	gen := h.generation()
+	code, _, errs := h.run("add", h.write(".bashrc", "x\n", 0o644))
+	if code != 0 || !strings.Contains(errs, "macfit: warning: could not record this Mac's last save: ") {
+		t.Fatalf("add with an unwritable record: code %d stderr %q", code, errs)
+	}
+	if h.generation() != gen+1 {
+		t.Fatalf("store not saved: generation %d, want %d", h.generation(), gen+1)
 	}
 }

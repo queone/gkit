@@ -101,7 +101,7 @@ func (a *app) cmdEdit(ref storeRef, args []string) int {
 			a.errorf("edit: %s", err)
 			return 1
 		}
-		if err := st.Save(); err != nil {
+		if err := a.save(st, "edit "+pos[0]); err != nil {
 			a.errorf("edit: %s", err)
 			return 1
 		}

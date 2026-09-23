@@ -60,6 +60,9 @@ func TestKeyLifecycle(t *testing.T) {
 	if out := h.mustRun("key", "passphrase"); !strings.Contains(out, "recovery passphrase changed") {
 		t.Fatalf("key passphrase: %q", out)
 	}
+	if rec := h.lastSave(); rec.Action != "key passphrase" || rec.Generation != h.generation() {
+		t.Fatalf("record after key passphrase: %+v", rec)
+	}
 	h.mustRun("key", "rm", "-f")
 	h.app.readSecret = func(string) ([]byte, error) { return []byte("pw"), nil }
 	if _, errs := h.mustFail(1, "key", "restore"); errs == "" {

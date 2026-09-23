@@ -38,6 +38,9 @@ func TestEditSavesAValidatedVersion(t *testing.T) {
 	if out := h.mustRun("edit", "app.yaml"); out != line("updated", "app.yaml") {
 		t.Fatalf("edit output %q", out)
 	}
+	if rec := h.lastSave(); rec.Action != "edit app.yaml" || rec.Generation != h.generation() {
+		t.Fatalf("record after edit: %+v", rec)
+	}
 	if got := h.mustRun("cat", "app.yaml"); got != h.read(h.spec("app.yaml"))+"# edited\n" {
 		t.Fatalf("cat after edit %q", got)
 	}

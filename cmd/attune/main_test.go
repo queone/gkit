@@ -80,7 +80,7 @@ func TestHelpOutput(t *testing.T) {
 			}
 			last = idx
 		}
-		for _, want := range []string{"(p|plan)", "-d, --diagnostic", "-t, --store PATH", "  key show", "  rename OLD NEW", "  edit NAME", "-b, --by FIELD", "macOS only"} {
+		for _, want := range []string{"(p|plan)", "-d, --diagnostic", "-t, --store PATH", "  key show", "  rename OLD NEW", "  edit NAME", "-b, --by FIELD", "macOS only", "status of the store, key, entries, and last save"} {
 			if !strings.Contains(out, want) {
 				t.Errorf("%v: help output missing %q", args, want)
 			}

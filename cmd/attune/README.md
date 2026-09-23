@@ -24,7 +24,7 @@ Normal plans print resource keys and concise summaries, but omit DNS values, tag
 ### Usage
 
 ```text
-attune v1.5.0
+attune v1.6.0
 Reconcile Azure state from YAML specs kept in an encrypted store
 github.com/queone/gkit/tree/main/cmd/attune
 
@@ -41,7 +41,7 @@ Commands
   (p|plan) [flags]           read live state and show the changes
   (a|apply) [flags]          create, update, and permitted prune operations
   init [-N] [-t PATH]        unlock an existing store, or create one with -N
-  st                         status of the store, key, and entries
+  st                         status of the store, key, entries, and last save
   add DIR | NAME [FILE]      import a directory of specs, or store one from a file or stdin
   edit NAME                  change a stored spec in $EDITOR and save a validated version
   rename OLD NEW             change an entry's name, keeping its versions
@@ -53,7 +53,7 @@ Commands
   key restore                put the key back in the keychain with the passphrase
   key rm [-f]                delete the keychain item after a prompt
   key passphrase             change the recovery passphrase
-  (v|version)                print attune v1.5.0
+  (v|version)                print attune v1.6.0
   (h|help)                   show this help
 
   A NAME is a relative path ending in .yaml or .yml (res/dns/zone.yaml), or
@@ -78,7 +78,7 @@ Options
   -o, --output DIR                    Render into DIR instead of a fresh private temp directory (render)
   -a, --all                           Render every stored version too, under versions/ (render)
   -b, --by FIELD                      Sort ls by name (the default) or captured, newest first
-  -v, --version                       Print attune v1.5.0 and exit
+  -v, --version                       Print attune v1.6.0 and exit
   -h, -?, --help                      Show this help and exit
 ```
 
@@ -106,11 +106,13 @@ attune ls                                         # entries by name; -b captured
 attune cat attune.yaml                            # one stored file on stdout
 attune rename dns/old.yaml dns/new.yaml           # change a name, keeping the versions
 attune render                                     # browse a plaintext copy in a private temp directory
-attune st                                         # store, key, entry count; drift is plan's job
+attune st                                         # store, key, entries, last save; drift is plan's job
 attune init -t ~/data/etc/attune-azure.store      # another Mac: unlock with the passphrase, remember the path
 ```
 
-`edit` reopens the editor when the result would not validate; quit without changing anything to abort. Drift against Azure is what `plan` reports, so `st` never contacts Azure. `key show`, `key restore`, `key rm`, and `key passphrase` maintain the keychain item exactly as macfit's do; see macfit's README for the key and passphrase model.
+`edit` reopens the editor when the result would not validate; quit without changing anything to abort. Drift against Azure is what `plan` reports, so `st` never contacts Azure.
+
+`st` starts with the time of the check (`checked`), so pasted output shows when it was taken, and ends with `last save here` before the drift note. Every command that saves the store adds a row to a short save log inside it, holding the newest 100 saves. It also records the save in `$XDG_STATE_HOME/attune/last-save-KEYID` on this Mac, with mode 0600 and no spec contents. The record names the command and its own arguments, without `-t`. `last save here` is green `in store` while the store still holds that save, and red `lost: COMMAND at TIME` when another Mac's copy has replaced it. That happens when iCloud Drive keeps one Mac's copy and silently drops the other's, with no conflict copy. It shows `none` before this Mac first saves, and `unknown` when the save log is too short to tell or the store does not open. A lost save makes `st` exit 1. Every other command that opens the store, `plan` and `apply` included, prints `warning: this Mac's last save (COMMAND at TIME) is missing from the store` on stderr and carries on. The warning lasts until this Mac saves again, so re-running the named command clears it. After an `add NAME` that read standard input, pipe the content in again. `key show`, `key restore`, `key rm`, and `key passphrase` maintain the keychain item exactly as macfit's do; see macfit's README for the key and passphrase model.
 
 ### Adding and removing a record
 

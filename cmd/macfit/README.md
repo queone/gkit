@@ -50,7 +50,8 @@ If the passphrase or the key ever leaks, create a new store with `init -N -s NEW
 - `macfit diff [TARGET...] [-V]` prints `=` same, `M` differs, `?` live file missing, one line per entry, and exits 1 when anything drifted. `-V` adds a unified diff block, set off by blank lines.
 - Colors on a terminal, plain when piped: grey for `=` and `unchanged`, yellow for `M`, `differs`, `would overwrite`, and `missing`, orange for `?`, green for `would write`, `restored`, `added`, and `updated`, red for `symlink`. Inside a diff block the headers are dark grey, unchanged lines grey, and removed and added lines light yellow.
 - `macfit ls [-S FIELD]` lists every entry: host (`<global>` for a global one), owner and group as recorded on the Mac that added or last pushed it, mode, last capture time, and target. Rows are sorted by host, global first, then target; `-S target` or `-S captured` (newest first) reorders them. `macfit rm TARGET [-H HOST]` removes one.
-- `macfit st`, or just `macfit`, prints one status screen: the store path and where it came from, the remembered path, the store file's size, generation, and modification time (to see whether the other Mac's push has arrived), the key id and whether the keychain key opens the store, this Mac's hostname as `-H` sees it, entry counts, sync conflict copies, and the drift verdict: green `none`, or red `M` and `?` counts. Exit 0 with no drift, 1 with drift or when the store does not open, so `macfit && echo clean` works. On a terminal the values are dark grey, `store opens` is green or red, and conflict copies are yellow.
+- `macfit st`, or just `macfit`, prints one status screen: the time of the check (`checked`, so pasted output shows when it was taken), the store path and where it came from, the remembered path, the store file's size, generation, and modification time (to see whether the other Mac's push has arrived), the key id and whether the keychain key opens the store, this Mac's hostname as `-H` sees it, entry counts, sync conflict copies, this Mac's last save, and the drift verdict: green `none`, or red `M` and `?` counts. `last save here` is green `in store` while the store still holds the last command this Mac saved, red `lost: COMMAND at TIME` when another Mac's copy has replaced it, `none` before this Mac first saves, and `unknown` when the store's save log is too short to tell or the store does not open. Exit 0 with no drift and no lost save, 1 with drift, a lost save, or a store that does not open, so `macfit && echo clean` works. On a terminal the values are dark grey, `store opens` and `last save here` are green or red, and conflict copies are yellow.
+- Every command that saves the store adds a row to a short save log inside it (the newest 100 saves) and records the save in `$XDG_STATE_HOME/macfit/last-save-KEYID` on this Mac (mode 0600, no file contents). When the store no longer holds that save, `ls`, `push`, `pull`, `diff`, `add`, `set`, `rm`, `render`, and `cat` print `warning: this Mac's last save (COMMAND at TIME) is missing from the store` on stderr and carry on. The warning lasts until this Mac saves again, so re-running the named command clears it.
 - `push` and `diff` refuse a live path that has become a symlink, as `pull` does, so a link is never read into the store or compared as if it were the file.
 - `macfit render [-o DIR] [-a] [-f]` writes the latest stored copy of every entry into a directory tree shaped like the targets: `~/.bashrc` lands at `any/HOME/.bashrc`, `$XDG_CONFIG_HOME/git/config` at `any/XDG_CONFIG_HOME/git/config`, and an entry bound to `np11` under `np11/`. Files keep their stored mode, directories are 0700, and `MANIFEST.txt` at the top lists every file with its target, host, mode, generation, capture time, and digest. By default the tree goes into a fresh private temp directory whose path is printed; `-o DIR` chooses a place and refuses a non-empty one unless `-f`; `-a` adds every stored version under `versions/`. The copies are plaintext, so delete the directory when done.
 - `macfit cat TARGET [-H HOST]` prints one entry's latest stored content to stdout, byte for byte, selecting the entry the way `rm` does.
@@ -61,7 +62,7 @@ A TARGET is either the template as `ls` shows it (`$XDG_CONFIG_HOME/git/config`)
 
 - Stores written by macfit 1.x are upgraded in memory when opened (the entries gain owner and group columns) and written back by the next command that saves; until a `push` refreshes them, older entries show `?:?` in `ls`. `pull` always writes files as the current user and never changes ownership.
 
-- Two Macs writing the store while offline produce a sync conflict copy, named `macfit 2.store`, `macfit (1).store`, `macfit-DEVICE.store`, or similar depending on the sync client. macfit warns when one sits beside the store, and a stale writer that opened an older generation is refused rather than allowed to overwrite the newer file.
+- Two Macs writing the store close together may produce a sync conflict copy, named `macfit 2.store`, `macfit (1).store`, `macfit-DEVICE.store`, or similar depending on the sync client, and macfit warns when one sits beside the store. iCloud Drive can instead keep one Mac's copy and silently drop the other, with no conflict copy; `last save here` then shows `lost` on the Mac whose save was dropped, once its copy of the store catches up. Each Mac holds its own version until iCloud settles, which can take many minutes, so avoid saving from both Macs at once. On one Mac, a stale writer that opened an older generation is refused rather than allowed to overwrite the newer file.
 - A synced folder is not end-to-end encrypted unless the provider says so. The store is encrypted before it reaches the folder, so that does not matter for its contents.
 - `init` and the `key` prompts need a terminal.
 - Files only: no directories, globs, or symlinks. macOS `defaults` settings are a planned addition.
@@ -69,7 +70,7 @@ A TARGET is either the template as `ls` shows it (`$XDG_CONFIG_HOME/git/config`)
 ### Usage
 
 ```text
-macfit v1.7.0
+macfit v1.8.0
 Keep Mac config files in one encrypted store and restore them on any Mac
 github.com/queone/gkit/tree/main/cmd/macfit
 
@@ -81,7 +82,7 @@ Usage
   init needs a terminal for the passphrase prompt and creates only the default folder.
 
 Commands
-  st                         status of the store, key, and drift
+  st                         status of the store, key, last save, and drift
   init [-N]                  unlock an existing store, or create one with -N
   add PATH... [-H HOST|-g]   register live files for this Mac and capture them
   set TARGET [flags]         change an entry's Mac binding or mode (-H, -g, -m, -F)
@@ -96,7 +97,7 @@ Commands
   key restore                put the key back in the keychain with the passphrase
   key rm [-f]                delete the keychain item after a prompt
   key passphrase             change the recovery passphrase
-  version                    print macfit v1.7.0
+  version                    print macfit v1.8.0
   help                       show this help
 
   A TARGET is the template ls shows ($XDG_CONFIG_HOME/git/config) or the live path.
@@ -117,6 +118,6 @@ Options
   -V, --verbose     Add a unified diff to diff output
   -o, --out DIR     Render into DIR instead of a fresh private temp directory (render)
   -a, --all         Render every stored version too, under versions/ (render)
-  -v, --version     Print macfit v1.7.0 and exit
+  -v, --version     Print macfit v1.8.0 and exit
   -h, -?, --help    Show this help and exit
 ```

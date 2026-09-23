@@ -71,6 +71,9 @@ func TestSetRebindsAndChangesMode(t *testing.T) {
 	if out := h.mustRun("set", cfg, "-H", "np11"); out != line("set", "~/.ssh/config (host np11, mode 0644)") {
 		t.Fatalf("rebind global to np11: %q", out)
 	}
+	if rec := h.lastSave(); rec.Action != "set ~/.ssh/config -H np11" {
+		t.Fatalf("record after rebinding: %+v", rec)
+	}
 	st = h.openStore()
 	after, _ := st.Entries()
 	for _, e := range after {
@@ -92,6 +95,9 @@ func TestSetRebindsAndChangesMode(t *testing.T) {
 	if out := h.mustRun("set", cfg, "-g", "-F", "np10"); out != line("set", "~/.ssh/config (global, mode 0644)") {
 		t.Fatalf("np10 to global: %q", out)
 	}
+	if rec := h.lastSave(); rec.Action != "set ~/.ssh/config -F np10 -g" {
+		t.Fatalf("record after -F: %+v", rec)
+	}
 	out := h.mustRun("ls")
 	if !strings.Contains(out, "\nnp11 ") || !strings.Contains(out, "\n<global>") || strings.Contains(out, "\nnp10 ") {
 		t.Fatalf("ls after rebinding: %q", out)
@@ -99,6 +105,9 @@ func TestSetRebindsAndChangesMode(t *testing.T) {
 
 	if out := h.mustRun("set", cfg, "-m", "600"); out != line("set", "~/.ssh/config (host np11, mode 0600)") {
 		t.Fatalf("mode change: %q", out)
+	}
+	if rec := h.lastSave(); rec.Action != "set ~/.ssh/config -m 0600" || rec.Generation != h.generation() {
+		t.Fatalf("record after a mode change: %+v", rec)
 	}
 	if _, errs := h.mustFail(1, "set", cfg, "-F", "global", "-H", "np11"); !strings.Contains(errs, "already has an entry that is host np11") {
 		t.Fatalf("conflicting rebind: %q", errs)
