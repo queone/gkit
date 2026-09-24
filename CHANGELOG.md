@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.83.0 | AC114: retotal v1.2.0 adds a METHOD column, prints changed totals, flags drift |
 | 0.82.1 | AC113 adopt Govna governance files v0.66.0 |
 | 0.82.0 | AC111+AC112: macfit v1.8.0 and attune v1.6.0 warn when iCloud drops a save |
 | 0.81.0 | AC110: mdview renamed to mdv v0.3.0; opens several files in separate tabs |

@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -9,7 +11,56 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
+
+	"github.com/queone/gkit/internal/color"
 )
+
+var (
+	fourColumnHeader = []string{"DESCRIPTION", "MO/AVG", "YR/AVG", "NOTES"}
+	methodHeader     = []string{"DESCRIPTION", "MO/AVG", "YR/AVG", "METHOD", "NOTES"}
+)
+
+// table lines up rows under header the way a retotal file does: amounts flush
+// right, text flush left, two spaces between columns, widths in characters.
+func table(header []string, rows ...[]string) string {
+	all := append([][]string{header}, rows...)
+	widths := make([]int, len(header))
+	for _, r := range all {
+		for i, v := range r {
+			widths[i] = max(widths[i], utf8.RuneCountInString(v))
+		}
+	}
+	var b strings.Builder
+	for _, r := range all {
+		parts := make([]string, len(r))
+		for i, v := range r {
+			if header[i] == "MO/AVG" || header[i] == "YR/AVG" {
+				parts[i] = fmt.Sprintf("%*s", widths[i], v)
+			} else {
+				parts[i] = fmt.Sprintf("%-*s", widths[i], v)
+			}
+		}
+		b.WriteString(strings.TrimRight(strings.Join(parts, "  "), " ") + "\n")
+	}
+	return b.String()
+}
+
+// legacySigned wraps table content with a blank separator and the legacy
+// signature line.
+func legacySigned(table string) string {
+	return table + "\n" + legacySignatureLine + "\n"
+}
+
+// writeFile writes content to name in dir and returns the path.
+func writeFile(t *testing.T, dir, name, content string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
 
 func TestCommatize(t *testing.T) {
 	tests := []struct {
@@ -416,11 +467,11 @@ func TestRetallyMode(t *testing.T) {
 	dir := t.TempDir()
 	budget := filepath.Join(dir, "budget.txt")
 
-	content := signed("DESCRIPTION  MO/AVG  YR/AVG  NOTES\n" +
-		"Income - Salary  5000  60000  primary\n" +
-		"Rent  1200  14400  monthly\n" +
-		"Groceries  600  7200\n" +
-		"TOTAL  6800  81600\n")
+	content := signed(table(fourColumnHeader,
+		[]string{"Income - Salary", "5000", "60000", "primary"},
+		[]string{"Rent", "1200", "14400", "monthly"},
+		[]string{"Groceries", "600", "7200"},
+		[]string{"TOTAL", "6800", "81600"}))
 	os.WriteFile(budget, []byte(content), 0644)
 
 	if err := runInDir(t, dir, budget); err != nil {
@@ -456,9 +507,9 @@ func TestRetallyDropsOldTotal(t *testing.T) {
 	dir := t.TempDir()
 	budget := filepath.Join(dir, "budget.txt")
 
-	content := signed("DESCRIPTION  MO/AVG  YR/AVG  NOTES\n" +
-		"Rent  1200  14400  monthly\n" +
-		"TOTAL  9999  99999\n")
+	content := signed(table(fourColumnHeader,
+		[]string{"Rent", "1200", "14400", "monthly"},
+		[]string{"TOTAL", "9999", "99999"}))
 	os.WriteFile(budget, []byte(content), 0644)
 
 	if err := runInDir(t, dir, budget); err != nil {
@@ -492,10 +543,10 @@ func TestRetallySloppyEntries(t *testing.T) {
 	dir := t.TempDir()
 	budget := filepath.Join(dir, "budget.txt")
 
-	content := signed("DESCRIPTION  MO/AVG  YR/AVG  NOTES\n" +
-		"Rent  1200  14400  monthly\n" +
-		"Groceries  600.5  7206\n" +
-		"Internet  89  1068\n")
+	content := signed(table(fourColumnHeader,
+		[]string{"Rent", "1200", "14400", "monthly"},
+		[]string{"Groceries", "600.5", "7206"},
+		[]string{"Internet", "89", "1068"}))
 	os.WriteFile(budget, []byte(content), 0644)
 
 	if err := runInDir(t, dir, budget); err != nil {
@@ -546,6 +597,7 @@ func TestRetallyRequiresSignature(t *testing.T) {
 	// Altered signature.
 	altered := filepath.Join(dir, "altered.txt")
 	os.WriteFile(altered, []byte(body+"\nNOTE: recalc with retotal please\n"), 0644)
+	before, _ = os.ReadFile(altered)
 	err = runInDir(t, dir, altered)
 	if err == nil {
 		t.Fatal("expected error for an altered signature")
@@ -553,26 +605,35 @@ func TestRetallyRequiresSignature(t *testing.T) {
 	if !strings.Contains(err.Error(), signatureLine) {
 		t.Errorf("error should contain the verbatim signature line, got: %v", err)
 	}
+	after, _ = os.ReadFile(altered)
+	if string(before) != string(after) {
+		t.Error("input file must not be modified when the signature is altered")
+	}
 }
 
 func TestRetallyIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	budget := filepath.Join(dir, "b.txt")
-	os.WriteFile(budget, []byte(signed("DESCRIPTION  MO/AVG  YR/AVG  NOTES\n"+
-		"Rent  1200  14400  monthly\nTOTAL  1200  14400\n")), 0644)
+	os.WriteFile(budget, []byte(signed(table(fourColumnHeader,
+		[]string{"Rent", "1200", "14400", "monthly"},
+		[]string{"TOTAL", "1200", "14400"}))), 0644)
 
 	if err := runInDir(t, dir, budget); err != nil {
 		t.Fatal(err)
 	}
 	first, _ := os.ReadFile(budget)
 
-	if err := runInDir(t, dir, budget); err != nil {
+	out, err := captureRun(t, dir, budget)
+	if err != nil {
 		t.Fatal(err)
 	}
 	second, _ := os.ReadFile(budget)
 
 	if string(first) != string(second) {
 		t.Errorf("re-tally not idempotent:\nfirst:\n%s\nsecond:\n%s", first, second)
+	}
+	if out != "" {
+		t.Errorf("second re-tally should print nothing, got: %q", out)
 	}
 	if strings.Count(string(second), signatureLine) != 1 {
 		t.Errorf("expected exactly one signature line:\n%s", second)
@@ -585,8 +646,10 @@ func TestRetallyIdempotent(t *testing.T) {
 func TestSignatureNotCountedAsDataRow(t *testing.T) {
 	dir := t.TempDir()
 	budget := filepath.Join(dir, "b.txt")
-	os.WriteFile(budget, []byte(signed("DESCRIPTION  MO/AVG  YR/AVG  NOTES\n"+
-		"Rent  1200  14400  monthly\nGroceries  600  7200\nTOTAL  0  0\n")), 0644)
+	os.WriteFile(budget, []byte(signed(table(fourColumnHeader,
+		[]string{"Rent", "1200", "14400", "monthly"},
+		[]string{"Groceries", "600", "7200"},
+		[]string{"TOTAL", "0", "0"}))), 0644)
 
 	if err := runInDir(t, dir, budget); err != nil {
 		t.Fatal(err)
@@ -609,6 +672,262 @@ func TestSignatureNotCountedAsDataRow(t *testing.T) {
 	tl := totalRow(t, result)
 	if !strings.Contains(tl, "1,800.00") {
 		t.Errorf("expected MO total 1,800.00 (signature excluded), got: %s", tl)
+	}
+}
+
+// An older 4-column file gains a METHOD column of placeholders, keeps its
+// notes, and ends with the current signature.
+func TestRetallyAddsMethodToFourColumnFile(t *testing.T) {
+	dir := t.TempDir()
+	budget := writeFile(t, dir, "b.txt", legacySigned(table(fourColumnHeader,
+		[]string{"Rent", "1200", "14400", "monthly"},
+		[]string{"Groceries", "600", "7200"},
+		[]string{"TOTAL", "1800", "21600"})))
+
+	if err := runInDir(t, dir, budget); err != nil {
+		t.Fatal(err)
+	}
+
+	data, _ := os.ReadFile(budget)
+	want := signed(table(methodHeader,
+		[]string{"Rent", "1,200.00", "14,400.00", "-", "monthly"},
+		[]string{"Groceries", "600.00", "7,200.00", "-"},
+		[]string{"TOTAL", "1,800.00", "21,600.00"}))
+	if string(data) != want {
+		t.Errorf("got:\n%s\nwant:\n%s", data, want)
+	}
+	if strings.Contains(string(data), legacySignatureLine) {
+		t.Errorf("legacy signature should be replaced:\n%s", data)
+	}
+}
+
+// METHOD values survive re-tally, and each entry lands in the column it lines
+// up with, whatever cells are empty.
+func TestRetallyKeepsAndFillsMethod(t *testing.T) {
+	dir := t.TempDir()
+	budget := writeFile(t, dir, "b.txt", signed(table(methodHeader,
+		[]string{"Rent", "1200", "14400", "DEBIT", "monthly"},
+		[]string{"Internet", "89", "1068", "PRIME"},
+		[]string{"Water", "30", "360", "", "quarterly"},
+		[]string{"Power", "100", "1200"},
+		[]string{"Tolls", "25", "300", "", "EZ Pass  auto-reload"},
+		[]string{"Gas", "", "600", "DEBIT"},
+		[]string{"TOTAL", "1444", "17928"})))
+
+	if err := runInDir(t, dir, budget); err != nil {
+		t.Fatal(err)
+	}
+
+	data, _ := os.ReadFile(budget)
+	want := signed(table(methodHeader,
+		[]string{"Rent", "1,200.00", "14,400.00", "DEBIT", "monthly"},
+		[]string{"Internet", "89.00", "1,068.00", "PRIME"},
+		[]string{"Water", "30.00", "360.00", "-", "quarterly"},
+		[]string{"Power", "100.00", "1,200.00", "-"},
+		[]string{"Tolls", "25.00", "300.00", "-", "EZ Pass  auto-reload"},
+		[]string{"Gas", "", "600.00", "DEBIT"},
+		[]string{"TOTAL", "1,444.00", "17,928.00"}))
+	if string(data) != want {
+		t.Errorf("got:\n%s\nwant:\n%s", data, want)
+	}
+}
+
+func TestRetallyPrintsChangedTotals(t *testing.T) {
+	tests := []struct {
+		name string
+		rows [][]string
+		want string
+	}{
+		{
+			name: "both totals changed",
+			rows: [][]string{{"Rent", "1300", "15600", "DEBIT"}, {"TOTAL", "1200", "14400"}},
+			want: "MO/AVG TOTAL: 1,200.00 -> 1,300.00\nYR/AVG TOTAL: 14,400.00 -> 15,600.00\n",
+		},
+		{
+			name: "only YR/AVG changed",
+			rows: [][]string{{"Rent", "1200", "15600", "DEBIT"}, {"TOTAL", "1200", "14400"}},
+			want: "YR/AVG TOTAL: 14,400.00 -> 15,600.00\n",
+		},
+		{
+			name: "unchanged but unformatted",
+			rows: [][]string{{"Rent", "1,200.00", "14400", "DEBIT"}, {"TOTAL", "1200", "14400"}},
+			want: "",
+		},
+		{
+			name: "no prior TOTAL row",
+			rows: [][]string{{"Rent", "1200", "14400", "DEBIT"}},
+			want: "MO/AVG TOTAL: none -> 1,200.00\nYR/AVG TOTAL: none -> 14,400.00\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			budget := writeFile(t, dir, "b.txt", signed(table(methodHeader, tt.rows...)))
+			out, err := captureRun(t, dir, budget)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if out != tt.want {
+				t.Errorf("stdout = %q, want %q", out, tt.want)
+			}
+		})
+	}
+}
+
+func TestRetallyAcceptsCurrentAndLegacyNote(t *testing.T) {
+	for name, wrap := range map[string]func(string) string{"current": signed, "legacy": legacySigned} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			budget := writeFile(t, dir, "b.txt", wrap(table(methodHeader,
+				[]string{"Rent", "1,200.00", "14,400.00", "DEBIT"},
+				[]string{"TOTAL", "1,200.00", "14,400.00"})))
+			if err := runInDir(t, dir, budget); err != nil {
+				t.Fatal(err)
+			}
+			data, _ := os.ReadFile(budget)
+			result := string(data)
+			if !strings.HasSuffix(result, "\n"+signatureLine+"\n") {
+				t.Errorf("file should end with the current signature:\n%s", result)
+			}
+			if strings.Count(result, signatureLine) != 1 || strings.Contains(result, legacySignatureLine) {
+				t.Errorf("expected exactly one current signature and no legacy one:\n%s", result)
+			}
+		})
+	}
+}
+
+func TestConsolidationWritesMethod(t *testing.T) {
+	tests := []struct {
+		name  string
+		file  string
+		input string
+		want  string
+	}{
+		{
+			name: "CSV with a Method column",
+			file: "with.csv",
+			input: "TYPE,DESCRIPTION,MO/AVG,YR/AVG,Method,NOTES\n" +
+				"Income,Salary,5000,60000,DEBIT,primary\n" +
+				",Rent,1200,14400,,monthly\n",
+			want: signed(table(methodHeader,
+				[]string{"Income - Salary", "5,000.00", "60,000.00", "DEBIT", "primary"},
+				[]string{"Rent", "1,200.00", "14,400.00", "-", "monthly"},
+				[]string{"TOTAL", "6,200.00", "74,400.00"})),
+		},
+		{
+			name:  "CSV without a METHOD column",
+			file:  "without.csv",
+			input: "TYPE,DESCRIPTION,MO/AVG,YR/AVG,NOTES\n,Rent,1200,14400,monthly\n,Water,30,360,\n",
+			want: signed(table(methodHeader,
+				[]string{"Rent", "1,200.00", "14,400.00", "-", "monthly"},
+				[]string{"Water", "30.00", "360.00", "-"},
+				[]string{"TOTAL", "1,230.00", "14,760.00"})),
+		},
+		{
+			name: "space-aligned with a METHOD column",
+			file: "aligned.dat",
+			input: table([]string{"DESCRIPTION", "TYPE", "MO/AVG", "YR/AVG", "METHOD", "NOTES"},
+				[]string{"Income - Salary", "Inc", "5000", "60000", "PRIME", "primary"},
+				[]string{"Rent", "Exp", "1200", "14400", "", "monthly"},
+				[]string{"Water", "Exp", "30", "360", "DEBIT"}),
+			want: signed(table(methodHeader,
+				[]string{"Income - Salary", "5,000.00", "60,000.00", "PRIME", "primary"},
+				[]string{"Rent", "1,200.00", "14,400.00", "-", "monthly"},
+				[]string{"Water", "30.00", "360.00", "DEBIT"},
+				[]string{"TOTAL", "6,230.00", "74,760.00"})),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			in := writeFile(t, dir, tt.file, tt.input)
+			if err := runInDir(t, dir, in); err != nil {
+				t.Fatal(err)
+			}
+			data, err := os.ReadFile(stemTxt(in))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != tt.want {
+				t.Errorf("got:\n%s\nwant:\n%s", data, tt.want)
+			}
+		})
+	}
+}
+
+// A drifted METHOD entry and a drifted amount stop re-tally before anything is
+// written, and the error lists both rows in red.
+func TestRetallyRejectsMisalignedRows(t *testing.T) {
+	lines := strings.Split(table(methodHeader,
+		[]string{"Rent", "1,200.00", "14,400.00", "DEBIT", "monthly"},
+		[]string{"Water", "30.00", "360.00", "PRIME"},
+		[]string{"Power", "100.00", "1,200.00", "-"},
+		[]string{"TOTAL", "1,330.00", "15,960.00"}), "\n")
+	lines[2] = strings.Replace(lines[2], "PRIME", " PRIME", 1)
+	lines[3] = strings.Replace(lines[3], " 100.00", "100.00 ", 1)
+	dir := t.TempDir()
+	budget := writeFile(t, dir, "b.txt", signed(strings.Join(lines, "\n")))
+	before, _ := os.ReadFile(budget)
+
+	out, err := captureRun(t, dir, budget)
+	if err == nil {
+		t.Fatal("expected an error for misaligned rows")
+	}
+	want := budget + ": column spacing has drifted; line up each entry under its header and rerun:\n" +
+		"  line 3: Water\n" +
+		"  line 4: Power"
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+	if _, ok := errors.AsType[*driftError](err); !ok {
+		t.Errorf("expected a *driftError, got %T", err)
+	}
+	after, _ := os.ReadFile(budget)
+	if string(before) != string(after) {
+		t.Error("file must not change when rows are misaligned")
+	}
+	if out != "" {
+		t.Errorf("stdout should be empty, got %q", out)
+	}
+
+	restoreEnabled := color.SetEnabled(true)
+	restore256 := color.Set256(true)
+	red := errorText(err)
+	restore256()
+	restoreEnabled()
+	if !strings.HasPrefix(red, "\x1b[38;5;196m") {
+		t.Errorf("error should start red with color on, got %q", red)
+	}
+
+	defer color.SetEnabled(false)()
+	if plain := errorText(err); strings.Contains(plain, "\x1b") {
+		t.Errorf("error should have no escape codes with color off, got %q", plain)
+	}
+}
+
+// Non-ASCII descriptions line up by character, so a re-tallied file passes the
+// alignment check again unchanged.
+func TestRetallyLinesUpNonASCII(t *testing.T) {
+	dir := t.TempDir()
+	budget := writeFile(t, dir, "b.txt", signed(table(methodHeader,
+		[]string{"Crème brûlée fund", "5", "60", "DEBIT", "café"},
+		[]string{"Rent", "1200", "14400", "-"})))
+
+	if err := runInDir(t, dir, budget); err != nil {
+		t.Fatal(err)
+	}
+	first, _ := os.ReadFile(budget)
+
+	out, err := captureRun(t, dir, budget)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _ := os.ReadFile(budget)
+	if string(first) != string(second) {
+		t.Errorf("second re-tally changed the file:\nfirst:\n%s\nsecond:\n%s", first, second)
+	}
+	if out != "" {
+		t.Errorf("second re-tally should print nothing, got %q", out)
 	}
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -10,28 +11,66 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
+	"github.com/queone/gkit/internal/color"
 	"github.com/queone/gkit/internal/help"
 	"github.com/queone/gkit/internal/numfmt"
 )
 
 const (
 	programName    = "retotal"
-	programVersion = "1.1.0"
+	programVersion = "1.2.0"
 	// signatureLine gates re-tally and tells the user how to recalculate. It is the
-	// last non-empty line of every output file. The `<FILE>` token is a literal
-	// placeholder, so the signature is path-independent.
-	signatureLine = "NOTE: To recalculate TOTALS for this FILE, run `retotal <FILE>`"
+	// last non-empty line of every output file. The `<THIS-FILE>` token is a
+	// literal placeholder, so the signature is path-independent.
+	signatureLine = "NOTE: To recalculate above TOTAL line, run `retotal <THIS-FILE>`"
+	// legacySignatureLine is the earlier signature; re-tally accepts it and
+	// rewrites the file with signatureLine.
+	legacySignatureLine = "NOTE: To recalculate TOTALS for this FILE, run `retotal <FILE>`"
+	// methodPlaceholder fills every data row's empty METHOD entry.
+	methodPlaceholder = "-"
 )
 
-var outHeader = [4]string{"DESCRIPTION", "MO/AVG", "YR/AVG", "NOTES"}
+var outHeader = [5]string{"DESCRIPTION", "MO/AVG", "YR/AVG", "METHOD", "NOTES"}
 
 type row struct {
-	typ  string
-	desc string
-	mo   string
-	yr   string
-	note string
+	typ    string
+	desc   string
+	mo     string
+	yr     string
+	method string
+	note   string
+}
+
+// totals holds the MO/AVG and YR/AVG values of a TOTAL row.
+type totals struct {
+	mo string
+	yr string
+}
+
+// span is one entry of an aligned line: its text, its start and end character
+// columns (end exclusive), and its start byte offset.
+type span struct {
+	text      string
+	start     int
+	end       int
+	byteStart int
+}
+
+// driftError lists re-tally rows whose entries don't line up with the header.
+type driftError struct {
+	path string
+	rows []string
+}
+
+func (e *driftError) Error() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s: column spacing has drifted; line up each entry under its header and rerun:", e.path)
+	for _, r := range e.rows {
+		b.WriteString("\n  " + r)
+	}
+	return b.String()
 }
 
 // usageText returns the days-style information screen (program name, version,
@@ -102,6 +141,53 @@ func toFloat(s string) float64 {
 var reQuoted = regexp.MustCompile(`"[^"]*"`)
 var reTwoSpaces = regexp.MustCompile(` {2,}`)
 
+// reCell matches one aligned entry: words separated by single spaces.
+var reCell = regexp.MustCompile(`[^ ]+(?: [^ ]+)*`)
+
+// cellSpans splits an aligned line into entries separated by two or more
+// spaces, recording where each entry starts and ends in character columns.
+func cellSpans(line string) []span {
+	var out []span
+	for _, loc := range reCell.FindAllStringIndex(line, -1) {
+		text := line[loc[0]:loc[1]]
+		start := utf8.RuneCountInString(line[:loc[0]])
+		out = append(out, span{text: text, start: start, end: start + utf8.RuneCountInString(text), byteStart: loc[0]})
+	}
+	return out
+}
+
+// isAmountColumn reports whether a column holds right-aligned amounts.
+func isAmountColumn(name string) bool {
+	return name == "MO/AVG" || name == "YR/AVG"
+}
+
+// alignedRow maps a re-tally line's entries onto header columns by position: a
+// text entry must start where its header starts, and an amount must end where
+// its header ends. Everything from the NOTES entry to the end of the line is
+// the note. ok is false when any entry lines up with no column.
+func alignedRow(header []span, line string) (values map[string]string, ok bool) {
+	values = map[string]string{}
+	for _, c := range cellSpans(line) {
+		col := -1
+		for j, h := range header {
+			if (isAmountColumn(h.text) && c.end == h.end) || (!isAmountColumn(h.text) && c.start == h.start) {
+				col = j
+				break
+			}
+		}
+		if col < 0 {
+			return nil, false
+		}
+		name := header[col].text
+		if name == "NOTES" {
+			values[name] = strings.TrimRight(line[c.byteStart:], " \t")
+			return values, true
+		}
+		values[name] = c.text
+	}
+	return values, true
+}
+
 // isRetotalOutput reports whether path's first non-empty line is the retotal
 // output header (DESCRIPTION / MO/AVG / YR/AVG), selecting the re-tally path.
 func isRetotalOutput(path string) (bool, error) {
@@ -169,11 +255,12 @@ func readCSV(path string) ([]row, error) {
 			return ""
 		}
 		rows = append(rows, row{
-			typ:  get("TYPE"),
-			desc: get("DESCRIPTION"),
-			mo:   get("MO/AVG"),
-			yr:   get("YR/AVG"),
-			note: get("NOTES"),
+			typ:    get("TYPE"),
+			desc:   get("DESCRIPTION"),
+			mo:     get("MO/AVG"),
+			yr:     get("YR/AVG"),
+			method: get("METHOD"),
+			note:   get("NOTES"),
 		})
 	}
 	return rows, nil
@@ -215,9 +302,21 @@ func readAligned5(path string) ([]row, error) {
 		colIdx[h] = i
 	}
 
+	// A lone entry after YR/AVG is METHOD only when it starts left of the NOTES
+	// header; otherwise it is the note.
+	headerSpans := cellSpans(lines[0])
+	mi, hasMethod := colIdx["METHOD"]
+	ni, hasNotes := colIdx["NOTES"]
+	loneEntryRule := hasMethod && hasNotes && mi == ni-1 && ni == ncols-1 && len(headerSpans) == ncols
+
 	var rows []row
 	for _, line := range lines[1:] {
 		values := splitAligned(line, ncols)
+		if loneEntryRule {
+			if cells := cellSpans(line); len(cells) == ni && cells[ni-1].start >= headerSpans[ni].start {
+				values[ni], values[mi] = values[mi], ""
+			}
+		}
 		get := func(name string) string {
 			if idx, ok := colIdx[name]; ok && idx < len(values) {
 				return values[idx]
@@ -233,83 +332,83 @@ func readAligned5(path string) ([]row, error) {
 		}
 
 		rows = append(rows, row{
-			typ:  typ,
-			desc: desc,
-			mo:   get("MO/AVG"),
-			yr:   get("YR/AVG"),
-			note: get("NOTES"),
+			typ:    typ,
+			desc:   desc,
+			mo:     get("MO/AVG"),
+			yr:     get("YR/AVG"),
+			method: get("METHOD"),
+			note:   get("NOTES"),
 		})
 	}
 	return rows, nil
 }
 
-// readRetotalOutput parses a retotal output-format file into rows, skipping the
-// trailing signature line and any prior TOTAL row.
-func readRetotalOutput(path string) ([]row, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
-	}
-	content := stripBOM(string(data))
-
-	var lines []string
-	for ln := range strings.SplitSeq(content, "\n") {
-		if strings.TrimSpace(ln) == "" {
-			continue
-		}
-		if strings.TrimRight(ln, " \t\r") == signatureLine {
-			continue
-		}
-		lines = append(lines, ln)
-	}
-	if len(lines) < 2 {
-		return nil, nil
-	}
-
-	headers := reTwoSpaces.Split(strings.TrimSpace(lines[0]), -1)
-	ncols := len(headers)
-	colIdx := map[string]int{}
-	for i, h := range headers {
-		colIdx[h] = i
-	}
-
+// readRetotalOutput parses retotal output-format content into rows, skipping
+// signature lines and total-bearing rows. It returns the last TOTAL row's
+// values, or nil when there is none. Every row must line up with the header;
+// otherwise it returns a *driftError listing each misaligned row.
+func readRetotalOutput(path, content string) ([]row, *totals, error) {
+	var header []span
 	var rows []row
-	for _, line := range lines[1:] {
-		values := splitAligned(line, ncols)
-		get := func(name string) string {
-			if idx, ok := colIdx[name]; ok && idx < len(values) {
-				return values[idx]
-			}
-			return ""
+	var prior *totals
+	var drifted []string
+	for i, ln := range strings.Split(content, "\n") {
+		ln = strings.TrimRight(ln, "\r")
+		if strings.TrimSpace(ln) == "" || isSignature(ln) {
+			continue
+		}
+		if header == nil {
+			header = cellSpans(ln)
+			continue
 		}
 
-		desc := get("DESCRIPTION")
-		if strings.ToLower(desc) == "total" || strings.Contains(strings.ToLower(desc), "total") {
+		values, ok := alignedRow(header, ln)
+		if !ok {
+			drifted = append(drifted, fmt.Sprintf("line %d: %s", i+1, cellSpans(ln)[0].text))
+			continue
+		}
+
+		desc := values["DESCRIPTION"]
+		if strings.EqualFold(desc, "total") {
+			prior = &totals{mo: values["MO/AVG"], yr: values["YR/AVG"]}
+			continue
+		}
+		if strings.Contains(strings.ToLower(desc), "total") {
 			continue
 		}
 
 		rows = append(rows, row{
-			desc: desc,
-			mo:   get("MO/AVG"),
-			yr:   get("YR/AVG"),
-			note: get("NOTES"),
+			desc:   desc,
+			mo:     values["MO/AVG"],
+			yr:     values["YR/AVG"],
+			method: values["METHOD"],
+			note:   values["NOTES"],
 		})
 	}
-	return rows, nil
+	if len(drifted) > 0 {
+		return nil, nil, &driftError{path: path, rows: drifted}
+	}
+	return rows, prior, nil
 }
 
 // hasSignature reports whether content's last non-empty line is the signature
-// line (trailing whitespace tolerated).
+// line or the legacy signature line (trailing whitespace tolerated).
 func hasSignature(content string) bool {
 	lines := strings.Split(content, "\n")
 	for _, line := range slices.Backward(lines) {
-		t := strings.TrimRight(line, " \t\r")
-		if strings.TrimSpace(t) == "" {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		return t == signatureLine
+		return isSignature(line)
 	}
 	return false
+}
+
+// isSignature reports whether line, ignoring trailing whitespace, is the
+// signature line or the legacy signature line.
+func isSignature(line string) bool {
+	t := strings.TrimRight(line, " \t\r")
+	return t == signatureLine || t == legacySignatureLine
 }
 
 // stemTxt derives the consolidation output filename by replacing path's
@@ -318,7 +417,15 @@ func stemTxt(path string) string {
 	return strings.TrimSuffix(path, filepath.Ext(path)) + ".txt"
 }
 
-type outputRow [4]string
+type outputRow [5]string
+
+// methodOrPlaceholder returns method, or methodPlaceholder when it is empty.
+func methodOrPlaceholder(method string) string {
+	if strings.TrimSpace(method) == "" {
+		return methodPlaceholder
+	}
+	return method
+}
 
 func process(input []row) []outputRow {
 	var out []outputRow
@@ -342,13 +449,14 @@ func process(input []row) []outputRow {
 		if r.typ != "" {
 			desc = r.typ + " - " + r.desc
 		}
-		out = append(out, outputRow{desc, commatize(normalize2(mo)), commatize(normalize2(yr)), r.note})
+		out = append(out, outputRow{desc, commatize(normalize2(mo)), commatize(normalize2(yr)), methodOrPlaceholder(r.method), r.note})
 	}
 
 	out = append(out, outputRow{
 		"TOTAL",
 		commatize(fmt.Sprintf("%.2f", moTotal)),
 		commatize(fmt.Sprintf("%.2f", yrTotal)),
+		"",
 		"",
 	})
 	return out
@@ -364,7 +472,7 @@ func processRetally(input []row) []outputRow {
 		moTotal += toFloat(mo)
 		yrTotal += toFloat(yr)
 
-		out = append(out, outputRow{r.desc, commatize(normalize2(mo)), commatize(normalize2(yr)), r.note})
+		out = append(out, outputRow{r.desc, commatize(normalize2(mo)), commatize(normalize2(yr)), methodOrPlaceholder(r.method), r.note})
 	}
 
 	out = append(out, outputRow{
@@ -372,26 +480,53 @@ func processRetally(input []row) []outputRow {
 		commatize(fmt.Sprintf("%.2f", moTotal)),
 		commatize(fmt.Sprintf("%.2f", yrTotal)),
 		"",
+		"",
 	})
 	return out
 }
 
-func formatOutput(rows []outputRow) string {
-	widths := [4]int{}
-	for i, h := range outHeader {
-		if len(h) > widths[i] {
-			widths[i] = len(h)
+// cents returns an amount rounded to whole cents, for comparing totals.
+func cents(s string) float64 {
+	return math.Round(toFloat(s) * 100)
+}
+
+// totalChanges returns one "<column> TOTAL: <old> -> <new>" line per TOTAL
+// value that differs from prior at cent precision. A missing prior TOTAL row
+// reads "none".
+func totalChanges(prior *totals, total outputRow) []string {
+	var old [2]string
+	if prior != nil {
+		old = [2]string{prior.mo, prior.yr}
+	}
+	var lines []string
+	for i, name := range [2]string{"MO/AVG", "YR/AVG"} {
+		now := total[i+1]
+		was := "none"
+		if prior != nil {
+			if cents(old[i]) == cents(now) {
+				continue
+			}
+			was = commatize(fmt.Sprintf("%.2f", toFloat(old[i])))
 		}
+		lines = append(lines, fmt.Sprintf("%s TOTAL: %s -> %s", name, was, now))
+	}
+	return lines
+}
+
+// formatOutput renders the header and rows as an aligned table. Widths count
+// characters, not bytes, so non-ASCII text lines up.
+func formatOutput(rows []outputRow) string {
+	widths := [5]int{}
+	for i, h := range outHeader {
+		widths[i] = max(widths[i], utf8.RuneCountInString(h))
 	}
 	for _, r := range rows {
 		for i, v := range r {
-			if len(v) > widths[i] {
-				widths[i] = len(v)
-			}
+			widths[i] = max(widths[i], utf8.RuneCountInString(v))
 		}
 	}
 
-	rightAlign := [4]bool{false, true, true, false}
+	rightAlign := [5]bool{false, true, true, false, false}
 
 	pad := func(s string, w int, right bool) string {
 		if right {
@@ -400,8 +535,8 @@ func formatOutput(rows []outputRow) string {
 		return fmt.Sprintf("%-*s", w, s)
 	}
 
-	emit := func(vals [4]string) string {
-		parts := make([]string, 4)
+	emit := func(vals [5]string) string {
+		parts := make([]string, 5)
 		for i, v := range vals {
 			parts[i] = pad(v, widths[i], rightAlign[i])
 		}
@@ -424,24 +559,30 @@ func withSignature(table string) string {
 	return table + "\n" + signatureLine + "\n"
 }
 
-// retally validates the signature on an output-format file, recomputes TOTAL,
-// and rewrites the file in place.
+// retally validates the signature and column alignment of an output-format
+// file, recomputes TOTAL, rewrites the file in place, and prints each TOTAL
+// value that changed.
 func retally(inPath string) error {
 	data, err := os.ReadFile(inPath)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", inPath, err)
 	}
-	if !hasSignature(stripBOM(string(data))) {
+	content := stripBOM(string(data))
+	if !hasSignature(content) {
 		return fmt.Errorf("%s is missing the required signature line; add this as the last line of the file:\n%s", inPath, signatureLine)
 	}
 
-	input, err := readRetotalOutput(inPath)
+	input, prior, err := readRetotalOutput(inPath, content)
 	if err != nil {
 		return err
 	}
-	result := withSignature(formatOutput(processRetally(input)))
+	out := processRetally(input)
+	result := withSignature(formatOutput(out))
 	if err := os.WriteFile(inPath, []byte(result), 0644); err != nil {
 		return fmt.Errorf("write %s: %w", inPath, err)
+	}
+	for _, line := range totalChanges(prior, out[len(out)-1]) {
+		fmt.Println(line)
 	}
 	return nil
 }
@@ -510,9 +651,18 @@ func run() error {
 	return consolidate(inPath)
 }
 
+// errorText formats err for stderr, in red when it lists misaligned rows.
+func errorText(err error) string {
+	msg := fmt.Sprintf("%s: %v", programName, err)
+	if _, ok := errors.AsType[*driftError](err); ok {
+		msg = color.Red5(msg)
+	}
+	return msg + "\n"
+}
+
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "%s: %v\n", programName, err)
+		fmt.Fprint(os.Stderr, errorText(err))
 		os.Exit(1)
 	}
 }
