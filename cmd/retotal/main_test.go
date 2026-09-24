@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -145,6 +144,14 @@ func TestIsRetotalOutput(t *testing.T) {
 // stdout plus run's error.
 func captureRun(t *testing.T, dir string, args ...string) (string, error) {
 	t.Helper()
+	out, _, err := captureRunAll(t, dir, args...)
+	return out, err
+}
+
+// captureRunAll runs the program in dir with args, capturing stdout and stderr,
+// and returns both plus run's error.
+func captureRunAll(t *testing.T, dir string, args ...string) (string, string, error) {
+	t.Helper()
 	orig, _ := os.Getwd()
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
@@ -152,14 +159,17 @@ func captureRun(t *testing.T, dir string, args ...string) (string, error) {
 	t.Cleanup(func() { os.Chdir(orig) })
 	os.Args = append([]string{"retotal"}, args...)
 
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
+	oldStdout, oldStderr := os.Stdout, os.Stderr
+	outR, outW, _ := os.Pipe()
+	errR, errW, _ := os.Pipe()
+	os.Stdout, os.Stderr = outW, errW
 	err := run()
-	w.Close()
-	os.Stdout = oldStdout
-	out, _ := io.ReadAll(r)
-	return string(out), err
+	outW.Close()
+	errW.Close()
+	os.Stdout, os.Stderr = oldStdout, oldStderr
+	out, _ := io.ReadAll(outR)
+	stderr, _ := io.ReadAll(errR)
+	return string(out), string(stderr), err
 }
 
 func runInDir(t *testing.T, dir string, args ...string) error {
@@ -855,53 +865,84 @@ func TestConsolidationWritesMethod(t *testing.T) {
 	}
 }
 
-// A drifted METHOD entry and a drifted amount stop re-tally before anything is
-// written, and the error lists both rows in red.
-func TestRetallyRejectsMisalignedRows(t *testing.T) {
+// Drifted rows are placed by shape, rewritten lined up, and listed on stderr.
+// Each row below starts lined up and then gets one typical hand edit.
+func TestRetallyRealignsDriftedRows(t *testing.T) {
+	defer color.SetEnabled(false)()
 	lines := strings.Split(table(methodHeader,
 		[]string{"Rent", "1,200.00", "14,400.00", "DEBIT", "monthly"},
-		[]string{"Water", "30.00", "360.00", "PRIME"},
-		[]string{"Power", "100.00", "1,200.00", "-"},
-		[]string{"TOTAL", "1,330.00", "15,960.00"}), "\n")
-	lines[2] = strings.Replace(lines[2], "PRIME", " PRIME", 1)
-	lines[3] = strings.Replace(lines[3], " 100.00", "100.00 ", 1)
+		[]string{"Chatbot", "20.00", "240.00", "-", "Monthly"},
+		[]string{"Power", "100.00", "1,200.00", "PRIME", "quarterly"},
+		[]string{"Water", "30.00", "360.00", "", "Ad hoc"},
+		[]string{"Gas", "", "600.00", "CASH"},
+		[]string{"Tolls", "25.00", "300.00", "-"},
+		[]string{"TOTAL", "1,375.00", "17,100.00"}), "\n")
+	// A longer METHOD pushes the note right.
+	lines[2] = strings.Replace(lines[2], "-", "DEBIT", 1)
+	// A longer description pushes the whole row right.
+	lines[3] = strings.Replace(lines[3], "Power", "Power plant", 1)
+	// A lone note with a blank METHOD sits right of the NOTES column.
+	lines[4] = strings.Replace(lines[4], "Ad hoc", "   Ad hoc", 1)
+	// A lone amount and METHOD move right by one.
+	lines[5] = strings.Replace(lines[5], "600.00", " 600.00", 1)
+	// An amount ends one column early.
+	lines[6] = strings.Replace(lines[6], " 25.00", "25.00 ", 1)
 	dir := t.TempDir()
 	budget := writeFile(t, dir, "b.txt", signed(strings.Join(lines, "\n")))
-	before, _ := os.ReadFile(budget)
 
-	out, err := captureRun(t, dir, budget)
-	if err == nil {
-		t.Fatal("expected an error for misaligned rows")
+	out, stderr, err := captureRunAll(t, dir, budget)
+	if err != nil {
+		t.Fatal(err)
 	}
-	want := budget + ": column spacing has drifted; line up each entry under its header and rerun:\n" +
-		"  line 3: Water\n" +
-		"  line 4: Power"
-	if err.Error() != want {
-		t.Errorf("error = %q, want %q", err.Error(), want)
+	data, _ := os.ReadFile(budget)
+	want := signed(table(methodHeader,
+		[]string{"Rent", "1,200.00", "14,400.00", "DEBIT", "monthly"},
+		[]string{"Chatbot", "20.00", "240.00", "DEBIT", "Monthly"},
+		[]string{"Power plant", "100.00", "1,200.00", "PRIME", "quarterly"},
+		[]string{"Water", "30.00", "360.00", "-", "Ad hoc"},
+		[]string{"Gas", "", "600.00", "CASH"},
+		[]string{"Tolls", "25.00", "300.00", "-"},
+		[]string{"TOTAL", "1,375.00", "17,100.00"}))
+	if string(data) != want {
+		t.Errorf("got:\n%s\nwant:\n%s", data, want)
 	}
-	if _, ok := errors.AsType[*driftError](err); !ok {
-		t.Errorf("expected a *driftError, got %T", err)
-	}
-	after, _ := os.ReadFile(budget)
-	if string(before) != string(after) {
-		t.Error("file must not change when rows are misaligned")
+	wantNotice := "retotal: realigned 5 rows whose spacing had drifted; check them:\n" +
+		"  line 3: Chatbot\n  line 4: Power plant\n  line 5: Water\n  line 6: Gas\n  line 7: Tolls\n"
+	if stderr != wantNotice {
+		t.Errorf("stderr = %q, want %q", stderr, wantNotice)
 	}
 	if out != "" {
-		t.Errorf("stdout should be empty, got %q", out)
+		t.Errorf("stdout should be empty when totals don't change, got %q", out)
 	}
 
-	restoreEnabled := color.SetEnabled(true)
-	restore256 := color.Set256(true)
-	red := errorText(err)
-	restore256()
-	restoreEnabled()
-	if !strings.HasPrefix(red, "\x1b[38;5;196m") {
-		t.Errorf("error should start red with color on, got %q", red)
+	out, stderr, err = captureRunAll(t, dir, budget)
+	if err != nil {
+		t.Fatal(err)
 	}
+	again, _ := os.ReadFile(budget)
+	if string(again) != want || out != "" || stderr != "" {
+		t.Errorf("second re-tally should change and print nothing; stdout %q, stderr %q", out, stderr)
+	}
+}
 
-	defer color.SetEnabled(false)()
-	if plain := errorText(err); strings.Contains(plain, "\x1b") {
-		t.Errorf("error should have no escape codes with color off, got %q", plain)
+func TestRealignNoticeIsYellowAndSingular(t *testing.T) {
+	lines := strings.Split(table(methodHeader,
+		[]string{"Rent", "1,200.00", "14,400.00", "-", "monthly"}), "\n")
+	lines[1] = strings.Replace(lines[1], "-", "CASH", 1)
+	dir := t.TempDir()
+	budget := writeFile(t, dir, "b.txt", signed(strings.Join(lines, "\n")))
+
+	defer color.SetEnabled(true)()
+	defer color.Set256(true)()
+	_, stderr, err := captureRunAll(t, dir, budget)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(stderr, "\x1b[38;5;220m") {
+		t.Errorf("notice should start yellow with color on, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "realigned 1 row whose spacing had drifted; check it:\n  line 2: Rent") {
+		t.Errorf("notice should name the one row, got %q", stderr)
 	}
 }
 

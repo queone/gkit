@@ -2,12 +2,12 @@
 Financial TOTALS consolidator and re-tallier.
 
 ### Why?
-Keeping a running financial summary — a budget, an expense sheet — means editing values and recomputing totals by hand. `retotal` keeps an aligned text summary with computed `TOTALS` and re-tallies it in place after you edit it. Every output file is signed with a one-line recalculation note, and re-tally refuses any file whose signature is missing or altered, or whose columns have drifted out of line, so a managed file is never silently mis-totalled.
+Keeping a running financial summary — a budget, an expense sheet — means editing values and recomputing totals by hand. `retotal` keeps an aligned text summary with computed `TOTALS` and re-tallies it in place after you edit it. Every output file is signed with a one-line recalculation note, and re-tally refuses any file whose signature is missing or altered, so a managed file is never silently mis-totalled. Rows whose spacing drifted during an edit are lined up again and listed so you can check them.
 
 ### Usage
 
 ```text
-retotal v1.2.0
+retotal v1.3.0
 Consolidate financial data into a signed TOTALS summary, and re-tally it after edits
 github.com/queone/gkit/tree/main/cmd/retotal
 
@@ -19,7 +19,7 @@ Usage
   retotal output file, its TOTALS are recomputed in place after you edit it.
 
 Options
-  -v, --version   Print retotal v1.2.0 and exit
+  -v, --version   Print retotal v1.3.0 and exit
   -h, -?, --help  Show this help and exit
 ```
 
@@ -29,7 +29,7 @@ Options
 
 **Consolidation** — `FILE` is CSV or space-aligned input. `retotal` computes the summary and writes it to a stem-named text file (`budget.csv` → `budget.txt`) carrying the signature, then prints a hint. It errors without overwriting if the target `.txt` already exists.
 
-CSV input columns: TYPE, DESCRIPTION, MO/AVG, YR/AVG, METHOD, NOTES. METHOD records how each charge is paid, such as `DEBIT` or `PRIME`; it is optional, and any empty or missing METHOD becomes `-` in the output. Header names match in any case.
+CSV input columns: TYPE, DESCRIPTION, MO/AVG, YR/AVG, METHOD, NOTES. METHOD records how each charge is paid, such as `DEBIT`, `PRIME`, or `CASH`; any single entry is accepted. It is optional, and any empty or missing METHOD becomes `-` in the output. Header names match in any case.
 
 ```csv
 TYPE,DESCRIPTION,MO/AVG,YR/AVG,METHOD,NOTES
@@ -54,7 +54,7 @@ NOTE: To recalculate above TOTAL line, run `retotal <THIS-FILE>`
 
 Space-aligned input matches header names exactly. When its header ends with METHOD then NOTES and a row has a single entry after YR/AVG, that entry is METHOD if it starts left of the NOTES header, and a note otherwise.
 
-**Re-tally** — `FILE` is already a `retotal` output file (aligned, with a DESCRIPTION, MO/AVG, YR/AVG header). The signature **must** be the last line. `retotal` checks that every row lines up, normalizes entries, recomputes `TOTAL`, and rewrites in place, re-appending the signature. An older 4-column file without METHOD gains the column, with `-` on every row.
+**Re-tally** — `FILE` is already a `retotal` output file (aligned, with a DESCRIPTION, MO/AVG, YR/AVG header). The signature **must** be the last line. `retotal` reads each row, normalizes entries, recomputes `TOTAL`, and rewrites in place, lined up, re-appending the signature. An older 4-column file without METHOD gains the column, with `-` on every row.
 
 ```bash
 retotal budget.txt
@@ -67,11 +67,21 @@ MO/AVG TOTAL: 7,789.00 -> 7,799.00
 YR/AVG TOTAL: 93,468.00 -> 93,588.00
 ```
 
-Every entry must line up with its header: DESCRIPTION, METHOD, and NOTES entries start in the same column as their header, and MO/AVG and YR/AVG amounts end in the same column as theirs. Columns count characters, so non-ASCII text such as `é` lines up as it looks. Because entries are placed by position, any cell can be left empty, and a note may contain double spaces. If any row has drifted, `retotal` prints the error in red, lists each drifted row, and leaves the file untouched:
+A row lines up when its DESCRIPTION, METHOD, and NOTES entries start in the same column as their header, and its MO/AVG and YR/AVG amounts end in the same column as theirs. Columns count characters, so non-ASCII text such as `é` lines up as it looks. A lined-up row is read by position, so any cell can be left empty, and a note may contain double spaces.
+
+A row whose spacing drifted during an edit — typing `DEBIT` over `-` pushes the note right, for example — is read by shape instead:
+
+- The entries before the first amount are the description.
+- Up to two amounts follow. A lone amount goes to whichever of MO/AVG and YR/AVG it ends nearer.
+- The next entry is METHOD, unless it starts nearer the NOTES header once the amounts' drift is taken into account; then it starts the note.
+- Anything after METHOD is the note.
+
+`retotal` rewrites drifted rows lined up and lists them in yellow on stderr, so you can check where each entry landed:
 
 ```
-retotal: budget.txt: column spacing has drifted; line up each entry under its header and rerun:
-  line 5: Internet
+retotal: realigned 2 rows whose spacing had drifted; check them:
+  line 28: Tech - AI OpenAI ChatGPT/Codex
+  line 29: Tech - AI Anthropic Claude Code
 ```
 
 If the signature is missing or altered, `retotal` errors immediately — before any computation, leaving the file untouched — and prints the exact line to add:
