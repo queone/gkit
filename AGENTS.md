@@ -85,9 +85,10 @@ Note: prefer wording that is easiest for an LLM to follow, while staying simple 
 - Use the active voice.
 - Use the passive voice only when the actor is unknown or unimportant.
 - Write complete sentences without dropping articles or verbs.
+- Exempt the terse status bullets that `## Review Style` requires from the complete-sentence limit.
 - Exempt code, commands, paths, identifiers, quoted text, and fixed lines that other AGENTS.md rules require from these limits.
 
-Note: these limits borrow from Simplified Technical English (ASD-STE100), and they supplement the repository's documentation style instead of replacing it.
+Note: these limits borrow from Simplified Technical English (ASD-STE100), and they supplement `### Plain Language` and `## Review Style` instead of replacing them.
 
 ### Session Entry
 

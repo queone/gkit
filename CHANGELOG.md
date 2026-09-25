@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.84.3 | AC116 adopt Govna governance files v0.68.0 |
 | 0.84.2 | AC115 adopt Govna governance files v0.67.0 |
 | 0.84.1 | retotal README METHOD examples add CHECKING and drop PRIME |
 | 0.84.0 | retotal v1.3.0 realigns drifted rows and lists them in yellow instead of failing |
