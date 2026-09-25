@@ -29,7 +29,7 @@ Options
 
 **Consolidation** — `FILE` is CSV or space-aligned input. `retotal` computes the summary and writes it to a stem-named text file (`budget.csv` → `budget.txt`) carrying the signature, then prints a hint. It errors without overwriting if the target `.txt` already exists.
 
-CSV input columns: TYPE, DESCRIPTION, MO/AVG, YR/AVG, METHOD, NOTES. METHOD records how each charge is paid, such as `DEBIT`, `PRIME`, or `CASH`; any single entry is accepted. It is optional, and any empty or missing METHOD becomes `-` in the output. Header names match in any case.
+CSV input columns: TYPE, DESCRIPTION, MO/AVG, YR/AVG, METHOD, NOTES. METHOD records how each charge is paid, such as `DEBIT`, `CASH`, or `CHECKING`; any single entry is accepted. It is optional, and any empty or missing METHOD becomes `-` in the output. Header names match in any case.
 
 ```csv
 TYPE,DESCRIPTION,MO/AVG,YR/AVG,METHOD,NOTES

@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.84.1 | retotal README METHOD examples add CHECKING and drop PRIME |
 | 0.84.0 | retotal v1.3.0 realigns drifted rows and lists them in yellow instead of failing |
 | 0.83.0 | AC114: retotal v1.2.0 adds a METHOD column, prints changed totals, flags drift |
 | 0.82.1 | AC113 adopt Govna governance files v0.66.0 |
