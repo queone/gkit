@@ -13,3 +13,4 @@ Ideas captured for future reference. A bullet list — each line starts with `- 
 - IE4: Probe with ICMP in lslan on Windows, which has no unprivileged ICMP socket, so it currently falls back to TCP-only probing there.
 - IE5: Add `-s, --server ADDR` to lslan so reverse-DNS lookups go to a named server, since a VPN resolver ahead of the router hides the router's names.
 - IE6: Fall back in lslan to the subnet's default gateway for reverse-DNS when the system resolver has no name; needs a per-platform route lookup and assumes the gateway serves DNS.
+- IE8: Fix the plan.md preamble: AC pointers live at govna/ac<N>-<slug>.md, and the "objective-fit rubric" it cites does not exist; current Govna canon's plan.md preamble has the corrected wording.
