@@ -1,5 +1,0 @@
-# Owners remain empty so this example contains no tenant identity data.
-kind: appRegistration
-name: example-attune-application
-owners: []
-servicePrincipal: true

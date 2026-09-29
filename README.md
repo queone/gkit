@@ -10,10 +10,8 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 
 ## Utilities
 
-- [`attune`](cmd/attune/README.md): Reconcile Azure state from YAML specs kept in an encrypted store.
 - [`bak`](cmd/bak/main.go): Create a dated backup copy of a file or directory.
 - [`brew-update`](cmd/brew-update/main.go): Update, upgrade, and clean up Homebrew formulae and casks.
-- [`cash5`](cmd/cash5/README.md): Recommend NJ Cash 5 numbers from the draw history.
 - [`certgen`](cmd/certgen/main.go): Generate a self-signed TLS certificate, private key, and CSR for a common name.
 - [`certls`](cmd/certls/main.go): Print the TLS certificate details of a host and port.
 - [`days`](cmd/days/README.md): Count calendar days between dates, or find the date N days away.
@@ -25,7 +23,6 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 - [`repoctl`](cmd/repoctl/README.md): Control a collection of local Git repositories.
 - [`jy`](cmd/jy/README.md): Convert JSON to YAML and YAML to JSON.
 - [`lslan`](cmd/lslan/README.md): List the live hosts on the local network.
-- [`macfit`](cmd/macfit/README.md): Keep Mac config files in one encrypted store and restore them on any Mac.
 - [`mdv`](cmd/mdv/README.md): View GitHub Flavored Markdown in a browser or write it as HTML.
 - [`namehunt`](cmd/namehunt/README.md): Find free usernames on any site with a predictable profile URL.
 - [`oidctok`](cmd/oidctok/README.md): Exchange a GitHub Actions OIDC token for Azure tokens.
@@ -37,7 +34,6 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 - [`rnlower`](cmd/rnlower/main.go): Rename every file in the current directory to lowercase.
 - [`sms`](cmd/sms/README.md): Send an SMS message through textbelt.com.
 - [`swatch`](cmd/swatch/README.md): Inspect the xterm 256-color palette and the color ramps.
-- [`tfe`](cmd/tfe/README.md): List, show, and clone Terraform Cloud workspaces, modules, and organizations.
 - [`tree`](cmd/tree/README.md): Print a directory tree, with each file's full path on request.
 - [`vconv`](cmd/vconv/README.md): Convert a video to an H.264 MP4 by driving ffmpeg.
 - [`vdrop`](cmd/vdrop/README.md): Drop one section of a video and join the rest by driving ffmpeg.
@@ -45,6 +41,14 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 - [`vkeep`](cmd/vkeep/README.md): Keep one section of a video by driving ffmpeg.
 - [`vshrink`](cmd/vshrink/README.md): Shrink an MP4 by re-encoding it at a high compression level via ffmpeg.
 - [`web`](cmd/web/README.md): Search DuckDuckGo and open a result picked with a fuzzy finder.
+
+## Moved Utilities
+
+These utilities left gkit for repositories of their own:
+
+- [`attune`](https://github.com/queone/attune): Reconcile Azure state from YAML specs kept in an encrypted store.
+- [`macfit`](https://github.com/queone/macfit): Keep Mac config files in one encrypted store and restore them on any Mac.
+- [`tfe`](https://github.com/queone/tfe): List, show, and clone Terraform Cloud workspaces, modules, and organizations.
 
 ## Quick Install
 With Go installed, install all utilities at once:
