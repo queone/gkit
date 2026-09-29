@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.85.0 | AC117: cash5 v0.17.0 recommends 4 variations of one vote-blended set |
 | 0.84.3 | AC116 adopt Govna governance files v0.68.0 |
 | 0.84.2 | AC115 adopt Govna governance files v0.67.0 |
 | 0.84.1 | retotal README METHOD examples add CHECKING and drop PRIME |

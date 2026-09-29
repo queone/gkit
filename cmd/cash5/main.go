@@ -17,7 +17,7 @@ import (
 
 const (
 	programName     = "cash5"
-	programVersion  = "0.16.0"
+	programVersion  = "0.17.0"
 	lottery_warning = "This is basically lighting money on fire! Play for fun, not profit 😀"
 )
 
@@ -237,7 +237,7 @@ func runDailyWithRand() error {
 	for _, rec := range recommendations {
 		numStr := fmt.Sprintf("%02d-%02d-%02d-%02d-%02d",
 			rec.numbers[0], rec.numbers[1], rec.numbers[2], rec.numbers[3], rec.numbers[4])
-		fmt.Printf("    %s  %s\n", color.Grn3(numStr), color.Gra5(rec.strategy))
+		fmt.Printf("    %s  %s\n", color.Grn3(numStr), color.Gra5(rec.label))
 	}
 
 	fmt.Printf("\n  %s\n", color.Red3(lottery_warning))
@@ -364,15 +364,108 @@ func buildWinnersSet(draws []Draw) map[[5]int]bool {
 }
 
 type recommendation struct {
-	numbers  []int
-	strategy string
+	numbers []int
+	label   string
 }
 
-// generateRecommendations creates 4 recommendations based on statistical
-// analysis. Every returned combination is absent from the winners set; on
-// collision each strategy performs a deterministic single-element swap to the
-// next-ranked alternative within its own ranking.
+// generateRecommendations builds the 4 strategy source sets, blends them by
+// vote into one set, and returns 4 variations of that blend. Every returned
+// combination is absent from the winners set.
 func generateRecommendations(uniqueDraws []Draw, winners map[[5]int]bool) []recommendation {
+	sources, allTime := generateSourceSets(uniqueDraws, winners)
+	sets := make([][]int, len(sources))
+	for i, s := range sources {
+		sets[i] = s.numbers
+	}
+	return blendVariations(candidateOrder(sets, allTime), winners)
+}
+
+// candidateOrder ranks every number in the 1-45 pool by how many source sets
+// hold it, then by its all-time draw count, then by the number itself. The
+// first 5 numbers form the blend; the rest are replacements, best first.
+func candidateOrder(sources [][]int, allTime map[int]int) []int {
+	votes := make(map[int]int)
+	for _, s := range sources {
+		for _, n := range s {
+			votes[n]++
+		}
+	}
+	order := make([]int, 0, 45)
+	for n := 1; n <= 45; n++ {
+		order = append(order, n)
+	}
+	sort.Slice(order, func(i, j int) bool {
+		a, b := order[i], order[j]
+		if votes[a] != votes[b] {
+			return votes[a] > votes[b]
+		}
+		if allTime[a] != allTime[b] {
+			return allTime[a] > allTime[b]
+		}
+		return a < b
+	})
+	return order
+}
+
+// blendVariations returns 4 variations of the blend, which is the first 5
+// numbers of order. Variation k replaces the k-th weakest blend number with
+// the first replacement number that no earlier variation used and that makes
+// a combination absent from winners. When no replacement works, the variation
+// falls back to a random unwon combo.
+func blendVariations(order []int, winners map[[5]int]bool) []recommendation {
+	blend, replacements := order[:5], order[5:]
+	used := make(map[int]bool)
+	recs := make([]recommendation, 0, 4)
+	for k := range 4 {
+		drop := blend[4-k]
+		var rec *recommendation
+		for _, add := range replacements {
+			if used[add] {
+				continue
+			}
+			combo := swapNumber(blend, drop, add)
+			if winners[comboKey(combo)] {
+				continue
+			}
+			used[add] = true
+			rec = &recommendation{combo, fmt.Sprintf("Blend, %02d -> %02d", drop, add)}
+			break
+		}
+		if rec == nil {
+			fmt.Fprintln(os.Stderr, "cash5: blend replacements exhausted; falling back to random unwon combo")
+			rec = &recommendation{generateRandomUnwonCombo(winners), "Random, never won"}
+		}
+		recs = append(recs, *rec)
+	}
+	return recs
+}
+
+// swapNumber returns a sorted copy of set with drop replaced by add.
+func swapNumber(set []int, drop, add int) []int {
+	combo := make([]int, 0, len(set))
+	for _, n := range set {
+		if n == drop {
+			n = add
+		}
+		combo = append(combo, n)
+	}
+	sort.Ints(combo)
+	return combo
+}
+
+// comboKey returns the winners-set key for a sorted 5-number combination.
+func comboKey(combo []int) [5]int {
+	var key [5]int
+	copy(key[:], combo)
+	return key
+}
+
+// generateSourceSets creates the 4 strategy source sets based on statistical
+// analysis, and returns them with the all-time draw count of every number.
+// Every source set is absent from the winners set; on collision each strategy
+// performs a deterministic single-element swap to the next-ranked alternative
+// within its own ranking.
+func generateSourceSets(uniqueDraws []Draw, winners map[[5]int]bool) ([]recommendation, map[int]int) {
 	// Build frequency maps
 	overallFreq := make(map[int]int)
 	firstNumFreq := make(map[int]int)
@@ -444,7 +537,7 @@ func generateRecommendations(uniqueDraws []Draw, winners map[[5]int]bool) []reco
 		recs = append(recs, recommendation{combo, "Least common by position"})
 	}
 
-	return recs
+	return recs, overallFreq
 }
 
 // firstUnwonFromTopK enumerates ascending 5-index subsets of the top-K ranked
@@ -589,7 +682,7 @@ func helpDoc() help.Doc {
 				"Without options " + programName + " will",
 				"1. Display the last 10 draws",
 				"2. Show current jackpot, last winning numbers, and closest matches",
-				"3. Recommend 4 sets of numbers based on statistics",
+				"3. Blend 4 statistical sets into one and recommend 4 variations of it",
 				"",
 				color.Red3(lottery_warning),
 			}},
