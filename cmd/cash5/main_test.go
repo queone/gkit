@@ -64,3 +64,35 @@ func TestWebsiteLineEndsTheBareRun(t *testing.T) {
 		t.Errorf("colored = %q", got)
 	}
 }
+
+// The help screen offers no backfill flag, and Default step 1 names the cutoff.
+func TestHelpHasNoBackfillFlagAndNamesTheCutoff(t *testing.T) {
+	u := usage()
+	for _, gone := range []string{"\n  -f ", programName + " -f"} {
+		if strings.Contains(u, gone) {
+			t.Errorf("help still offers %q", strings.TrimSpace(gone))
+		}
+	}
+	if want := "1. Fetch any missing draws since 2020-06-29, then display the last 10 draws"; !strings.Contains(u, want) {
+		t.Errorf("help lacks %q", want)
+	}
+}
+
+// -d refuses a date before the cutoff and shows a draw on the cutoff date. The
+// draw sits at noon UTC so its local date is 2020-06-29 in nearly every zone.
+func TestDebugDrawByDateHonorsTheCutoff(t *testing.T) {
+	draws := []Draw{synthDraw("c1", cash5EraStartMillis+8*3_600_000, [5]int{21, 24, 25, 27, 45})}
+	err := debugDrawByDate(draws, "2020-06-28")
+	if err == nil || !strings.Contains(err.Error(), "before 2020-06-29") {
+		t.Errorf("err = %v, want a refusal naming 2020-06-29", err)
+	}
+	out := captureStdout(t, func() {
+		err = debugDrawByDate(draws, "2020-06-29")
+	})
+	if err != nil {
+		t.Errorf("err = %v, want nil at the cutoff", err)
+	}
+	if !strings.Contains(out, "Draw for 2020-06-29") {
+		t.Errorf("stdout = %q, want the cutoff draw", out)
+	}
+}

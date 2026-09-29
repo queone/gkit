@@ -139,3 +139,50 @@ func TestMergeDrawsPrefersAPIRows(t *testing.T) {
 		t.Fatalf("duplicate not collapsed or unsorted: %+v", got)
 	}
 }
+
+var nowSep29 = time.Date(2026, 9, 29, 12, 0, 0, 0, easternTime())
+
+// An empty store backfills from the cutoff to now in back-to-back windows of
+// at most one year each.
+func TestBackfillWindowsCoverAnEmptyStoreFromTheCutoff(t *testing.T) {
+	windows := backfillWindows(nil, nowSep29)
+	if len(windows) != 7 {
+		t.Fatalf("got %d windows, want 7 (2020-06-29 to 2026-09-29): %v", len(windows), windows)
+	}
+	if cutoff := time.UnixMilli(cash5EraStartMillis); !windows[0].from.Equal(cutoff) {
+		t.Errorf("first window starts %v, want the cutoff %v", windows[0].from, cutoff)
+	}
+	if last := windows[len(windows)-1]; !last.to.Equal(nowSep29) {
+		t.Errorf("last window ends %v, want now %v", last.to, nowSep29)
+	}
+	for i, w := range windows {
+		if w.to.Before(w.from) || !w.to.Before(w.from.AddDate(1, 0, 0)) {
+			t.Errorf("window %d %v to %v is empty or longer than a year", i, w.from, w.to)
+		}
+		if i > 0 && !w.from.Equal(windows[i-1].to.Add(time.Millisecond)) {
+			t.Errorf("window %d starts %v, want right after %v", i, w.from, windows[i-1].to)
+		}
+	}
+}
+
+// A store that starts after the cutoff backfills only the gap before it.
+func TestBackfillWindowsFillTheGapBeforeTheOldestDraw(t *testing.T) {
+	oldest := apiRow("1", "2021-03-01", "1", "2", "3", "4", "5")
+	windows := backfillWindows([]Draw{apiRow("2", "2021-03-02", "1", "2", "3", "4", "5"), oldest}, nowSep29)
+	if len(windows) != 1 {
+		t.Fatalf("got %d windows, want 1: %v", len(windows), windows)
+	}
+	if cutoff := time.UnixMilli(cash5EraStartMillis); !windows[0].from.Equal(cutoff) {
+		t.Errorf("window starts %v, want the cutoff %v", windows[0].from, cutoff)
+	}
+	if want := time.UnixMilli(oldest.DrawTime).Add(-time.Millisecond); !windows[0].to.Equal(want) {
+		t.Errorf("window ends %v, want %v", windows[0].to, want)
+	}
+}
+
+// A store that already starts at the cutoff needs no backfill.
+func TestBackfillWindowsAreEmptyWhenTheStoreStartsAtTheCutoff(t *testing.T) {
+	if windows := backfillWindows(tailRows("2020-06-29", "2020-07-05", nil, nil), nowSep29); windows != nil {
+		t.Errorf("got windows %v, want none", windows)
+	}
+}

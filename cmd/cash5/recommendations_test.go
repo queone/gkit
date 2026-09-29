@@ -168,19 +168,41 @@ func TestBlendIsFirstFiveCandidatesSorted(t *testing.T) {
 	}
 }
 
+// The example blend 03-05-17-19-28 holds no number above 31, so its two
+// weakest numbers, 17 then 05, give way to the best-ranked high numbers, 33
+// and 40. The demoted numbers lead the replacement list.
+func TestRaiseBlendAddsHighNumbersOnlyWhenNeeded(t *testing.T) {
+	raised := raiseBlend(candidateOrder(exampleSources, exampleAllTime))
+	if got, want := raised[:5], []int{19, 3, 28, 33, 40}; !slices.Equal(got, want) {
+		t.Errorf("raised blend = %v, want %v", got, want)
+	}
+	if got, want := raised[5:9], []int{5, 17, 1, 18}; !slices.Equal(got, want) {
+		t.Errorf("first replacements = %v, want %v", got, want)
+	}
+	if len(raised) != 45 {
+		t.Errorf("len(raised) = %d, want 45", len(raised))
+	}
+
+	set := []int{2, 9, 20, 33, 41}
+	order := candidateOrder([][]int{set, set, set, set}, nil)
+	if got := raiseBlend(order); !slices.Equal(got, order) {
+		t.Errorf("blend %v already holds 2 numbers above 31 but changed to %v", set, got[:5])
+	}
+}
+
 func TestBlendVariationsSwapWeakestFirst(t *testing.T) {
 	order := candidateOrder(exampleSources, exampleAllTime)
 	recs := blendVariations(order, map[[5]int]bool{})
 	want := []recommendation{
-		{[]int{1, 3, 5, 19, 28}, "Blend, 17 -> 01"},
-		{[]int{3, 17, 18, 19, 28}, "Blend, 05 -> 18"},
-		{[]int{3, 5, 7, 17, 19}, "Blend, 28 -> 07"},
-		{[]int{5, 8, 17, 19, 28}, "Blend, 03 -> 08"},
+		{[]int{3, 19, 28, 33, 43}, "Blend, 40 -> 43"},
+		{[]int{3, 19, 28, 40, 44}, "Blend, 33 -> 44"},
+		{[]int{3, 5, 19, 33, 40}, "Blend, 28 -> 05"},
+		{[]int{17, 19, 28, 33, 40}, "Blend, 03 -> 17"},
 	}
 	if len(recs) != len(want) {
 		t.Fatalf("len(recs) = %d, want %d", len(recs), len(want))
 	}
-	blend := order[:5]
+	blend := raiseBlend(order)[:5]
 	for i, r := range recs {
 		if !slices.Equal(r.numbers, want[i].numbers) || r.label != want[i].label {
 			t.Errorf("recs[%d] = %v %q, want %v %q", i, r.numbers, r.label, want[i].numbers, want[i].label)
@@ -190,6 +212,9 @@ func TestBlendVariationsSwapWeakestFirst(t *testing.T) {
 		}
 		if !slices.Contains(r.numbers, blend[0]) {
 			t.Errorf("recs[%d] %v lacks the strongest blend number %d", i, r.numbers, blend[0])
+		}
+		if n := countAboveCeiling(r.numbers); n < minAboveCeiling {
+			t.Errorf("recs[%d] %v holds %d numbers above 31, want at least 2", i, r.numbers, n)
 		}
 		for j := range i {
 			if slices.Equal(r.numbers, recs[j].numbers) {
@@ -201,14 +226,14 @@ func TestBlendVariationsSwapWeakestFirst(t *testing.T) {
 
 func TestBlendVariationsRetryPastWinner(t *testing.T) {
 	order := candidateOrder(exampleSources, exampleAllTime)
-	// Poison variation 1's first choice (17 -> 01).
-	winners := map[[5]int]bool{{1, 3, 5, 19, 28}: true}
+	// Poison variation 1's first choice (40 -> 43).
+	winners := map[[5]int]bool{{3, 19, 28, 33, 43}: true}
 	recs := blendVariations(order, winners)
 	wantLabels := []string{
-		"Blend, 17 -> 18",
-		"Blend, 05 -> 01",
-		"Blend, 28 -> 07",
-		"Blend, 03 -> 08",
+		"Blend, 40 -> 44",
+		"Blend, 33 -> 43",
+		"Blend, 28 -> 05",
+		"Blend, 03 -> 17",
 	}
 	added := make(map[string]bool)
 	for i, r := range recs {
@@ -278,16 +303,21 @@ func TestGenerateRecommendationsReturnsBlendVariations(t *testing.T) {
 		if winners[sortedKey(r.numbers)] {
 			t.Errorf("recs[%d] %v is a historical winner", i, r.numbers)
 		}
+		if n := countAboveCeiling(r.numbers); n < minAboveCeiling {
+			t.Errorf("recs[%d] %v holds %d numbers above 31, want at least 2", i, r.numbers, n)
+		}
 		checkValidCombo(t, r.numbers)
 	}
 }
 
 func TestBlendVariationsFallBackToRandomNeverWon(t *testing.T) {
 	order := candidateOrder(exampleSources, exampleAllTime)
-	// Poison every replacement for variation 1, which drops 17.
+	// Poison every replacement for variation 1, which drops 40 from the
+	// raised blend.
+	raised := raiseBlend(order)
 	winners := make(map[[5]int]bool)
-	for _, add := range order[5:] {
-		winners[comboKey(swapNumber(order[:5], 17, add))] = true
+	for _, add := range raised[5:] {
+		winners[comboKey(swapNumber(raised[:5], 40, add))] = true
 	}
 	var recs []recommendation
 	stderr := captureStderr(t, func() {
@@ -301,6 +331,9 @@ func TestBlendVariationsFallBackToRandomNeverWon(t *testing.T) {
 	}
 	if winners[sortedKey(recs[0].numbers)] {
 		t.Errorf("fallback %v is a past winner", recs[0].numbers)
+	}
+	if n := countAboveCeiling(recs[0].numbers); n < minAboveCeiling {
+		t.Errorf("fallback %v holds %d numbers above 31, want at least 2", recs[0].numbers, n)
 	}
 	checkValidCombo(t, recs[0].numbers)
 	if !strings.Contains(stderr, "falling back to random unwon combo") {
@@ -398,7 +431,7 @@ func TestRecommendationPreamblePrinted(t *testing.T) {
 	out := captureStdout(t, func() {
 		fmt.Printf("    %s\n", recommendationPreamble)
 	})
-	if !strings.Contains(out, "(none of these has previously won)") {
+	if !strings.Contains(out, "(none of these has won since 2020-06-29, and each has at least 2 numbers above 31)") {
 		t.Errorf("preamble missing: %q", out)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,7 +18,7 @@ import (
 
 const (
 	programName     = "cash5"
-	programVersion  = "0.17.0"
+	programVersion  = "0.18.0"
 	lottery_warning = "This is basically lighting money on fire! Play for fun, not profit 😀"
 )
 
@@ -38,33 +39,16 @@ func runDailyWithRand() error {
 		fmt.Printf("%s\n", color.Red3("Internet is unreachable — showing cached data"))
 	}
 
-	// Auto-fetch if no data or data is too old (more than 7 days)
-	needsFetch := false
-	if len(existing) == 0 {
-		if online {
-			fmt.Println("Empty local draws.json file. Fetching last 365 drawings...")
-			needsFetch = true
-		}
-	} else {
-		// Check if newest draw is more than 7 days old
-		sort.Slice(existing, func(i, j int) bool { return existing[i].DrawTime < existing[j].DrawTime })
-		newest := time.UnixMilli(existing[len(existing)-1].DrawTime)
-		weekAgo := time.Now().AddDate(0, 0, -7)
-
-		if newest.Before(weekAgo) && online {
-			fmt.Printf("Data is outdated (newest draw: %s). Fetching recent data...\n",
-				narrativeDate(newest))
-			needsFetch = true
-		}
-	}
-
-	if needsFetch {
-		allDraws, err := fetchAllDrawsIncremental(existing, saveDrawsCallback)
+	// Fill the history back to the cutoff (only when online). An empty store
+	// fetches every draw from the cutoff to now.
+	if windows := backfillWindows(existing, time.Now()); online && len(windows) > 0 {
+		fmt.Printf("Fetching missing draws since %s...\n", cash5EraStartDate)
+		filled, err := backfillDraws(existing, windows, saveDrawsCallback)
+		existing = filled
 		if err != nil {
-			return fmt.Errorf("failed to fetch draws: %w", err)
+			fmt.Printf("Warning: failed to fetch missing draws: %v (the next run retries)\n", err)
 		}
-		existing = allDraws
-		fmt.Println()
+		fmt.Printf("Total in database: %d\n\n", len(existing))
 	}
 
 	// Fetch all missing recent draws up to yesterday (only when online).
@@ -247,8 +231,9 @@ func runDailyWithRand() error {
 }
 
 // recommendationPreamble is the line printed under the RECOMMENDATION header
-// asserting that none of the listed combinations has won previously.
-const recommendationPreamble = "(none of these has previously won)"
+// asserting that none of the listed combinations has won since the cutoff and
+// that each holds at least minAboveCeiling numbers above popularCeiling.
+const recommendationPreamble = "(none of these has won since " + cash5EraStartDate + ", and each has at least 2 numbers above 31)"
 
 // websiteURL is the official Jersey Cash 5 page, printed as the bare run's last line.
 const websiteURL = "https://www.njlottery.com/en-us/drawgames/jerseycash.html"
@@ -407,12 +392,64 @@ func candidateOrder(sources [][]int, allTime map[int]int) []int {
 	return order
 }
 
+// Players favor numbers up to popularCeiling (the days of a month), so every
+// recommended set holds at least minAboveCeiling numbers above it. That leaves
+// the odds unchanged but splits a won jackpot less often.
+const (
+	popularCeiling  = 31
+	minAboveCeiling = 2
+)
+
+// countAboveCeiling counts the numbers in combo above popularCeiling.
+func countAboveCeiling(combo []int) int {
+	n := 0
+	for _, v := range combo {
+		if v > popularCeiling {
+			n++
+		}
+	}
+	return n
+}
+
+// raiseBlend returns order with its first 5 numbers, the blend, holding at
+// least minAboveCeiling numbers above popularCeiling: while the blend falls
+// short, its weakest number at or below the ceiling gives way to the
+// best-ranked number above it. The blend stays in rank order, and every other
+// number keeps its rank order as the replacement list.
+func raiseBlend(order []int) []int {
+	blend := slices.Clone(order[:5])
+	for countAboveCeiling(blend) < minAboveCeiling {
+		weakest := len(blend) - 1
+		for blend[weakest] > popularCeiling {
+			weakest--
+		}
+		for _, n := range order[5:] {
+			if n > popularCeiling && !slices.Contains(blend, n) {
+				blend[weakest] = n
+				break
+			}
+		}
+	}
+	raised := make([]int, 0, len(order))
+	var rest []int
+	for _, n := range order {
+		if slices.Contains(blend, n) {
+			raised = append(raised, n)
+		} else {
+			rest = append(rest, n)
+		}
+	}
+	return append(raised, rest...)
+}
+
 // blendVariations returns 4 variations of the blend, which is the first 5
-// numbers of order. Variation k replaces the k-th weakest blend number with
-// the first replacement number that no earlier variation used and that makes
-// a combination absent from winners. When no replacement works, the variation
-// falls back to a random unwon combo.
+// numbers of order after raiseBlend. Variation k replaces the k-th weakest
+// blend number with the first replacement number that no earlier variation
+// used and that makes a combination absent from winners with at least
+// minAboveCeiling numbers above popularCeiling. When no replacement works, the
+// variation falls back to a random combo that meets the same two rules.
 func blendVariations(order []int, winners map[[5]int]bool) []recommendation {
+	order = raiseBlend(order)
 	blend, replacements := order[:5], order[5:]
 	used := make(map[int]bool)
 	recs := make([]recommendation, 0, 4)
@@ -424,7 +461,7 @@ func blendVariations(order []int, winners map[[5]int]bool) []recommendation {
 				continue
 			}
 			combo := swapNumber(blend, drop, add)
-			if winners[comboKey(combo)] {
+			if winners[comboKey(combo)] || countAboveCeiling(combo) < minAboveCeiling {
 				continue
 			}
 			used[add] = true
@@ -433,7 +470,7 @@ func blendVariations(order []int, winners map[[5]int]bool) []recommendation {
 		}
 		if rec == nil {
 			fmt.Fprintln(os.Stderr, "cash5: blend replacements exhausted; falling back to random unwon combo")
-			rec = &recommendation{generateRandomUnwonCombo(winners), "Random, never won"}
+			rec = &recommendation{generateRandomUnwonHighCombo(winners), "Random, never won"}
 		}
 		recs = append(recs, *rec)
 	}
@@ -647,6 +684,18 @@ func firstUnwonByPositionSwap(perPos [5][]numCount, winners map[[5]int]bool, max
 	return generateRandomUnwonCombo(winners)
 }
 
+// generateRandomUnwonHighCombo returns a random combo absent from winners that
+// holds at least minAboveCeiling numbers above popularCeiling. Half of all
+// combos qualify, so the loop ends after a few tries.
+func generateRandomUnwonHighCombo(winners map[[5]int]bool) []int {
+	for {
+		combo := generateRandomCombo()
+		if !winners[comboKey(combo)] && countAboveCeiling(combo) >= minAboveCeiling {
+			return combo
+		}
+	}
+}
+
 // generateRandomUnwonCombo returns a random 5-number combo absent from winners.
 // After a hard cap of 1000 attempts (statistically unreachable) it returns the
 // final random combo unconditionally.
@@ -671,7 +720,6 @@ func helpDoc() help.Doc {
 		Sections: []help.Section{
 			{Title: "Usage", Rows: []help.Row{{Form: programName + " [options]", Meaning: "Show recent draws, the jackpot, closest matches, and recommended sets"}}},
 			{Title: "Options", Rows: []help.Row{
-				{Form: "-f", Meaning: "Backfill one more year of draws before the oldest stored draw"},
 				{Form: "-a", Meaning: "Display all previous drawings"},
 				{Form: "-s", Meaning: "Show statistics about historical data"},
 				{Form: "-m [N]", Meaning: "Show closest-match analysis for last N drawings (default: 30)"},
@@ -680,7 +728,7 @@ func helpDoc() help.Doc {
 			}},
 			{Title: "Default", Lines: []string{
 				"Without options " + programName + " will",
-				"1. Display the last 10 draws",
+				"1. Fetch any missing draws since " + cash5EraStartDate + ", then display the last 10 draws",
 				"2. Show current jackpot, last winning numbers, and closest matches",
 				"3. Blend 4 statistical sets into one and recommend 4 variations of it",
 				"",
@@ -688,7 +736,6 @@ func helpDoc() help.Doc {
 			}},
 			{Title: "Examples", Rows: []help.Row{
 				{Form: programName, Meaning: ""},
-				{Form: programName + " -f", Meaning: ""},
 				{Form: programName + " -s", Meaning: ""},
 				{Form: programName + " -m 50", Meaning: ""},
 				{Form: programName + " -o 100", Meaning: ""},
@@ -747,7 +794,6 @@ func runCLI() {
 		}
 	}
 
-	var fetchAll bool
 	var showVersion bool
 	var showAll bool
 	var showStats bool
@@ -771,36 +817,6 @@ func runCLI() {
 				if err := debugDrawByDate(existingDraws, debugDate); err != nil {
 					log.Fatal(err)
 				}
-				return
-			}
-
-			if fetchAll {
-				fmt.Println("Fetching all historical draws...")
-				fmt.Printf("%-33s  %7s  %12s\n", "PERIOD", "DRAWS", "GRAND TOTAL")
-
-				existingDraws, err := loadDraws()
-				if err != nil {
-					log.Fatal(err)
-				}
-
-				for {
-					beforeCount := len(existingDraws)
-
-					allDraws, err := fetchAllDrawsIncremental(existingDraws, saveDrawsCallback)
-					if err != nil {
-						log.Fatal(err)
-					}
-
-					newDrawsCount := len(allDraws) - beforeCount
-					if newDrawsCount == 0 {
-						fmt.Println("\nNo more historical data available.")
-						break
-					}
-
-					existingDraws = allDraws
-				}
-
-				fmt.Printf("\nFetch complete! Total draws in database: %d\n", len(existingDraws))
 				return
 			}
 
@@ -834,7 +850,6 @@ func runCLI() {
 		},
 	}
 
-	root.Flags().BoolVarP(&fetchAll, "fetch-all", "f", false, "Fetch new draws since last run (within last year)")
 	root.Flags().BoolVarP(&showAll, "all", "a", false, "Display all previous drawings")
 	root.Flags().BoolVarP(&showStats, "stats", "s", false, "Show statistics about historical data")
 	root.Flags().BoolVarP(&showVersion, "version", "v", false, "Print version and exit")

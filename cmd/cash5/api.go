@@ -415,33 +415,56 @@ func fetchDrawsByDateRange(from, to time.Time, existing []Draw, saveCallback fun
 	return all, nil
 }
 
-// fetchAllDrawsIncremental fetches draws in year-long chunks
-func fetchAllDrawsIncremental(existing []Draw, saveCallback func([]Draw) error) ([]Draw, error) {
-	var dateFrom, dateTo time.Time
+// backfillWindow is one API date range, from and to inclusive, that the
+// backfill step fetches.
+type backfillWindow struct {
+	from, to time.Time
+}
 
-	if len(existing) == 0 {
-		// First run: fetch last year (from 1 year ago to now)
-		dateTo = time.Now()
-		dateFrom = dateTo.AddDate(-1, 0, 0)
-	} else {
-		// Subsequent runs: fetch the year BEFORE the oldest draw
-		sort.Slice(existing, func(i, j int) bool { return existing[i].DrawTime < existing[j].DrawTime })
-		oldest := time.UnixMilli(existing[0].DrawTime)
-
-		// Fetch from (oldest - 1 year) to oldest
-		dateTo = oldest.Add(-time.Millisecond)
-		dateFrom = dateTo.AddDate(-1, 0, 0)
+// backfillWindows returns the date ranges holding the draws missing between
+// the cutoff and the oldest stored draw, or between the cutoff and now for an
+// empty store. The ranges run back to back from the cutoff, each at most one
+// year long. It returns nil when the oldest stored draw is at or before the
+// cutoff.
+func backfillWindows(draws []Draw, now time.Time) []backfillWindow {
+	end := now
+	if len(draws) > 0 {
+		oldest := draws[0].DrawTime
+		for _, d := range draws[1:] {
+			oldest = min(oldest, d.DrawTime)
+		}
+		if oldest <= cash5EraStartMillis {
+			return nil
+		}
+		end = time.UnixMilli(oldest).Add(-time.Millisecond)
 	}
+	var windows []backfillWindow
+	for from := time.UnixMilli(cash5EraStartMillis).In(easternTime()); !from.After(end); {
+		next := from.AddDate(1, 0, 0)
+		to := next.Add(-time.Millisecond)
+		if to.After(end) {
+			to = end
+		}
+		windows = append(windows, backfillWindow{from, to})
+		from = next
+	}
+	return windows
+}
 
-	beforeCount := len(existing)
-	allDraws, err := fetchDrawsByDateRange(dateFrom, dateTo, existing, saveCallback)
-	newCount := len(allDraws) - beforeCount
-
-	// Print summary line
-	periodStr := fmt.Sprintf("%s → %s", dateFrom.Format("2006-01-02"), dateTo.Format("2006-01-02"))
-	fmt.Printf("%-33s  %7d  %12d\n", periodStr, newCount, len(allDraws))
-
-	return allDraws, err
+// backfillDraws fetches each window in order, saving after every page, and
+// returns the stored draws merged with every fetched draw. On a failed window
+// it returns the draws gathered so far with the error, so the next run retries
+// the rest of the gap.
+func backfillDraws(existing []Draw, windows []backfillWindow, saveCallback func([]Draw) error) ([]Draw, error) {
+	all := existing
+	for _, w := range windows {
+		fetched, err := fetchDrawsByDateRange(w.from, w.to, all, saveCallback)
+		if err != nil {
+			return all, err
+		}
+		all = fetched
+	}
+	return all, nil
 }
 
 // fetchCurrentJackpot fetches the most recent draw (any status) to get the current jackpot

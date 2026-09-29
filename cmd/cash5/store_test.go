@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func captureStderr(t *testing.T, fn func()) string {
@@ -219,6 +220,18 @@ func TestColdStartReturnsEmpty(t *testing.T) {
 	}
 }
 
+// The cutoff is the first 1-45 pool draw, 2020-06-29 at midnight Eastern, and
+// the date text in messages names the same day.
+func TestCutoffIsTheFirst145PoolDraw(t *testing.T) {
+	want := time.Date(2020, 6, 29, 0, 0, 0, 0, easternTime()).UnixMilli()
+	if cash5EraStartMillis != want || cash5EraStartMillis != 1593403200000 {
+		t.Errorf("cash5EraStartMillis = %d, want %d and 1593403200000", cash5EraStartMillis, want)
+	}
+	if got := easternDate(cash5EraStartMillis); got != cash5EraStartDate {
+		t.Errorf("cash5EraStartDate = %q, want %q", cash5EraStartDate, got)
+	}
+}
+
 func TestPruneLegacyEraFiltersPreCutoff(t *testing.T) {
 	draws := []Draw{
 		{ID: "pre-1", DrawTime: 718430400000},                       // 1992-10-08
@@ -304,7 +317,7 @@ func TestLoadDrawsPrunesAndRewritesOnce(t *testing.T) {
 			t.Errorf("pre-cutoff row leaked: id=%s drawTime=%d", d.ID, d.DrawTime)
 		}
 	}
-	if !strings.Contains(firstStderr, "pruned 2 pre-2014-09-14 rows") {
+	if !strings.Contains(firstStderr, "pruned 2 pre-2020-06-29 rows") {
 		t.Errorf("stderr missing prune notice: %q", firstStderr)
 	}
 

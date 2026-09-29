@@ -13,7 +13,7 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 - [`attune`](cmd/attune/README.md): Reconcile Azure state from YAML specs kept in an encrypted store.
 - [`bak`](cmd/bak/main.go): Create a dated backup copy of a file or directory.
 - [`brew-update`](cmd/brew-update/main.go): Update, upgrade, and clean up Homebrew formulae and casks.
-- [`cash5`](cmd/cash5/main.go): Recommend NJ Cash 5 numbers from the draw history.
+- [`cash5`](cmd/cash5/README.md): Recommend NJ Cash 5 numbers from the draw history.
 - [`certgen`](cmd/certgen/main.go): Generate a self-signed TLS certificate, private key, and CSR for a common name.
 - [`certls`](cmd/certls/main.go): Print the TLS certificate details of a host and port.
 - [`days`](cmd/days/README.md): Count calendar days between dates, or find the date N days away.

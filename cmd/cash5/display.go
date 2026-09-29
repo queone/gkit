@@ -121,6 +121,10 @@ func debugDrawByDate(draws []Draw, dateStr string) error {
 	if err != nil {
 		return fmt.Errorf("invalid date format, use YYYY-MM-DD: %w", err)
 	}
+	if day := targetDate.Format("2006-01-02"); day < cash5EraStartDate {
+		return fmt.Errorf("DATE %s is before %s; cash5 covers only 1-45 pool draws, so use %s or later",
+			day, cash5EraStartDate, cash5EraStartDate)
+	}
 
 	// Deduplicate by draw ID first
 	seen := make(map[string]bool)

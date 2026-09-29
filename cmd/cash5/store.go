@@ -11,10 +11,14 @@ import (
 
 const programDataName = "cash5"
 
-// cash5EraStartMillis is the UnixMilli of 2014-09-14 00:00:00 UTC, the first
-// Cash 5 draw under the 1-45 pool. Pre-cutoff data (1-40 era) is pruned at
-// load and not retained.
-const cash5EraStartMillis int64 = 1410667200000
+// cash5EraStartMillis is the UnixMilli of 2020-06-29 00:00 Eastern (04:00
+// UTC), the first Cash 5 draw under the 1-45 pool. Draws before it predate the
+// 1-45 pool; they are pruned at load and not retained.
+const cash5EraStartMillis int64 = 1593403200000
+
+// cash5EraStartDate is the Eastern date of cash5EraStartMillis, used in every
+// message and help line that names the cutoff.
+const cash5EraStartDate = "2020-06-29"
 
 // xdgStateDir returns the user's XDG state directory, honoring
 // XDG_STATE_HOME when set to an absolute path and falling back to
@@ -159,13 +163,13 @@ func loadDraws() ([]Draw, error) {
 			fmt.Fprintf(os.Stderr, "%s: prune rewrite failed: %v\n", programDataName, err)
 			return pruned, nil
 		}
-		fmt.Fprintf(os.Stderr, "%s: pruned %d pre-2014-09-14 rows from %s\n", programDataName, removed, path)
+		fmt.Fprintf(os.Stderr, "%s: pruned %d pre-%s rows from %s\n", programDataName, removed, cash5EraStartDate, path)
 	}
 	return pruned, nil
 }
 
-// pruneLegacyEra filters out draws with DrawTime before cash5EraStartMillis
-// (the 1-40 era prior to the 2014-09-14 pool expansion). It returns the
+// pruneLegacyEra filters out draws with DrawTime before cash5EraStartMillis,
+// which predate the 1-45 pool and are not retained. It returns the
 // post-cutoff slice and the count removed. Input order is preserved.
 func pruneLegacyEra(draws []Draw) ([]Draw, int) {
 	if len(draws) == 0 {
