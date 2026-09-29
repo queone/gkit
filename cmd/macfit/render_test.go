@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/queone/gkit/internal/lockbox"
+	"github.com/queone/gkit/lockbox"
 )
 
 // renderFixture registers an unbound file, an unbound XDG file, a literal

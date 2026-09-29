@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/queone/gkit/internal/color"
-	"github.com/queone/gkit/internal/help"
-	"github.com/queone/gkit/internal/lockbox"
+	"github.com/queone/gkit/color"
+	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/lockbox"
 	"golang.org/x/term"
 )
 

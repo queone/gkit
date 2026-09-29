@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/queone/gkit/internal/color"
-	"github.com/queone/gkit/internal/lockbox"
+	"github.com/queone/gkit/color"
+	"github.com/queone/gkit/lockbox"
 )
 
 // configName is the entry name of the configuration file.

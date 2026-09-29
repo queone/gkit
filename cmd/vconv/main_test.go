@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 )
 
 type result struct {

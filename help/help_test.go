@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 )
 
 // No test here calls t.Parallel(): forceColor mutates package-level state in
-// internal/color.
+// color.
 
 func sample() Doc {
 	return Doc{
@@ -175,6 +175,26 @@ func TestCheckRejectsEachDefect(t *testing.T) {
 		err := d.Check()
 		if err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s: Check = %v, want error containing %q", c.name, err, c.want)
+		}
+	}
+}
+
+// Check accepts any repository URL that ends in the utility's name, so tools
+// in other repos pass the same standard, and rejects every other URL.
+func TestCheckAcceptsAnyRepositoryURLEndingInTheName(t *testing.T) {
+	for _, url := range []string{"github.com/queone/demo", URL("demo")} {
+		d := sample()
+		d.URL = url
+		if err := d.Check(); err != nil {
+			t.Errorf("url %q: Check = %v, want nil", url, err)
+		}
+	}
+	const want = "must have no scheme or spaces and end in /demo"
+	for _, url := range []string{"https://github.com/queone/demo", "github.com/queone/de mo", "github.com/que one/demo", "github.com/queone/other"} {
+		d := sample()
+		d.URL = url
+		if err := d.Check(); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("url %q: Check = %v, want error containing %q", url, err, want)
 		}
 	}
 }

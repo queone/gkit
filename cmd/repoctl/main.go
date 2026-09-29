@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/queone/gkit/internal/help"
+	"github.com/queone/gkit/help"
 	"io"
 	"os"
 	"os/exec"

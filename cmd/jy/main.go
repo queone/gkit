@@ -10,8 +10,8 @@ import (
 
 	goyaml "github.com/goccy/go-yaml"
 	"github.com/mattn/go-isatty"
-	icolor "github.com/queone/gkit/internal/color"
-	"github.com/queone/gkit/internal/help"
+	icolor "github.com/queone/gkit/color"
+	"github.com/queone/gkit/help"
 	"gopkg.in/yaml.v3"
 )
 

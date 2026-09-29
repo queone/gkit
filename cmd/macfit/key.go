@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/queone/gkit/internal/lockbox"
+	"github.com/queone/gkit/lockbox"
 )
 
 // cmdKey maintains the keychain item that holds the store's data key.

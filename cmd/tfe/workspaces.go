@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-tfe"
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 )
 
 // listAllWorkspaces walks every page of the organization's workspaces.

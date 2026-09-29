@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/queone/gkit/internal/help"
+	"github.com/queone/gkit/help"
 )
 
 // AT1 — parseOffset syntax, duration-independent.

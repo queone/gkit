@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-tfe"
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 )
 
 // unknownDate is printed when a module version cannot be read.

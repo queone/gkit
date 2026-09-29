@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 )
 
 func displayStatistics(draws []Draw) error {

@@ -124,6 +124,6 @@ Note: colors are xterm-256 index 231 with bold for the name and headings (one se
 ## Project Practices
 
 - Follow existing repo patterns unless an approved improvement says otherwise.
-- Render every utility's help through `internal/help`.
+- Render every utility's help through the `help` package.
 - Print `github.com/queone/gkit/tree/main/cmd/<name>` as the third help line.
 - Create `cmd/<name>/README.md` with a `### Usage` text block for every new utility.

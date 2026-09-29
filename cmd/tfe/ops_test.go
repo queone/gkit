@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-tfe"
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 )
 
 // fakeAPI serves canned pages and records every mutation.

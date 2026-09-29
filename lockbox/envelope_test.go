@@ -165,10 +165,10 @@ func TestWriteAtomicRenameFailureLeavesPreviousStore(t *testing.T) {
 
 func TestConflictCopies(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "macfit.store")
+	path := filepath.Join(dir, "vault.store")
 	for _, n := range []string{
-		"macfit.store", "macfit 2.store", "macfit (1).store", "macfit (conflicted copy 2026-09-09).store", "macfit-DESKTOP.store",
-		"macfit2.store", "macfit_old.store", ".macfit.store.tmp-x", "other.store", "macfit.store.bak", "macfit 2.txt",
+		"vault.store", "vault 2.store", "vault (1).store", "vault (conflicted copy 2026-09-09).store", "vault-DESKTOP.store",
+		"vault2.store", "vault_old.store", ".vault.store.tmp-x", "other.store", "vault.store.bak", "vault 2.txt",
 	} {
 		if err := os.WriteFile(filepath.Join(dir, n), []byte("x"), 0o600); err != nil {
 			t.Fatal(err)
@@ -176,10 +176,10 @@ func TestConflictCopies(t *testing.T) {
 	}
 	got := ConflictCopies(path)
 	want := []string{
-		filepath.Join(dir, "macfit (1).store"),
-		filepath.Join(dir, "macfit (conflicted copy 2026-09-09).store"),
-		filepath.Join(dir, "macfit 2.store"),
-		filepath.Join(dir, "macfit-DESKTOP.store"),
+		filepath.Join(dir, "vault (1).store"),
+		filepath.Join(dir, "vault (conflicted copy 2026-09-09).store"),
+		filepath.Join(dir, "vault 2.store"),
+		filepath.Join(dir, "vault-DESKTOP.store"),
 	}
 	if len(got) != len(want) {
 		t.Fatalf("conflict copies %v, want %v", got, want)
@@ -202,4 +202,27 @@ func dirNames(t *testing.T, dir string) []string {
 		names = append(names, e.Name())
 	}
 	return names
+}
+
+// Every store file opens with the MACFIT tag. Changing it would make every
+// existing store unreadable.
+func TestStoreFilesOpenWithTheFormatTag(t *testing.T) {
+	if formatTag != "MACFIT" {
+		t.Fatalf("formatTag = %q, want MACFIT", formatTag)
+	}
+	dir := t.TempDir()
+	st, _ := newTestStore(t, dir)
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.ReadFile(filepath.Join(dir, "vault.store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(file, []byte("MACFIT")) {
+		t.Errorf("store file starts %q, want MACFIT", file[:min(len(file), len(formatTag))])
+	}
 }

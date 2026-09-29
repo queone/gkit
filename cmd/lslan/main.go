@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/queone/gkit/internal/help"
+	"github.com/queone/gkit/help"
 )
 
 const (

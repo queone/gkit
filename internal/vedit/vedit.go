@@ -9,7 +9,7 @@ package vedit
 import (
 	"errors"
 	"fmt"
-	"github.com/queone/gkit/internal/help"
+	"github.com/queone/gkit/help"
 	"io"
 	"os"
 	"os/exec"
@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	color "github.com/queone/gkit/internal/color"
+	color "github.com/queone/gkit/color"
 	"github.com/queone/gkit/internal/numfmt"
 )
 

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 )
 
 // captureRun invokes a fresh app in-process, capturing stdout/stderr by

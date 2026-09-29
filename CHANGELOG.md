@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.87.0 | AC119: share help, color, and a tool-neutral lockbox as importable packages |
 | 0.86.0 | AC118: cash5 v0.18.0 keeps only 1-45 draws and 2 numbers above 31, adds README |
 | 0.85.0 | AC117: cash5 v0.17.0 recommends 4 variations of one vote-blended set |
 | 0.84.3 | AC116 adopt Govna governance files v0.68.0 |

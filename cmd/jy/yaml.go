@@ -7,7 +7,7 @@ import (
 
 	"github.com/goccy/go-yaml/lexer"
 	"github.com/goccy/go-yaml/token"
-	icolor "github.com/queone/gkit/internal/color"
+	icolor "github.com/queone/gkit/color"
 	"gopkg.in/yaml.v3"
 )
 

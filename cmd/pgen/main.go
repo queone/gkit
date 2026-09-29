@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/queone/gkit/internal/help"
+	"github.com/queone/gkit/help"
 	"github.com/sethvargo/go-diceware/diceware"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"

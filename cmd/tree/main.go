@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/queone/gkit/internal/color"
-	"github.com/queone/gkit/internal/help"
+	"github.com/queone/gkit/color"
+	"github.com/queone/gkit/help"
 )
 
 const (

@@ -18,7 +18,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/queone/gkit/internal/help"
+	"github.com/queone/gkit/help"
 	"io"
 	"net/http"
 	"net/url"

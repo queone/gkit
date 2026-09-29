@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/queone/gkit/internal/color"
-	"github.com/queone/gkit/internal/help"
-	"github.com/queone/gkit/internal/lockbox"
+	"github.com/queone/gkit/color"
+	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/lockbox"
 	"golang.org/x/term"
 )
 
@@ -65,7 +65,7 @@ func newApp() *app {
 		stdout:     os.Stdout,
 		stderr:     os.Stderr,
 		stdin:      os.Stdin,
-		keys:       lockbox.SecurityKeyStore{},
+		keys:       lockbox.SecurityKeyStore{Service: "macfit"},
 		env:        lockbox.EnvFromOS(),
 		host:       lockbox.Hostname(lockbox.DefaultExecutor, os.Hostname),
 		kdf:        lockbox.DefaultKDF,

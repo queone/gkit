@@ -15,7 +15,7 @@ func newTestStore(t *testing.T, dir string) (*Store, []byte) {
 	key := mustKey(t)
 	h := newTestHeader(t, key, "pw")
 	h.Generation = 0
-	st, err := Create(filepath.Join(dir, "macfit.store"), h, key)
+	st, err := Create(filepath.Join(dir, "vault.store"), h, key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,10 +42,10 @@ func TestStoreLifecycleWritesOnlyTheStoreFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	names := dirNames(t, dir)
-	if len(names) != 1 || names[0] != "macfit.store" {
-		t.Fatalf("directory holds %v, want only macfit.store", names)
+	if len(names) != 1 || names[0] != "vault.store" {
+		t.Fatalf("directory holds %v, want only vault.store", names)
 	}
-	info, err := os.Stat(filepath.Join(dir, "macfit.store"))
+	info, err := os.Stat(filepath.Join(dir, "vault.store"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestStoreLifecycleWritesOnlyTheStoreFile(t *testing.T) {
 		t.Fatalf("store mode %o, want 600", info.Mode().Perm())
 	}
 
-	re, err := Load(filepath.Join(dir, "macfit.store"), key)
+	re, err := Load(filepath.Join(dir, "vault.store"), key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestStoreSaveDetectsConcurrentWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 	st.Close()
-	path := filepath.Join(dir, "macfit.store")
+	path := filepath.Join(dir, "vault.store")
 	first, err := Load(path, key)
 	if err != nil {
 		t.Fatal(err)
@@ -214,7 +214,7 @@ func TestLoadRejectsWrongKeyAndForeignFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	st.Close()
-	path := filepath.Join(dir, "macfit.store")
+	path := filepath.Join(dir, "vault.store")
 	if _, err := Load(path, mustKey(t)); !errors.Is(err, ErrAuth) {
 		t.Fatalf("wrong key: got %v", err)
 	}
@@ -226,7 +226,7 @@ func TestLoadRejectsWrongKeyAndForeignFile(t *testing.T) {
 }
 
 // writeV1Store writes a store file in schema version 1 holding one entry
-// and one version, the layout macfit v1.x wrote.
+// and one version, the first schema layout.
 func writeV1Store(t *testing.T, path string, key []byte, h Header, version string) {
 	t.Helper()
 	db, conn, err := openMemory()
@@ -266,7 +266,7 @@ func writeV1Store(t *testing.T, path string, key []byte, h Header, version strin
 
 func TestLoadMigratesVersionOneInMemoryAndSaveWritesVersionTwo(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "macfit.store")
+	path := filepath.Join(dir, "vault.store")
 	key := mustKey(t)
 	h := newTestHeader(t, key, "pw")
 	h.Generation = 1
@@ -403,7 +403,7 @@ func TestSaveLoggedKeepsTheNewestRowsAndLooksThemUp(t *testing.T) {
 		t.Fatalf("log holds %d rows, want %d", n, saveLogLimit)
 	}
 
-	re, err := Load(filepath.Join(dir, "macfit.store"), key)
+	re, err := Load(filepath.Join(dir, "vault.store"), key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -434,7 +434,7 @@ func TestSaveLoggedKeepsTheNewestRowsAndLooksThemUp(t *testing.T) {
 
 func TestUnloggedSaveKeepsTheSaveLog(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "macfit.store")
+	path := filepath.Join(dir, "vault.store")
 	st, key := newTestStore(t, dir)
 	first, err := st.SaveLogged("np10", "init", time.Now())
 	if err != nil {

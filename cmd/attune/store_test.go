@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/queone/gkit/internal/color"
-	"github.com/queone/gkit/internal/lockbox"
+	"github.com/queone/gkit/color"
+	"github.com/queone/gkit/lockbox"
 )
 
 // testKDF keeps passphrase derivation fast in tests.

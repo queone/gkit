@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/queone/gkit/internal/lockbox"
+	"github.com/queone/gkit/lockbox"
 )
 
 // bindingFor resolves the host a new entry binds to: -H, -g, or this Mac.

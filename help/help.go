@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 )
 
 // URLPrefix is the repository path every utility's third help line starts with.
@@ -154,8 +155,8 @@ func (d Doc) Check() error {
 		return errors.New("help: description ends with a period")
 	case strings.Contains(d.Description, "\n"):
 		return errors.New("help: description spans more than one line")
-	case d.URL != URL(d.Name):
-		return fmt.Errorf("help: url %q is not %q", d.URL, URL(d.Name))
+	case strings.Contains(d.URL, "://") || strings.ContainsFunc(d.URL, unicode.IsSpace) || !strings.HasSuffix(d.URL, "/"+d.Name):
+		return fmt.Errorf("help: url %q must have no scheme or spaces and end in /%s", d.URL, d.Name)
 	case len(d.Sections) == 0 || d.Sections[0].Title != "Usage":
 		return errors.New("help: first section is not Usage")
 	}

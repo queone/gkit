@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/queone/gkit/internal/help"
+	"github.com/queone/gkit/help"
 	"io"
 	"math"
 	"os"

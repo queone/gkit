@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 )
 
 const mp4Format = "mov,mp4,m4a,3gp,3g2,mj2"

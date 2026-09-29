@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 )
 
 type runResult struct {

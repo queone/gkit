@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 )
 
 var fixedDay = time.Date(2026, time.September, 8, 12, 0, 0, 0, time.UTC)

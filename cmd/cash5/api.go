@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 
 	"golang.org/x/net/html"
 )

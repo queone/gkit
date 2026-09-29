@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/queone/gkit/internal/help"
+	"github.com/queone/gkit/help"
 	"os"
 	"strings"
 
-	icolor "github.com/queone/gkit/internal/color"
+	icolor "github.com/queone/gkit/color"
 )
 
 const (

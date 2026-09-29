@@ -14,7 +14,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/queone/gkit/internal/color"
+	"github.com/queone/gkit/color"
 )
 
 const (

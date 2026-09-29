@@ -1,6 +1,6 @@
 // Package lockbox seals a SQLite database inside an authenticated encryption
 // envelope, keeps the data key in the macOS login keychain, and maps store
-// entries to live paths. macfit is its first consumer.
+// entries to live paths.
 package lockbox
 
 import (
@@ -18,7 +18,10 @@ import (
 )
 
 const (
-	magic         = "MACFIT"
+	// formatTag opens every store file. The bytes come from macfit, the tool
+	// that created the format, and must not change, or every existing store
+	// becomes unreadable.
+	formatTag     = "MACFIT"
 	formatVersion = 1
 	// KeySize is the data key length in bytes.
 	KeySize     = chacha20poly1305.KeySize
@@ -26,7 +29,7 @@ const (
 	saltSize    = 16
 	nonceSize   = chacha20poly1305.NonceSizeX
 	wrappedSize = nonceSize + KeySize + chacha20poly1305.Overhead
-	headerSize  = len(magic) + 1 + 8 + keyIDSize + saltSize + 4 + 4 + 1 + wrappedSize + nonceSize
+	headerSize  = len(formatTag) + 1 + 8 + keyIDSize + saltSize + 4 + 4 + 1 + wrappedSize + nonceSize
 )
 
 // KDF holds the Argon2id parameters that derive the wrapping key from the
@@ -51,8 +54,8 @@ type Header struct {
 }
 
 var (
-	// ErrFormat reports a file that is not a macfit store.
-	ErrFormat = errors.New("not a macfit store")
+	// ErrFormat reports a file that is not an encrypted store.
+	ErrFormat = errors.New("not an encrypted store")
 	// ErrAuth reports a wrong data key or a damaged file.
 	ErrAuth = errors.New("store authentication failed: wrong key or damaged file")
 	// ErrPassphrase reports a recovery passphrase that does not unwrap the key.
@@ -126,7 +129,7 @@ func (h Header) UnwrapKey(passphrase []byte) ([]byte, error) {
 
 func (h Header) encode() []byte {
 	b := make([]byte, 0, headerSize)
-	b = append(b, magic...)
+	b = append(b, formatTag...)
 	b = append(b, formatVersion)
 	b = binary.BigEndian.AppendUint64(b, h.Generation)
 	b = append(b, h.KeyID[:]...)
@@ -142,10 +145,10 @@ func (h Header) encode() []byte {
 // ParseHeader reads the header of a store file. No key is needed.
 func ParseHeader(file []byte) (Header, error) {
 	var h Header
-	if len(file) < headerSize || string(file[:len(magic)]) != magic {
+	if len(file) < headerSize || string(file[:len(formatTag)]) != formatTag {
 		return h, ErrFormat
 	}
-	p := len(magic)
+	p := len(formatTag)
 	if file[p] != formatVersion {
 		return h, fmt.Errorf("%w: unsupported format version %d", ErrFormat, file[p])
 	}
@@ -257,8 +260,8 @@ func WriteAtomic(path string, data []byte, openedGen uint64) error {
 // ConflictCopies lists sync conflict copies beside path: every sibling that
 // starts with the store's stem, ends with its extension, and carries a suffix
 // between them that starts with a space, an opening parenthesis, or a hyphen,
-// the shapes sync clients produce: "macfit 2.store", "macfit (1).store",
-// "macfit (conflicted copy 2026-09-09).store", "macfit-DESKTOP.store".
+// the shapes sync clients produce: "vault 2.store", "vault (1).store",
+// "vault (conflicted copy 2026-09-09).store", "vault-DESKTOP.store".
 func ConflictCopies(path string) []string {
 	dir, base := filepath.Dir(path), filepath.Base(path)
 	ext := filepath.Ext(base)
