@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.88.1 | AC121: gkit v0.88.1 adopts Govna governance files v0.69.0 |
 | 0.88.0 | AC120: tfe, macfit, and attune move to their own repos; cash5 leaves gkit |
 | 0.87.0 | AC119: share help, color, and a tool-neutral lockbox as importable packages |
 | 0.86.0 | AC118: cash5 v0.18.0 keeps only 1-45 draws and 2 numbers above 31, adds README |
