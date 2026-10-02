@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.88.3 | AC123 adopt Govna governance files v0.71.0 |
 | 0.88.2 | AC122 adopt Govna governance files v0.70.0 |
 | 0.88.1 | AC121: gkit v0.88.1 adopts Govna governance files v0.69.0 |
 | 0.88.0 | AC120: tfe, macfit, and attune move to their own repos; cash5 leaves gkit |
