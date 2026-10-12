@@ -118,7 +118,9 @@ Note: colors are xterm-256 index 231 with bold for the name and headings (one se
 - Declare a non-empty `const programVersion` string literal in every installable `cmd/<name>/main.go`.
 - Validate every `programVersion` declaration through `build.sh` before compiling installable binaries.
 - Pin `staticcheck` to the repository-governed version and invoke the pinned installation path directly.
+- Bump the `go.mod` `go` directive and the `staticcheck` pin together, after the `staticcheck` release notes name the new Go version.
 - Treat `go vet` and `staticcheck` findings as build failures.
+- Build with the Go toolchain that `go.mod` declares; `build.sh` exports `GOTOOLCHAIN` from the `toolchain` or `go` directive.
 - Scan all `.go` and `.go.tmpl` files for stale import paths after a module rename.
 
 ## Project Practices

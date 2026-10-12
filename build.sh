@@ -13,6 +13,7 @@ set -euo pipefail
 
 _rel_tag_for_recovery=''
 _staticcheck_path=''
+_staticcheck_pin='honnef.co/go/tools/cmd/staticcheck@v0.8.2'
 _git_err=''
 _prep_warning=''
 _prep_cl_err=''
@@ -386,6 +387,9 @@ EOF
     }
   fi
 
+  printf '\n%s\n' "$(yel7 '==> Pin the Go toolchain from go.mod')"
+  printf '    GOTOOLCHAIN=%s\n' "${GOTOOLCHAIN:-}"
+
   printf '\n%s\n' "$(yel7 '==> Update go.mod to reflect actual dependencies')"
   run_streaming grn3 go mod tidy
 
@@ -444,7 +448,7 @@ EOF
   sc_out=$("$_staticcheck_path" "${scopes[@]}" 2>&1) || sc_rc=$?
   if [ "$sc_rc" -ne 0 ]; then
     printf '%s\n' "$sc_out" | write_indented
-    printf 'staticcheck found issues\n' >&2
+    _staticcheck_failure_hint "$sc_out"
     return 1
   elif ! _is_blank "$sc_out"; then
     printf '%s\n' "$sc_out" | write_indented
@@ -620,6 +624,26 @@ _validate_utility_version_output() { # $1=binary $2=utility ID $3=declared versi
   rm -rf "$probe_dir"
 }
 
+_pin_go_toolchain() { # exports GOTOOLCHAIN from go.mod's toolchain or go directive; otherwise leaves it untouched
+  local line directive='' toolchain=''
+  [ -f go.mod ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+    toolchain\ * | toolchain"$(printf '\t')"*) [ -n "$toolchain" ] || toolchain=$(_trim "${line#toolchain}") ;;
+    go\ * | go"$(printf '\t')"*) [ -n "$directive" ] || directive=$(_trim "${line#go}") ;;
+    esac
+  done <go.mod
+  if [ -n "$toolchain" ]; then
+    case "$toolchain" in
+    go[0-9]*) export GOTOOLCHAIN="$toolchain" ;;
+    esac
+    return 0
+  fi
+  [ -n "$directive" ] || return 0
+  if printf '%s' "$directive" | LC_ALL=C grep -Eq '^[0-9]+\.[0-9]+$'; then directive="$directive.0"; fi
+  export GOTOOLCHAIN="go$directive"
+}
+
 _module_path() { # -> go.mod module path without a trailing major-version segment, or empty
   local line
   [ -f go.mod ] || { printf ''; return; }
@@ -776,10 +800,22 @@ _ensure_staticcheck() { # $1=bin_dir $2=ext -> sets _staticcheck_path; stdout ms
   # match buildtool's step output; the result path is returned via a global so
   # this function is not run inside a command substitution.
   local bin_dir="$1" ext="$2"
-  local pinned='honnef.co/go/tools/cmd/staticcheck@v0.8.1'
-  printf '    installing: %s\n' "$(grn3 "$pinned")"
-  run_streaming grn3 go install "$pinned"
+  printf '    installing: %s\n' "$(grn3 "$_staticcheck_pin")"
+  run_streaming grn3 go install "$_staticcheck_pin"
   _staticcheck_path="$bin_dir/staticcheck$ext"
+}
+
+_staticcheck_failure_hint() { # $1=staticcheck output -> stderr: export-data hint, or the plain failure line
+  # A Go toolchain whose export data the pinned staticcheck cannot decode fails
+  # every import with the same message. Name the pin, the active toolchain, and
+  # both remedies instead of reporting it as ordinary findings.
+  local version="${_staticcheck_pin##*@}"
+  if printf '%s\n' "$1" | LC_ALL=C grep -Eq 'export data version [0-9]+ is greater than maximum supported version [0-9]+'; then
+    printf 'staticcheck %s cannot decode export data from GOTOOLCHAIN=%s\n' "$version" "${GOTOOLCHAIN:-auto}" >&2
+    printf 'fix: keep go.mod on a Go version this staticcheck release supports, or bump the staticcheck pin in build.sh after its release notes name this Go version\n' >&2
+  else
+    printf 'staticcheck found issues\n' >&2
+  fi
 }
 
 _next_patch_tag() {
@@ -2228,6 +2264,7 @@ EOF
 
 main() {
   _color_init
+  _pin_go_toolchain
 
   if [ "${1:-}" = prep ]; then
     shift

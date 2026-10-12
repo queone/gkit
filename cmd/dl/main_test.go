@@ -34,14 +34,26 @@ func mustParse(t *testing.T, args ...string) dlOptions {
 	return o
 }
 
-func TestDefaultDownloadCapsAt360p(t *testing.T) {
+// The default selector tries the 360p rung in landscape, then the same rung
+// in portrait, then falls back to the smallest split or muxed format.
+func TestDefaultDownloadCapsAt360pInEitherOrientation(t *testing.T) {
 	got := ytDlpArgs(mustParse(t))
 	want := []string{
-		"-f", "bv*[vcodec^=avc1][height<=360][width<=640]+ba[ext=m4a]/b[ext=mp4][height<=360][width<=640]/b[height<=360][width<=640]/w",
+		"-f", "bv*[vcodec^=avc1][height<=360][width<=640]+ba[ext=m4a]/b[ext=mp4][height<=360][width<=640]/b[height<=360][width<=640]" +
+			"/bv*[vcodec^=avc1][height<=640][width<=360]+ba[ext=m4a]/b[ext=mp4][height<=640][width<=360]/b[height<=640][width<=360]" +
+			"/wv+wa/w",
 		"-o", "out.mp4", "--recode-video", "mp4", "https://example.com/v",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("default args = %q, want %q", got, want)
+	}
+}
+
+// Equal caps describe a square, so the swapped orientation adds nothing.
+func TestSquareCapsEmitOneOrientation(t *testing.T) {
+	want := "bv*[vcodec^=avc1][height<=480][width<=480]+ba[ext=m4a]/b[ext=mp4][height<=480][width<=480]/b[height<=480][width<=480]/wv+wa/w"
+	if got := buildFormat(mustParse(t, "-q", "480", "-w", "480")); got != want {
+		t.Errorf("-q 480 -w 480 format = %q, want %q", got, want)
 	}
 }
 
@@ -68,7 +80,9 @@ func TestBestModeUncappedUnlessSized(t *testing.T) {
 	if got := buildFormat(mustParse(t, "-b")); got != formatBest {
 		t.Errorf("-b format = %q, want %q", got, formatBest)
 	}
-	want := "bv*[ext=mp4][height<=480][width<=854]+ba[ext=m4a]/b[ext=mp4][height<=480][width<=854]/b[height<=480][width<=854]/w"
+	want := "bv*[ext=mp4][height<=480][width<=854]+ba[ext=m4a]/b[ext=mp4][height<=480][width<=854]/b[height<=480][width<=854]" +
+		"/bv*[ext=mp4][height<=854][width<=480]+ba[ext=m4a]/b[ext=mp4][height<=854][width<=480]/b[height<=854][width<=480]" +
+		"/wv+wa/w"
 	if got := buildFormat(mustParse(t, "-b", "-q", "480")); got != want {
 		t.Errorf("-b -q 480 format = %q, want %q", got, want)
 	}

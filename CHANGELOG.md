@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.89.0 | AC124 adopt Govna v0.75.0; dl 2.5.0 downloads portrait video; Go 1.27.2 |
 | 0.88.3 | AC123 adopt Govna governance files v0.71.0 |
 | 0.88.2 | AC122 adopt Govna governance files v0.70.0 |
 | 0.88.1 | AC121: gkit v0.88.1 adopts Govna governance files v0.69.0 |

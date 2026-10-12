@@ -24,13 +24,18 @@ const (
 
 const (
 	programName    = "dl"
-	programVersion = "2.4.0"
+	programVersion = "2.5.0"
 )
 
 const (
 	// formatBest prefers the highest-quality mp4-container video (often AV1)
 	// remuxed without transcoding; some older players cannot decode it.
 	formatBest = "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b"
+
+	// formatFloor takes the smallest video plus audio when nothing fits the
+	// caps. Split-stream sites such as Reddit have no muxed format, so "w"
+	// alone matches nothing there; it stays last for muxed-only sites.
+	formatFloor = "wv+wa/w"
 
 	// Default size caps: 360p at 16:9 for small, shareable files.
 	defaultHeightCap = 360
@@ -95,8 +100,9 @@ func parseDownloadArgs(args []string) (dlOptions, error) {
 }
 
 // buildFormat returns the yt-dlp format selector for the parsed options.
-// Capped modes filter to the height/width caps with a worst-format floor;
-// -b without caps stays unfiltered.
+// Capped modes filter to the height/width caps, then to the same caps with
+// the sides swapped so a portrait video gets the same rung as a landscape
+// one, then to the worst-format floor; -b without caps stays unfiltered.
 func buildFormat(o dlOptions) string {
 	if o.best && !o.capped {
 		return formatBest
@@ -105,8 +111,19 @@ func buildFormat(o dlOptions) string {
 	if o.best {
 		video = "bv*[ext=mp4]"
 	}
-	f := fmt.Sprintf("[height<=%d][width<=%d]", o.height, o.width)
-	return video + f + "+ba[ext=m4a]/b[ext=mp4]" + f + "/b" + f + "/w"
+	sel := cappedBranches(video, o.height, o.width)
+	if o.height != o.width {
+		sel += "/" + cappedBranches(video, o.width, o.height)
+	}
+	return sel + "/" + formatFloor
+}
+
+// cappedBranches returns the capped branches for one orientation: the best
+// video under the caps merged with m4a audio, then a muxed mp4 under the
+// caps, then any muxed format under the caps.
+func cappedBranches(video string, height, width int) string {
+	f := fmt.Sprintf("[height<=%d][width<=%d]", height, width)
+	return video + f + "+ba[ext=m4a]/b[ext=mp4]" + f + "/b" + f
 }
 
 // checkYtDlpInstalled checks if yt-dlp is installed and accessible
@@ -287,10 +304,10 @@ func helpDoc() help.Doc {
 		URL:         help.URL(programName),
 		Sections: []help.Section{
 			{Title: "Usage", Rows: []help.Row{{Form: programName + ` [options] FILENAME "URL"`, Meaning: "Save the video at URL as FILENAME.mp4"}},
-				Lines: []string{"Downloads default to a small 360p (max 640x360) mp4 for quick sharing."}},
+				Lines: []string{"Downloads default to a small 360p (max 640x360, or 360x640 portrait) mp4 for quick sharing."}},
 			{Title: "Options", Rows: []help.Row{
-				{Form: "-q, --quality N", Meaning: "Cap video height at N pixels (default 360; width pairs at 16:9)"},
-				{Form: "-w, --width N", Meaning: "Cap video width at N pixels (default 640; height pairs at 16:9)"},
+				{Form: "-q, --quality N", Meaning: "Cap video height at N pixels, or width for portrait (default 360; other side pairs at 16:9)"},
+				{Form: "-w, --width N", Meaning: "Cap video width at N pixels, or height for portrait (default 640; other side pairs at 16:9)"},
 				{Form: "-b, --best", Meaning: "Uncapped best-quality mp4 (often AV1); may not play in older players"},
 				{Form: "-u, --update", Meaning: "Upgrade yt-dlp to the nightly version"},
 			}},
