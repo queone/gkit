@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -42,10 +43,160 @@ func TestDefaultDownloadCapsAt360pInEitherOrientation(t *testing.T) {
 		"-f", "bv*[vcodec^=avc1][height<=360][width<=640]+ba[ext=m4a]/b[ext=mp4][height<=360][width<=640]/b[height<=360][width<=640]" +
 			"/bv*[vcodec^=avc1][height<=640][width<=360]+ba[ext=m4a]/b[ext=mp4][height<=640][width<=360]/b[height<=640][width<=360]" +
 			"/wv+wa/w",
-		"-o", "out.mp4", "--recode-video", "mp4", "https://example.com/v",
+		"-o", "out.mp4", "--recode-video", "mp4", "--color", "stderr:always", "https://example.com/v",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("default args = %q, want %q", got, want)
+	}
+}
+
+func TestCookiesFlagPassesBrowserToYtDlp(t *testing.T) {
+	for _, flag := range []string{"-c", "--cookies"} {
+		got := ytDlpArgs(mustParse(t, flag, "safari"))
+		tail := []string{"--cookies-from-browser", "safari", "https://example.com/v"}
+		if len(got) < len(tail) || !reflect.DeepEqual(got[len(got)-len(tail):], tail) {
+			t.Errorf("%s safari args = %q, want them to end with %q", flag, got, tail)
+		}
+	}
+	if got := ytDlpArgs(mustParse(t)); strings.Contains(strings.Join(got, " "), loginMarker) {
+		t.Errorf("args without -c = %q, want no browser cookies", got)
+	}
+}
+
+func TestOutputPathPlacesOnlyBareNamesInDownloadDir(t *testing.T) {
+	dir := filepath.Join("/home", "u", "Downloads")
+	cases := []struct{ name, dir, want string }{
+		{"v", dir, filepath.Join(dir, "v")},
+		{"v.mp4", dir, filepath.Join(dir, "v.mp4")},
+		{"./v", dir, "./v"},
+		{"sub/v", dir, "sub/v"},
+		{"/tmp/v", dir, "/tmp/v"},
+		{"v", "", "v"},
+	}
+	for _, c := range cases {
+		if got := outputPath(c.name, c.dir); got != c.want {
+			t.Errorf("outputPath(%q, %q) = %q, want %q", c.name, c.dir, got, c.want)
+		}
+	}
+}
+
+func TestDownloadDirPrefersXDGThenHomeDownloads(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DOWNLOAD_DIR", "")
+	if got := downloadDir(); got != "" {
+		t.Errorf("missing ~/Downloads = %q, want empty", got)
+	}
+
+	downloads := filepath.Join(home, "Downloads")
+	if err := os.Mkdir(downloads, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := downloadDir(); got != downloads {
+		t.Errorf("default = %q, want %q", got, downloads)
+	}
+
+	t.Setenv("XDG_DOWNLOAD_DIR", "relative/dir")
+	if got := downloadDir(); got != downloads {
+		t.Errorf("relative XDG_DOWNLOAD_DIR = %q, want fallback %q", got, downloads)
+	}
+
+	xdg := t.TempDir()
+	t.Setenv("XDG_DOWNLOAD_DIR", xdg)
+	if got := downloadDir(); got != xdg {
+		t.Errorf("absolute XDG_DOWNLOAD_DIR = %q, want %q", got, xdg)
+	}
+}
+
+func TestLoginWatcherFindsCookiesRequestSplitAcrossWrites(t *testing.T) {
+	var out bytes.Buffer
+	l := &loginWatcher{w: &out}
+	chunks := []string{
+		"ERROR: [Reddit] 1x58kxn: Account authentication is required. Use --cookies-fr",
+		"om-browser or --cookies for the authentication.\n",
+	}
+	for _, c := range chunks {
+		if n, err := l.Write([]byte(c)); err != nil || n != len(c) {
+			t.Fatalf("write %q = %d, %v", c, n, err)
+		}
+	}
+	if !l.asked {
+		t.Error("split marker not found")
+	}
+	if got, want := out.String(), strings.Join(chunks, ""); got != want {
+		t.Errorf("passed through %q, want %q", got, want)
+	}
+
+	quiet := &loginWatcher{w: &bytes.Buffer{}}
+	quiet.Write([]byte("ERROR: Unsupported URL: https://example.com/v\n"))
+	if quiet.asked {
+		t.Error("unrelated error flagged as a login request")
+	}
+}
+
+func TestLoginHintShownOnlyWhenLoginNeededWithoutCookies(t *testing.T) {
+	hint := loginHint(true, "")
+	if !strings.Contains(hint, "-c BROWSER") {
+		t.Errorf("login hint = %q, want it to name -c BROWSER", hint)
+	}
+	if !strings.HasPrefix(hint, Yellow) || !strings.Contains(hint, Reset) {
+		t.Errorf("login hint = %q, want yellow-wrapped", hint)
+	}
+	if hint := loginHint(true, "safari"); hint != "" {
+		t.Errorf("hint with -c safari = %q, want empty", hint)
+	}
+	if hint := loginHint(false, ""); hint != "" {
+		t.Errorf("hint without a login request = %q, want empty", hint)
+	}
+}
+
+func TestSafariHintShownOnlyWhenCookieFileBlocked(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root opens files regardless of permissions")
+	}
+	home := t.TempDir()
+	if hint := safariHint("safari", home); hint != "" {
+		t.Errorf("missing cookie file hint = %q, want empty so yt-dlp reports it", hint)
+	}
+
+	writeCookieFile := func(rel string, perm os.FileMode) string {
+		t.Helper()
+		path := filepath.Join(home, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, nil, perm); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	container := writeCookieFile(safariCookieFiles[1], 0o000)
+	for _, browser := range []string{"safari", "Safari"} {
+		hint := safariHint(browser, home)
+		if !strings.Contains(hint, "Full Disk Access") {
+			t.Errorf("%s blocked hint = %q, want it to name Full Disk Access", browser, hint)
+		}
+		if !strings.HasPrefix(hint, Yellow) || !strings.Contains(hint, Reset) {
+			t.Errorf("%s blocked hint = %q, want yellow-wrapped", browser, hint)
+		}
+	}
+	if hint := safariHint("firefox", home); hint != "" {
+		t.Errorf("firefox hint = %q, want empty", hint)
+	}
+
+	// yt-dlp reads the first cookie file it finds, so a readable one wins.
+	legacy := writeCookieFile(safariCookieFiles[0], 0o600)
+	if hint := safariHint("safari", home); hint != "" {
+		t.Errorf("readable first cookie file hint = %q, want empty", hint)
+	}
+	if err := os.Remove(legacy); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(container, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if hint := safariHint("safari", home); hint != "" {
+		t.Errorf("readable cookie file hint = %q, want empty", hint)
 	}
 }
 
@@ -99,6 +250,14 @@ func TestParseDownloadArgsOrderingAndErrors(t *testing.T) {
 			t.Errorf("%q positionals = %q %q", args, o.filename, o.url)
 		}
 	}
+	trailing, err := parseDownloadArgs([]string{"out.mp4", "https://example.com/v", "-c", "safari"})
+	if err != nil || trailing.filename != "out.mp4" || trailing.url != "https://example.com/v" || trailing.browser != "safari" {
+		t.Errorf("trailing -c safari = %+v, %v", trailing, err)
+	}
+	between, err := parseDownloadArgs([]string{"out.mp4", "-q", "480", "https://example.com/v"})
+	if err != nil || between.filename != "out.mp4" || between.url != "https://example.com/v" || between.height != 480 {
+		t.Errorf("-q 480 between positionals = %+v, %v", between, err)
+	}
 	for _, args := range [][]string{
 		{"-q", "out.mp4", "https://example.com/v"},
 		{"-q", "0", "out.mp4", "https://example.com/v"},
@@ -106,7 +265,13 @@ func TestParseDownloadArgsOrderingAndErrors(t *testing.T) {
 		{"-w", "abc", "out.mp4", "https://example.com/v"},
 		{"-q"},
 		{"-x", "out.mp4", "https://example.com/v"},
+		{"-c"},
+		{"-c", "", "out.mp4", "https://example.com/v"},
+		{"-c", "-q", "480", "out.mp4", "https://example.com/v"},
 		{"out.mp4"},
+		{"out.mp4", "https://example.com/v", "-c"},
+		{"out.mp4", "https://example.com/v", "-q"},
+		{"out.mp4", "https://example.com/v", "extra"},
 	} {
 		if _, err := parseDownloadArgs(args); err == nil {
 			t.Errorf("parse %q: expected error, got none", args)

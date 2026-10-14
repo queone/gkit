@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"github.com/queone/gkit/help"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,7 +26,7 @@ const (
 
 const (
 	programName    = "dl"
-	programVersion = "2.5.0"
+	programVersion = "2.6.0"
 )
 
 const (
@@ -40,12 +42,17 @@ const (
 	// Default size caps: 360p at 16:9 for small, shareable files.
 	defaultHeightCap = 360
 	defaultWidthCap  = 640
+
+	// loginMarker appears in every yt-dlp error that asks for browser
+	// cookies, such as Reddit's "Account authentication is required".
+	loginMarker = "--cookies-from-browser"
 )
 
 // dlOptions holds the parsed command-line download options.
 type dlOptions struct {
 	filename string
 	url      string
+	browser  string // yt-dlp --cookies-from-browser value; "" for none
 	best     bool
 	capped   bool // false only for -b without -q/-w
 	height   int
@@ -53,16 +60,29 @@ type dlOptions struct {
 }
 
 // parseDownloadArgs parses flags and positional arguments for a download.
-// A missing dimension pairs with the given one at 16:9, rounded up, so the
-// caps never exclude the requested rung.
+// Options may come before, between, or after FILENAME and URL. A missing
+// dimension pairs with the given one at 16:9, rounded up, so the caps never
+// exclude the requested rung.
 func parseDownloadArgs(args []string) (dlOptions, error) {
 	var o dlOptions
+	var pos []string
 	h, w := 0, 0
-	for len(args) > 0 && strings.HasPrefix(args[0], "-") {
+	for len(args) > 0 {
+		if !strings.HasPrefix(args[0], "-") {
+			pos = append(pos, args[0])
+			args = args[1:]
+			continue
+		}
 		switch args[0] {
 		case "-b", "--best":
 			o.best = true
 			args = args[1:]
+		case "-c", "--cookies":
+			if len(args) < 2 || args[1] == "" || strings.HasPrefix(args[1], "-") {
+				return o, fmt.Errorf("%s requires a browser name, such as safari", args[0])
+			}
+			o.browser = args[1]
+			args = args[2:]
 		case "-q", "--quality", "-w", "--width":
 			flag := args[0]
 			if len(args) < 2 {
@@ -82,10 +102,10 @@ func parseDownloadArgs(args []string) (dlOptions, error) {
 			return o, fmt.Errorf("unknown option %s", args[0])
 		}
 	}
-	if len(args) != 2 {
+	if len(pos) != 2 {
 		return o, fmt.Errorf("expected FILENAME and URL arguments")
 	}
-	o.filename, o.url = args[0], args[1]
+	o.filename, o.url = pos[0], pos[1]
 	o.capped = !o.best || h > 0 || w > 0
 	switch {
 	case h > 0 && w == 0:
@@ -244,8 +264,102 @@ func (h *ffmpegHighlighter) Flush() error {
 // ytDlpArgs builds the yt-dlp invocation for a download. The selector
 // avoids the full re-encode that --recode-video alone forces on non-mp4
 // merges; --recode-video stays as a fallback for the rare non-mp4 result.
+// stderr is piped through a loginWatcher, so yt-dlp is told to keep coloring
+// its ERROR and WARNING lines.
 func ytDlpArgs(o dlOptions) []string {
-	return []string{"-f", buildFormat(o), "-o", o.filename, "--recode-video", "mp4", o.url}
+	args := []string{"-f", buildFormat(o), "-o", o.filename, "--recode-video", "mp4", "--color", "stderr:always"}
+	if o.browser != "" {
+		args = append(args, "--cookies-from-browser", o.browser)
+	}
+	return append(args, o.url)
+}
+
+// downloadDir returns the folder for downloads saved under a bare name:
+// $XDG_DOWNLOAD_DIR when it holds an absolute path, else Downloads in the
+// home folder. It returns "" when that folder is missing.
+func downloadDir() string {
+	dir := os.Getenv("XDG_DOWNLOAD_DIR")
+	if !filepath.IsAbs(dir) {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		dir = filepath.Join(home, "Downloads")
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return ""
+	}
+	return dir
+}
+
+// outputPath places a bare name in dir. A name with a directory part, such
+// as ./v, sub/v, or /tmp/v, stays as given; so does every name when dir is "".
+func outputPath(name, dir string) string {
+	if dir == "" || filepath.Base(name) != name {
+		return name
+	}
+	return filepath.Join(dir, name)
+}
+
+// loginWatcher passes yt-dlp stderr through to w and records whether yt-dlp
+// asked for browser cookies. tail keeps a marker-length prefix candidate so a
+// marker split across writes is still found.
+type loginWatcher struct {
+	w     io.Writer
+	tail  string
+	asked bool
+}
+
+func (l *loginWatcher) Write(p []byte) (int, error) {
+	if !l.asked {
+		s := l.tail + string(p)
+		l.asked = strings.Contains(s, loginMarker)
+		l.tail = s[max(0, len(s)-len(loginMarker)+1):]
+	}
+	return l.w.Write(p)
+}
+
+// loginHint returns a yellow hint to run again with -c when yt-dlp asked for
+// browser cookies and none were given, or an empty string otherwise.
+func loginHint(asked bool, browser string) string {
+	if !asked || browser != "" {
+		return ""
+	}
+	return fmt.Sprintf("%sHint: this site needs a login; log in to it in your browser, then run again with -c BROWSER, such as -c safari%s\n", Yellow, Reset)
+}
+
+// safariCookieFiles lists Safari's cookie file locations under the home
+// folder, in the order yt-dlp tries them.
+var safariCookieFiles = []string{
+	filepath.Join("Library", "Cookies", "Cookies.binarycookies"),
+	filepath.Join("Library", "Containers", "com.apple.Safari", "Data", "Library", "Cookies", "Cookies.binarycookies"),
+}
+
+// safariCookiesBlocked reports whether the first Safari cookie file found
+// under home cannot be opened. macOS blocks it unless the terminal app has
+// Full Disk Access. A missing file is left for yt-dlp to report.
+func safariCookiesBlocked(home string) bool {
+	for _, rel := range safariCookieFiles {
+		f, err := os.Open(filepath.Join(home, rel))
+		if err == nil {
+			f.Close()
+			return false
+		}
+		if errors.Is(err, fs.ErrPermission) {
+			return true
+		}
+	}
+	return false
+}
+
+// safariHint returns a yellow hint to grant Full Disk Access when browser is
+// Safari and macOS blocks its cookie file under home, or an empty string
+// otherwise.
+func safariHint(browser, home string) string {
+	if !strings.EqualFold(browser, "safari") || !safariCookiesBlocked(home) {
+		return ""
+	}
+	return fmt.Sprintf("%sHint: give your terminal app Full Disk Access in System Settings > Privacy & Security, reopen it, and run again; or log in to the site in Firefox and use -c firefox%s\n", Yellow, Reset)
 }
 
 // denoHint returns a yellow hint to install deno when yt-dlp has no
@@ -261,6 +375,8 @@ func denoHint(lookPath func(string) (string, error)) string {
 
 // downloadVideo downloads a video as mp4 using yt-dlp
 func downloadVideo(o dlOptions) error {
+	o.filename = outputPath(o.filename, downloadDir())
+
 	// Get file extension in lowercase
 	ext := strings.ToLower(filepath.Ext(o.filename))
 
@@ -275,19 +391,29 @@ func downloadVideo(o dlOptions) error {
 		return fmt.Errorf("file already exists")
 	}
 
+	// Stop before yt-dlp prints a raw permission error for Safari's cookies
+	if home, err := os.UserHomeDir(); err == nil {
+		if hint := safariHint(o.browser, home); hint != "" {
+			fmt.Fprint(os.Stderr, hint)
+			return fmt.Errorf("macOS blocked dl from reading Safari's cookies")
+		}
+	}
+
 	// Download as MP4
 	fmt.Printf("==> %sDownloading to: %s%s\n", Green, o.filename, Reset)
 	fmt.Print(denoHint(exec.LookPath))
 	cmd := exec.Command("yt-dlp", ytDlpArgs(o)...)
 	highlighter := &ffmpegHighlighter{w: os.Stdout}
+	watcher := &loginWatcher{w: os.Stderr}
 	cmd.Stdout = highlighter
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = watcher
 
 	err := cmd.Run()
 	if flushErr := highlighter.Flush(); flushErr != nil && err == nil {
 		err = flushErr
 	}
 	if err != nil {
+		fmt.Fprint(os.Stderr, loginHint(watcher.asked, o.browser))
 		return fmt.Errorf("download failed: %w", err)
 	}
 
@@ -304,17 +430,24 @@ func helpDoc() help.Doc {
 		URL:         help.URL(programName),
 		Sections: []help.Section{
 			{Title: "Usage", Rows: []help.Row{{Form: programName + ` [options] FILENAME "URL"`, Meaning: "Save the video at URL as FILENAME.mp4"}},
-				Lines: []string{"Downloads default to a small 360p (max 640x360, or 360x640 portrait) mp4 for quick sharing."}},
+				Lines: []string{
+					"Downloads default to a small 360p (max 640x360, or 360x640 portrait) mp4 for quick sharing.",
+					"A bare FILENAME saves to the Downloads folder; a FILENAME with a path, such as ./myvideo, saves there.",
+					"Options may come before or after FILENAME and URL.",
+				}},
 			{Title: "Options", Rows: []help.Row{
 				{Form: "-q, --quality N", Meaning: "Cap video height at N pixels, or width for portrait (default 360; other side pairs at 16:9)"},
 				{Form: "-w, --width N", Meaning: "Cap video width at N pixels, or height for portrait (default 640; other side pairs at 16:9)"},
 				{Form: "-b, --best", Meaning: "Uncapped best-quality mp4 (often AV1); may not play in older players"},
+				{Form: "-c, --cookies BROWSER", Meaning: "Use your login from BROWSER, such as safari, chrome, or firefox, for sites that need one"},
 				{Form: "-u, --update", Meaning: "Upgrade yt-dlp to the nightly version"},
 			}},
 			{Title: "Examples", Rows: []help.Row{
 				{Form: programName + ` myvideo "https://youtube.com/watch?v=..."`, Meaning: ""},
 				{Form: programName + ` -q 480 myvideo "https://youtube.com/watch?v=..."`, Meaning: ""},
 				{Form: programName + ` -b myvideo "https://youtube.com/watch?v=..."`, Meaning: ""},
+				{Form: programName + ` ./myvideo "https://youtube.com/watch?v=..."`, Meaning: ""},
+				{Form: programName + ` -c safari myvideo "https://www.reddit.com/r/..."`, Meaning: ""},
 				{Form: programName + " -u", Meaning: ""},
 			}},
 		},
@@ -365,7 +498,7 @@ func main() {
 		}
 	}
 
-	// Optional size/quality flags, then required arguments
+	// Options and the required arguments, in any order
 	opts, err := parseDownloadArgs(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%sError: %v%s\n\n", Red, err, Reset)
