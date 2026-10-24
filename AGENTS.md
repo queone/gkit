@@ -589,7 +589,6 @@ Note: the Director triggers those actions; Ratify names what is pending.
 
 ## Project Rules
 
-- Follow existing repo patterns unless an approved improvement says otherwise.
 - Skip `./build.sh` for a change pass limited to `scripts/*.sh` templates and their docs.
 
 Note: the build does not run the script templates.
