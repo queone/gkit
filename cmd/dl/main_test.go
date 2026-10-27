@@ -63,6 +63,74 @@ func TestCookiesFlagPassesBrowserToYtDlp(t *testing.T) {
 	}
 }
 
+func TestCookiesFileParsesHostBrowserLines(t *testing.T) {
+	in := "# sites that need a login\n\nreddit.com safari\n  .Example.ORG  firefox \n"
+	got, err := parseCookieSites(strings.NewReader(in), "cookies")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []cookieSite{{host: "reddit.com", browser: "safari"}, {host: "example.org", browser: "firefox"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("parsed sites = %+v, want %+v", got, want)
+	}
+	for _, bad := range []string{"reddit.com", "reddit.com safari extra"} {
+		_, err := parseCookieSites(strings.NewReader(bad+"\n"), "cookies")
+		if err == nil || !strings.Contains(err.Error(), "cookies line 1") {
+			t.Errorf("parse %q error = %v, want one naming cookies line 1", bad, err)
+		}
+	}
+}
+
+func TestSiteBrowserMatchesHostAndSubdomains(t *testing.T) {
+	sites := []cookieSite{{host: "reddit.com", browser: "safari"}, {host: "example.org", browser: "firefox"}}
+	cases := map[string]string{
+		"https://www.reddit.com/r/videos/comments/abc": "safari",
+		"https://old.REDDIT.com/r/x":                   "safari",
+		"reddit.com/r/x":                               "safari",
+		"https://example.org/v":                        "firefox",
+		"https://notreddit.com/r/x":                    "",
+		"https://reddit.com.evil.net/x":                "",
+		"https://youtube.com/watch?v=1":                "",
+	}
+	for rawURL, want := range cases {
+		if got := siteBrowser(rawURL, sites); got != want {
+			t.Errorf("siteBrowser(%q) = %q, want %q", rawURL, got, want)
+		}
+	}
+	if got := siteBrowser("https://www.reddit.com/r/x", nil); got != "" {
+		t.Errorf("siteBrowser with no sites = %q, want empty", got)
+	}
+}
+
+func TestLoadCookieSitesReadsXDGFileOrNothing(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	sites, err := loadCookieSites()
+	if err != nil || sites != nil {
+		t.Errorf("missing file: sites = %v, err = %v, want nil, nil", sites, err)
+	}
+	path := filepath.Join(dir, "dl", "cookies")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("reddit.com safari\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sites, err = loadCookieSites()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := siteBrowser("https://www.reddit.com/r/x", sites); got != "safari" {
+		t.Errorf("browser from %s = %q, want safari", path, got)
+	}
+	if err := os.WriteFile(path, []byte("reddit.com\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadCookieSites(); err == nil || !strings.Contains(err.Error(), path) {
+		t.Errorf("malformed file error = %v, want one naming %s", err, path)
+	}
+}
+
 func TestOutputPathPlacesOnlyBareNamesInDownloadDir(t *testing.T) {
 	dir := filepath.Join("/home", "u", "Downloads")
 	cases := []struct{ name, dir, want string }{

@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
 	"github.com/queone/gkit/help"
 	"io"
 	"io/fs"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,7 +28,7 @@ const (
 
 const (
 	programName    = "dl"
-	programVersion = "2.6.0"
+	programVersion = "2.7.0"
 )
 
 const (
@@ -301,6 +303,97 @@ func outputPath(name, dir string) string {
 	return filepath.Join(dir, name)
 }
 
+// cookieSite maps a site to the browser whose login dl uses for it.
+type cookieSite struct {
+	host    string
+	browser string
+}
+
+// configDir returns the user's XDG config directory, honoring XDG_CONFIG_HOME
+// when set to an absolute path and falling back to $HOME/.config otherwise.
+func configDir() (string, error) {
+	if v := os.Getenv("XDG_CONFIG_HOME"); v != "" && filepath.IsAbs(v) {
+		return v, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".config"), nil
+}
+
+// cookiesPath returns the path of the per-site cookies file.
+func cookiesPath() (string, error) {
+	dir, err := configDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, programName, "cookies"), nil
+}
+
+// parseCookieSites reads HOST BROWSER lines from r, naming path in errors.
+// Blank lines and # comments are skipped; a leading dot on HOST is ignored.
+func parseCookieSites(r io.Reader, path string) ([]cookieSite, error) {
+	var sites []cookieSite
+	scanner := bufio.NewScanner(r)
+	line := 0
+	for scanner.Scan() {
+		line++
+		text := strings.TrimSpace(scanner.Text())
+		if text == "" || strings.HasPrefix(text, "#") {
+			continue
+		}
+		fields := strings.Fields(text)
+		if len(fields) != 2 {
+			return nil, fmt.Errorf("%s line %d: expected HOST BROWSER, such as reddit.com safari, got %d field(s)", path, line, len(fields))
+		}
+		host := strings.ToLower(strings.TrimPrefix(fields[0], "."))
+		sites = append(sites, cookieSite{host: host, browser: fields[1]})
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+	return sites, nil
+}
+
+// loadCookieSites reads the per-site cookies file. A missing file means no
+// sites; any other failure names the file so the user can fix it.
+func loadCookieSites() ([]cookieSite, error) {
+	path, err := cookiesPath()
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+	defer f.Close()
+	return parseCookieSites(f, path)
+}
+
+// siteBrowser returns the browser of the first site whose host is rawURL's
+// host or a parent domain of it, or "" when none matches. A URL without a
+// scheme is read as https, as yt-dlp does.
+func siteBrowser(rawURL string, sites []cookieSite) string {
+	if !strings.Contains(rawURL, "://") {
+		rawURL = "https://" + rawURL
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	host := strings.ToLower(u.Hostname())
+	for _, s := range sites {
+		if host == s.host || strings.HasSuffix(host, "."+s.host) {
+			return s.browser
+		}
+	}
+	return ""
+}
+
 // loginWatcher passes yt-dlp stderr through to w and records whether yt-dlp
 // asked for browser cookies. tail keeps a marker-length prefix candidate so a
 // marker split across writes is still found.
@@ -441,7 +534,12 @@ func helpDoc() help.Doc {
 				{Form: "-b, --best", Meaning: "Uncapped best-quality mp4 (often AV1); may not play in older players"},
 				{Form: "-c, --cookies BROWSER", Meaning: "Use your login from BROWSER, such as safari, chrome, or firefox, for sites that need one"},
 				{Form: "-u, --update", Meaning: "Upgrade yt-dlp to the nightly version"},
-			}},
+			},
+				Lines: []string{
+					"Without -c, ~/.config/dl/cookies ($XDG_CONFIG_HOME/dl/cookies) picks the browser by site.",
+					"One site per line as HOST BROWSER, such as: reddit.com safari",
+					"A HOST matches itself and its subdomains, such as www.reddit.com.",
+				}},
 			{Title: "Examples", Rows: []help.Row{
 				{Form: programName + ` myvideo "https://youtube.com/watch?v=..."`, Meaning: ""},
 				{Form: programName + ` -q 480 myvideo "https://youtube.com/watch?v=..."`, Meaning: ""},
@@ -504,6 +602,18 @@ func main() {
 		fmt.Fprintf(os.Stderr, "%sError: %v%s\n\n", Red, err, Reset)
 		printUsage()
 		os.Exit(1)
+	}
+
+	// Without -c, let the per-site cookies file pick the browser
+	if opts.browser == "" {
+		sites, err := loadCookieSites()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%sError: %v%s\n", Red, err, Reset)
+			os.Exit(1)
+		}
+		if opts.browser = siteBrowser(opts.url, sites); opts.browser != "" {
+			fmt.Printf("==> %sUsing your %s login for this site, from the dl cookies file%s\n", Green, opts.browser, Reset)
+		}
 	}
 
 	// Download the video

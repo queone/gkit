@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.91.0 | dl 2.7.0 picks the cookie browser per site from ~/.config/dl/cookies |
 | 0.90.2 | AGENTS.md drops a Project Rules bullet that duplicates Base Rules |
 | 0.90.1 | AC125 adopt Govna governance files v0.81.1 |
 | 0.90.0 | dl 2.6.0 saves to Downloads, adds -c browser login, takes options anywhere |
