@@ -15,13 +15,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mattn/go-isatty"
+
 	"github.com/queone/gkit/help"
 	"github.com/queone/gkit/internal/notice"
 )
 
 const (
 	programName    = "lslan"
-	programVersion = "1.1.0"
+	programVersion = "1.2.0"
 )
 
 // defaultWait is how long the sweep listens for late ICMP replies.
@@ -38,6 +40,7 @@ type options struct {
 	json    bool
 	wait    time.Duration
 	ports   []int
+	server  string
 	cidr    string
 }
 
@@ -53,23 +56,28 @@ func helpDoc() help.Doc {
 			}, Lines: []string{
 				"Without CIDR, lslan sweeps the IPv4 subnet of the interface that routes to",
 				"the internet. A prefix wider than /16 is rejected; pass a narrower CIDR.",
+				"A terminal gets aligned columns under a header; piped output is",
+				"tab-separated with no header.",
 			}},
 			{Title: "Options", Rows: []help.Row{
 				{Form: "-n, --numeric", Meaning: "Skip reverse-DNS lookups and leave NAME empty"},
 				{Form: "-j, --json", Meaning: "Print a JSON array instead of tab-separated lines"},
 				{Form: "-w, --wait MS", Meaning: "Wait MS milliseconds for late ICMP replies; default 500"},
 				{Form: "-p, --ports LIST", Meaning: "Probe these TCP ports; default 22,80,443, and an empty LIST disables them"},
+				{Form: "-s, --server ADDR", Meaning: "Send every reverse-DNS lookup to ADDR, an IPv4 address with an optional :PORT"},
 			}},
 			{Title: "Columns", Rows: []help.Row{
 				{Form: "IP", Meaning: "IPv4 address, in numeric order"},
 				{Form: "RTT", Meaning: "Milliseconds until the first proof that the host is up"},
 				{Form: "VIA", Meaning: "Evidence: icmp, tcpNN for an open port, rst for a closed one, self"},
-				{Form: "NAME", Meaning: "Reverse-DNS name, or empty"},
+				{Form: "NAME", Meaning: "Name from -s alone; otherwise mDNS, else the system resolver, else the gateway"},
 				{Form: "MAC", Meaning: "From the neighbor table when readable; macOS 27 needs sudo"},
+				{Form: "VENDOR", Meaning: "Maker from the IEEE registry; private (Apple) when randomized; Apple without a MAC"},
 			}},
 			{Title: "Examples", Rows: []help.Row{
 				{Form: "lslan", Meaning: "List the local subnet"},
 				{Form: "lslan -n 10.0.5.0/24", Meaning: "List another subnet without name lookups"},
+				{Form: "lslan -s 192.168.1.1", Meaning: "Ask the router for names that a VPN resolver hides"},
 				{Form: "sudo lslan -j | jq .", Meaning: "JSON with MAC addresses on macOS"},
 			}},
 		},
@@ -112,6 +120,16 @@ func parseArgs(args []string) (options, error) {
 			}
 			o.ports = ports
 			i++
+		case "-s", "--server":
+			if i+1 >= len(args) {
+				return o, fmt.Errorf("%s requires ADDR, an IPv4 address with an optional :PORT, such as 192.168.1.1 or 192.168.1.1:53", a)
+			}
+			addr, err := parseServer(args[i+1])
+			if err != nil {
+				return o, fmt.Errorf("%s %w", a, err)
+			}
+			o.server = addr
+			i++
 		default:
 			if strings.HasPrefix(a, "-") {
 				return o, fmt.Errorf("unknown option %s", a)
@@ -122,7 +140,24 @@ func parseArgs(args []string) (options, error) {
 			o.cidr = a
 		}
 	}
+	if o.server != "" && o.numeric {
+		return o, errors.New("-s and -n conflict: -n skips the lookups that -s sends to a server; drop one")
+	}
 	return o, nil
+}
+
+// parseServer reads a DNS server ADDR, an IPv4 address with an optional
+// :PORT, and returns it as host:port with port 53 by default.
+func parseServer(s string) (string, error) {
+	host, port := s, "53"
+	if h, p, err := net.SplitHostPort(s); err == nil {
+		host, port = h, p
+	}
+	n, err := strconv.Atoi(port)
+	if net.ParseIP(host).To4() == nil || strings.Contains(host, ":") || err != nil || n < 1 || n > 65535 {
+		return "", fmt.Errorf("requires ADDR, an IPv4 address with an optional :PORT, such as 192.168.1.1 or 192.168.1.1:53, got %q", s)
+	}
+	return net.JoinHostPort(host, port), nil
 }
 
 // parsePorts reads a comma-separated port list; an empty list disables TCP probes.
@@ -150,7 +185,11 @@ type deps struct {
 	defaultSubnet func() (*net.IPNet, net.IP, error)
 	sweep         func(s *sweeper) (sweepReport, error)
 	lookup        func(ctx context.Context, addr string) ([]string, error)
+	dnsAt         func(addr string) func(ctx context.Context, addr string) ([]string, error)
+	gateways      func() ([]net.IP, error)
+	mdns          func(local net.IP, ips []net.IP) map[string]mdnsInfo
 	neighbors     func() (map[string]string, error)
+	terminal      func() bool
 }
 
 func newDeps() deps {
@@ -162,8 +201,39 @@ func newDeps() deps {
 		defaultSubnet: defaultSubnet,
 		sweep:         (*sweeper).run,
 		lookup:        net.DefaultResolver.LookupAddr,
-		neighbors:     systemNeighbors,
+		dnsAt:         dnsAt,
+		gateways:      systemGateways,
+		mdns: func(local net.IP, ips []net.IP) map[string]mdnsInfo {
+			return mdnsLookup(local, mdnsGroup, ips, mdnsWait)
+		},
+		neighbors: systemNeighbors,
+		terminal:  stdoutIsTerminal,
 	}
+}
+
+// stdoutIsTerminal reports whether stdout is a terminal.
+func stdoutIsTerminal() bool {
+	fd := os.Stdout.Fd()
+	return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
+}
+
+// dnsAt returns a reverse-DNS lookup that asks only the server at addr, a
+// host:port, over UDP.
+func dnsAt(addr string) func(ctx context.Context, addr string) ([]string, error) {
+	r := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "udp", addr)
+		},
+	}
+	return r.LookupAddr
+}
+
+// systemGateways lists this system's IPv4 default gateways.
+func systemGateways() ([]net.IP, error) {
+	run := func(name string, args ...string) ([]byte, error) { return exec.Command(name, args...).Output() }
+	return defaultGateways(runtime.GOOS, run, os.ReadFile)
 }
 
 // systemNeighbors reads this system's neighbor table.
@@ -224,7 +294,7 @@ func run(args []string, d deps) int {
 	}
 	hosts := rep.hosts
 	if !o.numeric {
-		resolveNames(hosts, d.lookup)
+		resolveAll(hosts, subnet, local, o.server, d)
 	}
 	table, err := d.neighbors()
 	if err != nil && d.euid() == 0 {
@@ -232,11 +302,15 @@ func run(args []string, d deps) int {
 	}
 	for i := range hosts {
 		hosts[i].MAC = table[hosts[i].IP.String()]
+		hosts[i].Vendor = vendorFor(hosts[i].MAC, hosts[i].model, hosts[i].dnsName)
 	}
 	sortHosts(hosts)
-	if o.json {
+	switch {
+	case o.json:
 		err = writeJSON(d.stdout, hosts)
-	} else {
+	case d.terminal():
+		err = writeTable(d.stdout, hosts)
+	default:
 		err = writeTSV(d.stdout, hosts)
 	}
 	if err != nil {
@@ -245,6 +319,37 @@ func run(args []string, d deps) int {
 	}
 	writeSummary(d.stderr, len(hosts), subnet.String(), time.Since(start))
 	return 0
+}
+
+// resolveAll names the hosts: through server alone when -s set it, otherwise
+// through the system resolver, then through subnet's default gateway for the
+// hosts still unnamed, then through mDNS for every host. A host's own mDNS
+// name replaces a DNS name, and its device-info model is kept for VENDOR. A
+// failed gateway discovery skips that step silently.
+func resolveAll(hosts []host, subnet *net.IPNet, local net.IP, server string, d deps) {
+	if server != "" {
+		resolveNames(hosts, d.dnsAt(server))
+		return
+	}
+	resolveNames(hosts, d.lookup)
+	if gws, err := d.gateways(); err == nil {
+		if gw := gatewayIn(subnet, gws); gw != nil {
+			resolveNames(hosts, d.dnsAt(net.JoinHostPort(gw.String(), "53")))
+		}
+	}
+	ips := make([]net.IP, len(hosts))
+	for i := range hosts {
+		ips[i] = hosts[i].IP
+	}
+	infos := d.mdns(local, ips)
+	for i := range hosts {
+		hosts[i].dnsName = hosts[i].Name
+		info := infos[hosts[i].IP.String()]
+		if info.Name != "" {
+			hosts[i].Name = info.Name
+		}
+		hosts[i].model = info.Model
+	}
 }
 
 // unreachableMessage explains a sweep in which every probe had no route.

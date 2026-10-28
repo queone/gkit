@@ -41,11 +41,14 @@ var errAllUnreachable = errors.New("every probe failed with no route to host")
 
 // host is one live address and the evidence that proved it up.
 type host struct {
-	IP   net.IP
-	RTT  time.Duration
-	Via  []string
-	Name string
-	MAC  string
+	IP      net.IP
+	RTT     time.Duration
+	Via     []string
+	Name    string
+	MAC     string
+	Vendor  string
+	model   string // device-info model from mDNS; not printed
+	dnsName string // resolver or gateway name before mDNS; not printed
 }
 
 // icmpConn is the part of *icmp.PacketConn the sweep uses, so tests can fake it.
@@ -325,10 +328,14 @@ func defaultSubnet() (*net.IPNet, net.IP, error) {
 	return nil, nil, fmt.Errorf("no interface holds %s", local)
 }
 
-// resolveNames fills each host's reverse-DNS name, looking them up in parallel.
+// resolveNames fills the reverse-DNS name of each host that has none yet,
+// looking them up in parallel.
 func resolveNames(hosts []host, lookup func(ctx context.Context, addr string) ([]string, error)) {
 	var wg sync.WaitGroup
 	for i := range hosts {
+		if hosts[i].Name != "" {
+			continue
+		}
 		wg.Add(1)
 		go func(h *host) {
 			defer wg.Done()

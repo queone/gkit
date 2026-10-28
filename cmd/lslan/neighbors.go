@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"net"
 	"regexp"
 	"strconv"
 	"strings"
@@ -101,4 +103,83 @@ func normalizeMAC(s string) (string, bool) {
 		return "", false
 	}
 	return strings.Join(parts, ":"), true
+}
+
+// errNoDefaultRoute reports a route table with no IPv4 default gateway.
+var errNoDefaultRoute = errors.New("no IPv4 default route")
+
+// defaultGateways lists the IPv4 gateways of every default route for goos, so
+// the caller can pick the one inside the swept subnet even when a VPN adds
+// its own default route. run and readFile are replaced by tests.
+func defaultGateways(goos string, run func(name string, args ...string) ([]byte, error), readFile func(name string) ([]byte, error)) ([]net.IP, error) {
+	var gws []net.IP
+	switch goos {
+	case "darwin", "freebsd", "netbsd", "openbsd":
+		out, err := run("netstat", "-rn", "-f", "inet")
+		if err != nil {
+			return nil, fmt.Errorf("run netstat -rn -f inet: %w", err)
+		}
+		for _, f := range fieldLines(string(out)) {
+			if len(f) >= 2 && f[0] == "default" {
+				gws = appendIPv4(gws, f[1])
+			}
+		}
+	case "linux":
+		out, err := readFile("/proc/net/route")
+		if err != nil {
+			return nil, fmt.Errorf("read /proc/net/route: %w", err)
+		}
+		for _, f := range fieldLines(string(out)) {
+			if len(f) < 3 || f[1] != "00000000" {
+				continue
+			}
+			v, err := strconv.ParseUint(f[2], 16, 32)
+			if err != nil || v == 0 {
+				continue
+			}
+			gws = append(gws, net.IPv4(byte(v), byte(v>>8), byte(v>>16), byte(v>>24)).To4())
+		}
+	case "windows":
+		out, err := run("route", "print", "0.0.0.0")
+		if err != nil {
+			return nil, fmt.Errorf("run route print 0.0.0.0: %w", err)
+		}
+		for _, f := range fieldLines(string(out)) {
+			if len(f) >= 3 && f[0] == "0.0.0.0" && f[1] == "0.0.0.0" {
+				gws = appendIPv4(gws, f[2])
+			}
+		}
+	default:
+		return nil, fmt.Errorf("no route-table reader for %s", goos)
+	}
+	if len(gws) == 0 {
+		return nil, errNoDefaultRoute
+	}
+	return gws, nil
+}
+
+// gatewayIn returns the first gateway inside subnet, or nil.
+func gatewayIn(subnet *net.IPNet, gws []net.IP) net.IP {
+	for _, gw := range gws {
+		if subnet.Contains(gw) {
+			return gw
+		}
+	}
+	return nil
+}
+
+func fieldLines(text string) [][]string {
+	var out [][]string
+	sc := bufio.NewScanner(strings.NewReader(text))
+	for sc.Scan() {
+		out = append(out, strings.Fields(sc.Text()))
+	}
+	return out
+}
+
+func appendIPv4(gws []net.IP, s string) []net.IP {
+	if ip := net.ParseIP(s).To4(); ip != nil {
+		return append(gws, ip)
+	}
+	return gws
 }
