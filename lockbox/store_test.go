@@ -479,3 +479,38 @@ func TestLookupSaveOnAnEmptyLog(t *testing.T) {
 		t.Fatalf("empty log: found=%v oldest=%d err=%v", found, oldest, err)
 	}
 }
+
+func TestWriterVersionRoundTripsWithoutSchemaChange(t *testing.T) {
+	dir := t.TempDir()
+	st, key := newTestStore(t, dir)
+	if v, err := st.WriterVersion(); err != nil || v != "" {
+		t.Fatalf("new store writer version %q %v, want empty", v, err)
+	}
+	for _, bad := range []string{"", "v1.11.0\nv1.12.0", "v1.11.0\r"} {
+		if err := st.SetWriterVersion(bad); err == nil {
+			t.Fatalf("SetWriterVersion(%q) accepted, want an error", bad)
+		}
+	}
+	if err := st.SetWriterVersion("v1.10.0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetWriterVersion("v1.11.0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+
+	re, err := Load(filepath.Join(dir, "vault.store"), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer re.Close()
+	if v, err := re.WriterVersion(); err != nil || v != "v1.11.0" {
+		t.Fatalf("writer version after reload %q %v, want v1.11.0", v, err)
+	}
+	if v, err := re.SchemaVersion(); err != nil || v != 2 {
+		t.Fatalf("schema version %d %v, want 2", v, err)
+	}
+}

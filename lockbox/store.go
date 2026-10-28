@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite" // registers the pure-Go "sqlite" driver
@@ -191,6 +192,29 @@ func (s *Store) SchemaVersion() (int, error) {
 		return 0, err
 	}
 	return strconv.Atoi(v)
+}
+
+// WriterVersion returns the program version recorded by the last writer that
+// sets it, or "" when the store has none. An older build saves the store
+// without changing the row, so the value can predate the last save.
+func (s *Store) WriterVersion() (string, error) {
+	var v string
+	err := s.conn.QueryRowContext(bg, "select value from meta where key = 'writer_version'").Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return v, err
+}
+
+// SetWriterVersion records v as the writer version in the loaded image; the
+// next Save writes it. It rejects an empty or multi-line value.
+func (s *Store) SetWriterVersion(v string) error {
+	if v == "" || strings.ContainsAny(v, "\r\n") {
+		return fmt.Errorf("set writer version %q: want one non-empty line", v)
+	}
+	_, err := s.conn.ExecContext(bg,
+		"insert into meta(key, value) values ('writer_version', ?) on conflict(key) do update set value = excluded.value", v)
+	return err
 }
 
 func (s *Store) prepare() error {
