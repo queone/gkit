@@ -7,7 +7,7 @@ Joining clips with different orientations and dimensions requires a filter graph
 ### Usage
 
 ```text
-vjoin v0.2.0
+vjoin v0.3.0
 Join two videos into one normalized MP4 by driving ffmpeg
 github.com/queone/gkit/tree/main/cmd/vjoin
 
@@ -18,7 +18,7 @@ Usage
   merged.mp4 and needs ffmpeg and ffprobe on PATH (brew install ffmpeg).
 
 Options
-  -v, --version   Print vjoin v0.2.0 and exit
+  -v, --version   Print vjoin v0.3.0 and exit
   -h, -?, --help  Show this help and exit
 ```
 

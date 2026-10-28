@@ -16,7 +16,7 @@ This utility is part of a collection of Go utilities. To compile and install fol
 ### Usage
 
 ```text
-jy v1.7.0
+jy v1.8.0
 Convert JSON to YAML and YAML to JSON
 github.com/queone/gkit/tree/main/cmd/jy
 
@@ -28,7 +28,7 @@ Usage
 Options
   -c              Print FILE colorized without converting it
   -d              Strip color from the output
-  -v, --version   Print jy v1.7.0 and exit
+  -v, --version   Print jy v1.8.0 and exit
   -h, -?, --help  Show this help and exit
 
 Examples

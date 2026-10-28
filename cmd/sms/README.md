@@ -7,7 +7,7 @@ Needs a KEY from the https://textbelt.com service: `svckey = KEY`
 ### Usage
 
 ```text
-sms v1.4.0
+sms v1.5.0
 Send an SMS message through textbelt.com
 github.com/queone/gkit/tree/main/cmd/sms
 
@@ -19,7 +19,7 @@ Usage
 
 Options
   -y              Write the skeleton config file and exit
-  -v, --version   Print sms v1.4.0 and exit
+  -v, --version   Print sms v1.5.0 and exit
   -h, -?, --help  Show this help and exit
 ```
 Run with the 2 obvious arguments (cellphone number & the actual message):

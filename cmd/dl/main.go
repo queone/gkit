@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 	"io"
 	"io/fs"
 	"net/url"
@@ -28,7 +29,7 @@ const (
 
 const (
 	programName    = "dl"
-	programVersion = "2.7.0"
+	programVersion = "2.8.0"
 )
 
 const (
@@ -560,6 +561,7 @@ func printUsage() {
 }
 
 func main() {
+	notice.Show()
 	if len(os.Args) > 1 && (os.Args[1] == "-v" || os.Args[1] == "--version") {
 		showVersion()
 		return

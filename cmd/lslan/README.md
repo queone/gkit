@@ -39,7 +39,7 @@ This utility is part of a collection of Go utilities. To compile and install fol
 ### Usage
 
 ```text
-lslan v1.0.0
+lslan v1.1.0
 List the live hosts on the local network
 github.com/queone/gkit/tree/main/cmd/lslan
 
@@ -54,7 +54,7 @@ Options
   -j, --json        Print a JSON array instead of tab-separated lines
   -w, --wait MS     Wait MS milliseconds for late ICMP replies; default 500
   -p, --ports LIST  Probe these TCP ports; default 22,80,443, and an empty LIST disables them
-  -v, --version     Print lslan v1.0.0 and exit
+  -v, --version     Print lslan v1.1.0 and exit
   -h, -?, --help    Show this help and exit
 
 Columns

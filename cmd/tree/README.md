@@ -16,7 +16,7 @@ This utility is part of a collection of Go utilities. To compile and install fol
 ### Usage
 
 ```text
-tree v1.1.0
+tree v1.2.0
 Print a directory tree, with each file's full path on request
 github.com/queone/gkit/tree/main/cmd/tree
 
@@ -27,7 +27,7 @@ Usage
 
 Options
   -f              Show each file's full path beside its name
-  -v, --version   Print tree v1.1.0 and exit
+  -v, --version   Print tree v1.2.0 and exit
   -h, -?, --help  Show this help and exit
 
 Examples

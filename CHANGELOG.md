@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.93.0 | AC127 every gkit utility shows a newer-release notice; plan.md Ideas preamble |
 | 0.92.0 | AC126 update package reports new module releases; lockbox records writer version |
 | 0.91.0 | dl 2.7.0 picks the cookie browser per site from ~/.config/dl/cookies |
 | 0.90.2 | AGENTS.md drops a Project Rules bullet that duplicates Base Rules |

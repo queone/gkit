@@ -15,7 +15,7 @@ output  talk.mp4    39,880,112  00:12:40
 ### Usage
 
 ```text
-vconv v1.1.0
+vconv v1.2.0
 Convert a video to an H.264 MP4 by driving ffmpeg
 github.com/queone/gkit/tree/main/cmd/vconv
 
@@ -26,7 +26,7 @@ Usage
   overwrite an existing file and needs ffmpeg and ffprobe (brew install ffmpeg).
 
 Options
-  -v, --version   Print vconv v1.1.0 and exit
+  -v, --version   Print vconv v1.2.0 and exit
   -h, -?, --help  Show this help and exit
 
 Examples

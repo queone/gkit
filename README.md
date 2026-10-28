@@ -90,6 +90,9 @@ Note that you can compile individual utilities with `./build.sh rn web`, etc. Ta
 
 To build in Windows you have to have a BASH shell such as [GitBASH](https://www.git-scm.com/download/win). To build from a regular Windows Command Prompt, you may have to tweak the `build.sh` script a bit, to have it run the right `go build ...` command.
 
+## Update Notice
+Every utility checks, at most once a day, whether a newer gkit release exists, and prints one line to stderr when it does. The line tells you how to update: `git pull` and `./build.sh` for a clone, or `go install github.com/queone/gkit/cmd/...@latest` for a `go install` build. The check runs only when stderr is a terminal, shares one cache across all utilities, and never installs anything. The daily check can delay a run by up to 2 seconds, and when the module proxy is unreachable it retries once an hour. Set `NO_UPDATE_CHECK=1` to turn it off.
+
 ## Scripts
 
 Standalone scripts that are fetched rather than installed. Download any of them with `curl -L` from `https://github.com/queone/gkit/raw/main/scripts/<file>`, which redirects to the raw host.

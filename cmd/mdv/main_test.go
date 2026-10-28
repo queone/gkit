@@ -859,7 +859,7 @@ func TestCleanupContinuesAfterAFailedRemoval(t *testing.T) {
 }
 
 func TestProgramIdentityAndStylesheetChecksum(t *testing.T) {
-	if programName != "mdv" || programVersion != "0.3.0" {
+	if programName != "mdv" || programVersion != "0.4.0" {
 		t.Errorf("identity = %s %s", programName, programVersion)
 	}
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(stylesheet)))

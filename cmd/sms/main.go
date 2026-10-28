@@ -19,6 +19,7 @@ package main
 import (
 	"fmt"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 	"io"
 	"net/http"
 	"net/url"
@@ -31,7 +32,7 @@ import (
 
 const (
 	programName    = "sms"
-	programVersion = "1.4.0"
+	programVersion = "1.5.0"
 )
 
 // Global variables
@@ -234,6 +235,7 @@ func createSkeletonConfigFile() {
 }
 
 func main() {
+	notice.Show()
 
 	tel, msg := "", ""
 	argCount := len(os.Args[1:])

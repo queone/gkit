@@ -5,7 +5,7 @@ Just a CLI utility to query DuckDuckGo and open items from search result with We
 ### Usage
 
 ```text
-web v1.1.0
+web v1.2.0
 Search DuckDuckGo and open a result picked with a fuzzy finder
 github.com/queone/gkit/tree/main/cmd/web
 
@@ -18,7 +18,7 @@ Options
   -u, --user-agent UA  Send UA as the User-Agent header
   -r, --referrer URL   Send URL as the Referer header
   -b, --browser CMD    Open the result with CMD instead of the default browser
-  -v, --version        Print web v1.1.0 and exit
+  -v, --version        Print web v1.2.0 and exit
   -h, -?, --help       Show this help and exit
 
 Examples

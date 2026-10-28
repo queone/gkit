@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 	"io"
 	"math"
 	"os"
@@ -17,7 +18,7 @@ import (
 
 const (
 	programName    = "vjoin"
-	programVersion = "0.2.0"
+	programVersion = "0.3.0"
 	outputPath     = "merged.mp4"
 )
 
@@ -244,6 +245,7 @@ func videoFilter(index int, vertical bool) string {
 }
 
 func main() {
+	notice.Show()
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", programName, err)
 		os.Exit(1)

@@ -7,13 +7,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/queone/gkit/internal/notice"
 	"github.com/queone/gkit/internal/vedit"
 )
 
 const (
 	// Global constants
 	programName    = "vkeep"
-	programVersion = "0.4.0"
+	programVersion = "0.5.0"
 )
 
 // die prints an error message to stderr and exits with status 1.
@@ -81,5 +82,6 @@ func runCLI() {
 }
 
 func main() {
+	notice.Show()
 	runCLI()
 }

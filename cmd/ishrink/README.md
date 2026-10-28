@@ -15,7 +15,7 @@ output  IMG_4821_20260908a.jpg   188,211
 ### Usage
 
 ```text
-ishrink v1.1.0
+ishrink v1.2.0
 Shrink a HEIC, JPEG, or JPG image into a small JPEG via macOS sips
 github.com/queone/gkit/tree/main/cmd/ishrink
 
@@ -26,7 +26,7 @@ Usage
   existing file. sips ships with macOS, so ishrink runs only there.
 
 Options
-  -v, --version   Print ishrink v1.1.0 and exit
+  -v, --version   Print ishrink v1.2.0 and exit
   -h, -?, --help  Show this help and exit
 
 Examples

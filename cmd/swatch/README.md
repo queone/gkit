@@ -4,7 +4,7 @@ Xterm 256-color palette and ramp inspector — prints the complete xterm palette
 ### Usage
 
 ```text
-swatch v1.1.0
+swatch v1.2.0
 Inspect the xterm 256-color palette and the color ramps
 github.com/queone/gkit/tree/main/cmd/swatch
 
@@ -17,13 +17,13 @@ Commands
   p, palette      Print the complete xterm palette and color ramps
   g, grid         Print the bordered ramp-by-step grid
   b, backgrounds  Print background-ramp swatch rows
-  version         Print swatch v1.1.0
+  version         Print swatch v1.2.0
   help            Show this help
 
 Options
   -r, --reverse           Use ramp colors as grid cell backgrounds
   -f, --foreground INDEX  Set grid or swatch text to xterm INDEX (0-255)
-  -v, --version           Print swatch v1.1.0 and exit
+  -v, --version           Print swatch v1.2.0 and exit
   -h, -?, --help          Show this help and exit
 
 Examples

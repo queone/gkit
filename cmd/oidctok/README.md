@@ -21,7 +21,7 @@ A workflow that manages Azure should not carry a client secret. With a federated
 ### Usage
 
 ```text
-oidctok v1.1.0
+oidctok v1.2.0
 Exchange a GitHub Actions OIDC token for Azure tokens
 github.com/queone/gkit/tree/main/cmd/oidctok
 
@@ -37,7 +37,7 @@ Usage
 
 Options
   -a, --audience AUD  Audience for the OIDC token (default api://AzureADTokenExchange)
-  -v, --version       Print oidctok v1.1.0 and exit
+  -v, --version       Print oidctok v1.2.0 and exit
   -h, -?, --help      Show this help and exit
 
 Examples

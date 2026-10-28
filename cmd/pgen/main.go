@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 	"github.com/sethvargo/go-diceware/diceware"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -17,7 +18,7 @@ import (
 
 const (
 	programName    = "pgen"
-	programVersion = "1.3.0"
+	programVersion = "1.4.0"
 	delimiter      = "_" // Use underscore for diceware password
 )
 
@@ -113,6 +114,7 @@ func GenerateRandomAlphaNumeric(length int) string {
 }
 
 func main() {
+	notice.Show()
 	args := len(os.Args[1:])
 	numWords := 3 // default
 

@@ -9,11 +9,12 @@ import (
 
 	"github.com/queone/gkit/color"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 )
 
 const (
 	programName    = "tree"
-	programVersion = "1.1.0"
+	programVersion = "1.2.0"
 )
 
 func usage() string {
@@ -132,6 +133,7 @@ func printTree(dir string, showFullPath bool) {
 }
 
 func main() {
+	notice.Show()
 	showFullPath := false
 	var dir string = "."
 	args := os.Args[1:]

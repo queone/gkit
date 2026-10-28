@@ -16,11 +16,12 @@ import (
 	"time"
 
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 )
 
 const (
 	programName    = "namehunt"
-	programVersion = "1.2.0"
+	programVersion = "1.3.0"
 )
 
 const (
@@ -711,6 +712,7 @@ func run(args []string, e env) int {
 }
 
 func main() {
+	notice.Show()
 	path, err := sitesPath()
 	if err != nil {
 		os.Exit(fail(os.Stderr, err))

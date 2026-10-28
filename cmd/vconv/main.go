@@ -11,12 +11,13 @@ import (
 
 	"github.com/queone/gkit/color"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 	"github.com/queone/gkit/internal/vedit"
 )
 
 const (
 	programName    = "vconv"
-	programVersion = "1.1.0"
+	programVersion = "1.2.0"
 )
 
 // transcode is the ffmpeg seam, replaced in tests so no real encode runs.
@@ -107,5 +108,6 @@ func run(args []string, e env) int {
 }
 
 func main() {
+	notice.Show()
 	os.Exit(run(os.Args[1:], env{stdout: os.Stdout, stderr: os.Stderr}))
 }

@@ -4,7 +4,7 @@ Memorable password generator a la [xkcd.com/936](https://xkcd.com/936/), using [
 ### Usage
 
 ```text
-pgen v1.3.0
+pgen v1.4.0
 Generate memorable passwords from diceware words
 github.com/queone/gkit/tree/main/cmd/pgen
 
@@ -13,7 +13,7 @@ Usage
   pgen NUMBER  Use NUMBER words, from 1 to 9
 
 Options
-  -v, --version   Print pgen v1.3.0 and exit
+  -v, --version   Print pgen v1.4.0 and exit
   -h, -?, --help  Show this help and exit
 
 Examples

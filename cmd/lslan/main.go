@@ -16,11 +16,12 @@ import (
 	"time"
 
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 )
 
 const (
 	programName    = "lslan"
-	programVersion = "1.0.0"
+	programVersion = "1.1.0"
 )
 
 // defaultWait is how long the sweep listens for late ICMP replies.
@@ -255,5 +256,6 @@ func unreachableMessage(goos string) string {
 }
 
 func main() {
+	notice.Show()
 	os.Exit(run(os.Args[1:], newDeps()))
 }

@@ -36,7 +36,7 @@ This utility is part of a collection of Go utilities. To compile and install fol
 ### Usage
 
 ```text
-days v1.2.0
+days v1.3.0
 Count calendar days between dates, or find the date N days away
 github.com/queone/gkit/tree/main/cmd/days
 
@@ -49,7 +49,7 @@ Usage
   DATE is YYYY-MM-DD or YYYY-MMM-DD.
 
 Options
-  -v, --version   Print days v1.2.0 and exit
+  -v, --version   Print days v1.3.0 and exit
   -h, -?, --help  Show this help and exit
 
 Examples

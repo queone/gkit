@@ -5,7 +5,7 @@ It replaces all occurrences of a specified string in filenames with another stri
 ### Usage
 
 ```text
-rn v1.6.0
+rn v1.7.0
 Rename files in the current directory by replacing a substring
 github.com/queone/gkit/tree/main/cmd/rn
 
@@ -16,7 +16,7 @@ Usage
 
 Options
   -f              Rename the files instead of only showing the plan
-  -v, --version   Print rn v1.6.0 and exit
+  -v, --version   Print rn v1.7.0 and exit
   -h, -?, --help  Show this help and exit
 
 Examples

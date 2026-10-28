@@ -341,8 +341,8 @@ func TestDocumentation(t *testing.T) {
 }
 
 func TestProgramVersion(t *testing.T) {
-	if programVersion != "0.2.0" {
-		t.Errorf("programVersion = %q, want 0.2.0", programVersion)
+	if programVersion != "0.3.0" {
+		t.Errorf("programVersion = %q, want 0.3.0", programVersion)
 	}
 }
 

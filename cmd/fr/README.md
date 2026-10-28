@@ -22,7 +22,7 @@ Replace occurrences in all text files.
 ### Usage
 
 ```text
-fr v1.1.0
+fr v1.2.0
 Find a regular expression in the text files under the current directory, or replace it
 github.com/queone/gkit/tree/main/cmd/fr
 
@@ -35,6 +35,6 @@ Usage
 
 Options
   -f              Write the replacement instead of showing matches
-  -v, --version   Print fr v1.1.0 and exit
+  -v, --version   Print fr v1.2.0 and exit
   -h, -?, --help  Show this help and exit
 ```

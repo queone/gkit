@@ -17,7 +17,7 @@ output  clip_20260908a.mp4    21,433,900  00:03:10
 ### Usage
 
 ```text
-vshrink v1.1.0
+vshrink v1.2.0
 Shrink an MP4 by re-encoding it at a high compression level via ffmpeg
 github.com/queone/gkit/tree/main/cmd/vshrink
 
@@ -28,7 +28,7 @@ Usage
   refuses to overwrite an existing file and needs ffmpeg and ffprobe (brew install ffmpeg).
 
 Options
-  -v, --version   Print vshrink v1.1.0 and exit
+  -v, --version   Print vshrink v1.2.0 and exit
   -h, -?, --help  Show this help and exit
 
 Examples

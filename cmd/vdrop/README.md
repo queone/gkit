@@ -14,7 +14,7 @@ output  SOURCE_1.mp4    86,212,000  00:34:39
 ### Usage
 
 ```text
-vdrop v0.4.0
+vdrop v0.5.0
 Drop one section of a video and join the rest by driving ffmpeg
 github.com/queone/gkit/tree/main/cmd/vdrop
 
@@ -29,7 +29,7 @@ Usage
 Options
   -a, --accurate          Frame-accurate re-encode (default: fast keyframe copy)
   -x, --crossfade[=SECS]  Dissolve the interior join (vdrop only; re-encodes; default 0.5s)
-  -v, --version           Print vdrop v0.4.0 and exit
+  -v, --version           Print vdrop v0.5.0 and exit
   -h, -?, --help          Show this help and exit
 
   A vdrop crossfade overlaps SECS seconds, so the output is that much shorter

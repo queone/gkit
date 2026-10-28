@@ -14,7 +14,7 @@ output  SOURCE_1.mp4    82,330,112  00:37:57
 ### Usage
 
 ```text
-vkeep v0.4.0
+vkeep v0.5.0
 Keep one section of a video by driving ffmpeg
 github.com/queone/gkit/tree/main/cmd/vkeep
 
@@ -29,7 +29,7 @@ Usage
 Options
   -a, --accurate          Frame-accurate re-encode (default: fast keyframe copy)
   -x, --crossfade[=SECS]  Dissolve the interior join (vdrop only; re-encodes; default 0.5s)
-  -v, --version           Print vkeep v0.4.0 and exit
+  -v, --version           Print vkeep v0.5.0 and exit
   -h, -?, --help          Show this help and exit
 
   A vdrop crossfade overlaps SECS seconds, so the output is that much shorter

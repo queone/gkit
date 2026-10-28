@@ -20,7 +20,7 @@ $ decolor sample.yaml
 ### Usage
 
 ```text
-decolor v1.2.0
+decolor v1.3.0
 Strip shell color escape codes from a file or piped text
 github.com/queone/gkit/tree/main/cmd/decolor
 
@@ -29,7 +29,7 @@ Usage
   ... | decolor  Print piped text without its color escape codes
 
 Options
-  -v, --version   Print decolor v1.2.0 and exit
+  -v, --version   Print decolor v1.3.0 and exit
   -h, -?, --help  Show this help and exit
 
 Examples

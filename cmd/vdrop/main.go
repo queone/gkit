@@ -8,13 +8,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/queone/gkit/internal/notice"
 	"github.com/queone/gkit/internal/vedit"
 )
 
 const (
 	// Global constants
 	programName    = "vdrop"
-	programVersion = "0.4.0"
+	programVersion = "0.5.0"
 
 	// defaultCrossfade is the dissolve length, in seconds, when -x is bare.
 	defaultCrossfade = 0.5
@@ -93,5 +94,6 @@ func runCLI() {
 }
 
 func main() {
+	notice.Show()
 	runCLI()
 }

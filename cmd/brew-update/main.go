@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 )
 
 // ANSI color codes
@@ -22,7 +23,7 @@ const (
 
 const (
 	programName    = "brew-update"
-	programVersion = "1.4.0"
+	programVersion = "1.5.0"
 )
 
 // runCommand executes a command and streams its output
@@ -83,6 +84,7 @@ func usage() string {
 }
 
 func main() {
+	notice.Show()
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
 		case "-v", "--version":

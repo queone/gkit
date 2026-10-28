@@ -14,11 +14,12 @@ import (
 	"time"
 
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 )
 
 const (
 	programName    = "certgen"
-	programVersion = "2.1.0"
+	programVersion = "2.2.0"
 )
 
 func helpText() string {
@@ -41,6 +42,7 @@ func usage() {
 }
 
 func main() {
+	notice.Show()
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
 		case "-v", "--version":

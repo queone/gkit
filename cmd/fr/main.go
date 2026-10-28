@@ -12,11 +12,12 @@ import (
 
 	"github.com/queone/gkit/color"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 )
 
 const (
 	programName    = "fr"
-	programVersion = "1.1.0"
+	programVersion = "1.2.0"
 )
 
 // ---------------------------------------------------------------------
@@ -84,6 +85,7 @@ func usage() string {
 // ---------------------------------------------------------------------
 
 func main() {
+	notice.Show()
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
 		case "-v", "--version":

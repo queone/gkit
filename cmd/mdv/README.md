@@ -5,7 +5,7 @@ Render local Markdown files as GitHub Flavored Markdown and open each one in the
 ### Usage
 
 ```text
-mdv v0.3.0
+mdv v0.4.0
 View GitHub Flavored Markdown in a browser or write it as HTML
 github.com/queone/gkit/tree/main/cmd/mdv
 
@@ -15,7 +15,7 @@ Usage
 
 Options
   -o, --output PATH  Write the HTML to PATH without opening a browser
-  -v, --version      Print mdv v0.3.0 and exit
+  -v, --version      Print mdv v0.4.0 and exit
   -h, -?, --help     Show this help and exit
 ```
 

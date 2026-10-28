@@ -7,11 +7,12 @@ import (
 	"strings"
 
 	icolor "github.com/queone/gkit/color"
+	"github.com/queone/gkit/internal/notice"
 )
 
 const (
 	programName    = "rn"
-	programVersion = "1.6.0"
+	programVersion = "1.7.0"
 )
 
 func usage() string {
@@ -40,6 +41,7 @@ func printUsage() {
 }
 
 func main() {
+	notice.Show()
 	args := os.Args[1:]
 	if len(args) == 1 {
 		switch args[0] {

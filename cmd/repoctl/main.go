@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 	"io"
 	"os"
 	"os/exec"
@@ -20,7 +21,7 @@ import (
 
 const (
 	programName    = "repoctl"
-	programVersion = "0.5.0"
+	programVersion = "0.6.0"
 	yellow         = "\033[38;5;226m"
 	reset          = "\033[0m"
 )
@@ -44,6 +45,7 @@ type repoResult struct {
 }
 
 func main() {
+	notice.Show()
 	code := 0
 	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		fmt.Fprintln(os.Stderr, err)

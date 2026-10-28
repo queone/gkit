@@ -11,12 +11,13 @@ import (
 	"strconv"
 
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 )
 
 const (
 	// Global constants
 	programName    = "days"
-	programVersion = "1.2.0"
+	programVersion = "1.3.0"
 )
 
 // die prints an error message to stderr and exits with status 1.
@@ -60,6 +61,7 @@ func printUsage() {
 }
 
 func main() {
+	notice.Show()
 	numberOfArguments := len(os.Args[1:]) // Not including the program itself
 	if numberOfArguments < 1 || numberOfArguments > 2 {
 		// Don't accept less than 1 or more than 2 arguments

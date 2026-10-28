@@ -12,12 +12,13 @@ import (
 	fzf "github.com/koki-develop/go-fzf"
 	"github.com/mattn/go-runewidth"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 	"github.com/skratchdot/open-golang/open"
 )
 
 const (
 	programName    = "web"
-	programVersion = "1.1.0"
+	programVersion = "1.2.0"
 )
 
 type Options struct {
@@ -153,6 +154,7 @@ func find(result []SearchResult) ([]int, error) {
 }
 
 func main() {
+	notice.Show()
 	for _, a := range os.Args[1:] {
 		if a == "-h" || a == "-?" || a == "--help" {
 			fmt.Print(usage())

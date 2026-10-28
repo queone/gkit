@@ -14,12 +14,13 @@ import (
 
 	"github.com/queone/gkit/color"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 	"github.com/queone/gkit/internal/numfmt"
 )
 
 const (
 	programName    = "ishrink"
-	programVersion = "1.1.0"
+	programVersion = "1.2.0"
 	usageLine      = "usage: ishrink FILE.[heic|jpeg|jpg]"
 )
 
@@ -153,5 +154,6 @@ func run(args []string, e env) int {
 }
 
 func main() {
+	notice.Show()
 	os.Exit(run(os.Args[1:], env{stdout: os.Stdout, stderr: os.Stderr}))
 }

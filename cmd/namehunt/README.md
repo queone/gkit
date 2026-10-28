@@ -7,7 +7,7 @@ Find free usernames on any site with a predictable profile URL. Give it a site a
 ### Usage
 
 ```text
-namehunt v1.2.0
+namehunt v1.3.0
 Find free usernames on any site with a predictable profile URL
 github.com/queone/gkit/tree/main/cmd/namehunt
 
@@ -28,7 +28,7 @@ Options
   -f, --free CODES     Status codes that mean free, comma-separated (default 404)
   -w, --wait MS        Pause MS milliseconds between requests (default 300)
   -l, --list           List known sites and exit
-  -v, --version        Print namehunt v1.2.0 and exit
+  -v, --version        Print namehunt v1.3.0 and exit
   -h, -?, --help       Show this help and exit
 
 Examples

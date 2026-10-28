@@ -7,7 +7,7 @@ Keeping a running financial summary — a budget, an expense sheet — means edi
 ### Usage
 
 ```text
-retotal v1.3.0
+retotal v1.4.0
 Consolidate financial data into a signed TOTALS summary, and re-tally it after edits
 github.com/queone/gkit/tree/main/cmd/retotal
 
@@ -19,7 +19,7 @@ Usage
   retotal output file, its TOTALS are recomputed in place after you edit it.
 
 Options
-  -v, --version   Print retotal v1.3.0 and exit
+  -v, --version   Print retotal v1.4.0 and exit
   -h, -?, --help  Show this help and exit
 ```
 

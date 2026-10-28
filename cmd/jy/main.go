@@ -12,12 +12,13 @@ import (
 	"github.com/mattn/go-isatty"
 	icolor "github.com/queone/gkit/color"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 	"gopkg.in/yaml.v3"
 )
 
 const (
 	programName    = "jy"
-	programVersion = "1.7.0"
+	programVersion = "1.8.0"
 )
 
 // die prints an error message to stderr and exits with status 1.
@@ -205,6 +206,7 @@ func printInColor(filePath string) {
 }
 
 func main() {
+	notice.Show()
 	var filePath string
 	var decolorize bool
 	var colorize bool

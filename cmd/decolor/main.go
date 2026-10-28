@@ -10,11 +10,12 @@ import (
 	"github.com/mattn/go-isatty"
 	icolor "github.com/queone/gkit/color"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 )
 
 const (
 	programName    = "decolor"
-	programVersion = "1.2.0"
+	programVersion = "1.3.0"
 )
 
 func usage() string {
@@ -77,6 +78,7 @@ func loadAndDecolorize(filename string) {
 }
 
 func main() {
+	notice.Show()
 	if len(os.Args) == 2 {
 		switch os.Args[1] {
 		case "-v", "--version":

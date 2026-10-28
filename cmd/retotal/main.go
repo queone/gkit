@@ -14,12 +14,13 @@ import (
 
 	"github.com/queone/gkit/color"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 	"github.com/queone/gkit/internal/numfmt"
 )
 
 const (
 	programName    = "retotal"
-	programVersion = "1.3.0"
+	programVersion = "1.4.0"
 	// signatureLine gates re-tally and tells the user how to recalculate. It is the
 	// last non-empty line of every output file. The `<THIS-FILE>` token is a
 	// literal placeholder, so the signature is path-independent.
@@ -719,6 +720,7 @@ func run() error {
 }
 
 func main() {
+	notice.Show()
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", programName, err)
 		os.Exit(1)

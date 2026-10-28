@@ -40,7 +40,7 @@ GitHub CLI is required for scoped clone and list operations.
 ### Usage
 
 ```text
-repoctl v0.5.0
+repoctl v0.6.0
 Control a collection of local Git repositories
 github.com/queone/gkit/tree/main/cmd/repoctl
 
@@ -56,10 +56,10 @@ Commands
   c, clone   Clone a repository
   l, list    List repositories in scope
   b, build   Run ./build.sh in selected repositories
-  version    Print repoctl v0.5.0
+  version    Print repoctl v0.6.0
   help       Show this help
 
 Options
-  -v, --version   Print repoctl v0.5.0 and exit
+  -v, --version   Print repoctl v0.6.0 and exit
   -h, -?, --help  Show this help and exit
 ```

@@ -9,14 +9,16 @@ import (
 
 	"github.com/queone/gkit/color"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 )
 
 const (
 	programName    = "swatch"
-	programVersion = "1.1.0"
+	programVersion = "1.2.0"
 )
 
 func main() {
+	notice.Show()
 	os.Exit(run(os.Args[1:]))
 }
 

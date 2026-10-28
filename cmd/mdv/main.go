@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/queone/gkit/help"
+	"github.com/queone/gkit/internal/notice"
 	"html"
 	"html/template"
 	"io"
@@ -21,7 +22,7 @@ import (
 
 const (
 	programName    = "mdv"
-	programVersion = "0.3.0"
+	programVersion = "0.4.0"
 
 	// Source: https://raw.githubusercontent.com/sindresorhus/github-markdown-css/v5.9.0/github-markdown.css
 	// SHA-256: 6112686f954db5d3806fb96116d2ab20ad3018469ab1015c587fd8efe7d25cf4
@@ -736,5 +737,6 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 }
 
 func main() {
+	notice.Show()
 	os.Exit(runCLI(os.Args[1:], os.Stdout, os.Stderr))
 }
