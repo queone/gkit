@@ -1,7 +1,7 @@
 ## ishrink
 Re-encode a HEIC, JPEG, or JPG image as a small JPEG via macOS `sips`.
 
-### Why?
+### Why
 A phone photo is several megabytes, far more than a chat message or a web form wants. `ishrink` re-encodes one image as JPEG at 10% quality, names the output with today's date, and prints the before/after sizes.
 
 ```bash

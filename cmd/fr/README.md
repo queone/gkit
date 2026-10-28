@@ -5,6 +5,9 @@ If the command line ends with `-f` (i.e. `fr FROM TO -f`) the program writes the
 
 If `-f` is absent (i.e. `fr FROM TO`) the program does not modify any file – it only prints every line that contains a match, colouring the matched fragment in red and the file name in yellow.
 
+### Why
+Finds or replaces a pattern across a source tree in one command, and shows the matches before it writes, without chaining `grep` and `sed`.
+
 ### Search/Replace Types
 
 1. Single-argument search: `fr 'foo.*bar'`

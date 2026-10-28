@@ -1,7 +1,7 @@
 ## vconv
 Convert a video, typically WebM, to an H.264/AAC MP4 by driving `ffmpeg`.
 
-### Why?
+### Why
 Screen recorders and browsers hand out WebM files that many players and editors will not open. `vconv` re-encodes one file with the flags that play everywhere and names the output for you.
 
 ```bash

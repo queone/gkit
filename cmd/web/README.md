@@ -2,6 +2,9 @@
 Based on [duckgo](https://github.com/sheepla/duckgo) and [ddgr](https://github.com/jarun/ddgr).
 Just a CLI utility to query DuckDuckGo and open items from search result with Web browser quickly.
 
+### Why
+Searches DuckDuckGo from the terminal and opens only the result you pick, without loading a search page in the browser.
+
 ### Usage
 
 ```text

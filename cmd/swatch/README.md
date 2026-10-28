@@ -1,6 +1,9 @@
 # swatch
 Xterm 256-color palette and ramp inspector — prints the complete xterm palette plus 11 named color ramps (Gra, Red, Org, Yel, Grn, Cya, Blu, Pur, Mag, Whi, Heat), each as a bordered grid or background-swatch strip.
 
+### Why
+Shows how each xterm 256 color and color ramp looks in your terminal before you pick one for a tool.
+
 ### Usage
 
 ```text

@@ -17,6 +17,9 @@ $ cat sample.yaml | decolor
 $ decolor sample.yaml
 ```
 
+### Why
+Makes colored terminal output safe to save, diff, or search by removing the escape codes that clutter it.
+
 ### Usage
 
 ```text

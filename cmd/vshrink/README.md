@@ -3,7 +3,7 @@ Re-encode an MP4 at a high compression level to cut its size, by driving `ffmpeg
 
 Audio is copied through ffmpeg's defaults.
 
-### Why?
+### Why
 Phone and screen recordings are far larger than they need to be for sharing. `vshrink` re-encodes one MP4 as H.264 at CRF 35, checks first that the input really is an MP4, names the output with today's date, and prints a before/after summary.
 
 ```bash

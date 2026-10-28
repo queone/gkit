@@ -1,7 +1,7 @@
 ## days
 Command line calendar days calculator.
 
-### Why?
+### Why
 Almost all of these days calculations can of course be done with most Unix `date` commands, or with many other tools. So why a dedicated `days` utility? Because these simple calculations seem to occur very often, and having a simple dedicated utility for them is quite handy. Using the `date` command, and/or most other ways, always seems too elaborate. But using this utility, one can quickly, for instance, get someone's age by simply doing the following: 
 
 ```bash

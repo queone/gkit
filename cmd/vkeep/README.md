@@ -1,7 +1,7 @@
 ## vkeep
 Keep a section of a video — extract `START..END` to a new file — by driving `ffmpeg`.
 
-### Why?
+### Why
 Pulling a clip out of a video with raw `ffmpeg` means remembering seek-flag ordering, codec flags, and the keyframe-vs-accuracy trade-off, then hand-naming the output. `vkeep` takes a start and (optionally) an end, validates the range against the source up front, names the output for you, and prints a before/after summary. The mental model is simple: **`vkeep` keeps the part you want.**
 
 ```bash

@@ -10,14 +10,14 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 
 ## Utilities
 
-- [`bak`](cmd/bak/main.go): Create a dated backup copy of a file or directory.
-- [`brew-update`](cmd/brew-update/main.go): Update, upgrade, and clean up Homebrew formulae and casks.
-- [`certgen`](cmd/certgen/main.go): Generate a self-signed TLS certificate, private key, and CSR for a common name.
-- [`certls`](cmd/certls/main.go): Print the TLS certificate details of a host and port.
+- [`bak`](cmd/bak/README.md): Create a dated backup copy of a file or directory.
+- [`brew-update`](cmd/brew-update/README.md): Update, upgrade, and clean up Homebrew formulae and casks.
+- [`certgen`](cmd/certgen/README.md): Generate a self-signed TLS certificate, private key, and CSR for a common name.
+- [`certls`](cmd/certls/README.md): Print the TLS certificate details of a host and port.
 - [`days`](cmd/days/README.md): Count calendar days between dates, or find the date N days away.
 - [`decolor`](cmd/decolor/README.md): Strip shell color escape codes from a file or piped text.
-- [`dl`](cmd/dl/main.go): Download an online video as an MP4 with yt-dlp.
-- [`dos2unix`](cmd/dos2unix/main.go): Preview or convert CRLF line endings to LF.
+- [`dl`](cmd/dl/README.md): Download an online video as an MP4 with yt-dlp.
+- [`dos2unix`](cmd/dos2unix/README.md): Preview or convert CRLF line endings to LF.
 - [`fr`](cmd/fr/README.md): Find a regular expression in the text files under the current directory, or replace it.
 - [`ishrink`](cmd/ishrink/README.md): Shrink a HEIC, JPEG, or JPG image into a small JPEG via macOS sips.
 - [`repoctl`](cmd/repoctl/README.md): Control a collection of local Git repositories.
@@ -27,11 +27,11 @@ Go's tool chain is the ideal way to maintain a set of commonly used CLI utilitie
 - [`namehunt`](cmd/namehunt/README.md): Find free usernames on any site with a predictable profile URL.
 - [`oidctok`](cmd/oidctok/README.md): Exchange a GitHub Actions OIDC token for Azure tokens.
 - [`pgen`](cmd/pgen/README.md): Generate memorable passwords from diceware words.
-- [`pman`](cmd/pman/main.go): Call Microsoft Graph and Azure Resource Manager REST APIs with an azm token.
+- [`pman`](cmd/pman/README.md): Call Microsoft Graph and Azure Resource Manager REST APIs with an azm token.
 - [`retotal`](cmd/retotal/README.md): Consolidate financial data into a signed TOTALS summary, and re-tally it after edits.
 - [`rn`](cmd/rn/README.md): Rename files in the current directory by replacing a substring.
-- [`rncap`](cmd/rncap/main.go): Capitalize every word of every file name in the current directory.
-- [`rnlower`](cmd/rnlower/main.go): Rename every file in the current directory to lowercase.
+- [`rncap`](cmd/rncap/README.md): Capitalize every word of every file name in the current directory.
+- [`rnlower`](cmd/rnlower/README.md): Rename every file in the current directory to lowercase.
 - [`sms`](cmd/sms/README.md): Send an SMS message through textbelt.com.
 - [`swatch`](cmd/swatch/README.md): Inspect the xterm 256-color palette and the color ramps.
 - [`tree`](cmd/tree/README.md): Print a directory tree, with each file's full path on request.

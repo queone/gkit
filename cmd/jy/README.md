@@ -2,7 +2,7 @@
 A lightweight JSON and YAML converter utility.
 
 
-### Why?
+### Why
 Why another YAML / JSON converter utility?
 
 - **Availability**: If the official tree utility is not installed or hard to get, you can quickly compile this with Go.

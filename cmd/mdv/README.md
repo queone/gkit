@@ -2,6 +2,9 @@
 
 Render local Markdown files as GitHub Flavored Markdown and open each one in the default browser.
 
+### Why
+Previews Markdown the way GitHub renders it, without pushing it or running a server.
+
 ### Usage
 
 ```text

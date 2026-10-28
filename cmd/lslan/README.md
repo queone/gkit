@@ -1,7 +1,7 @@
 ## lslan
 List the live hosts on the local network in about a second, without sudo.
 
-### Why?
+### Why
 macOS 27 stopped letting ordinary processes read the ARP table, the kernel's map from IP address to MAC address. Discovery tools that depend on that table now list only the devices that announce themselves over mDNS or SSDP, so a quiet device such as a thermostat, a printer with discovery turned off, or a phone in power-save mode vanishes from the list even though it answers ping. `lslan` does not need the table to find hosts: it asks every address in the subnet directly and prints whatever answered.
 
 ```bash

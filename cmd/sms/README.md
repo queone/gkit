@@ -1,6 +1,9 @@
 ## sms
 Send SMS text messages from the command line.
 
+### Why
+Sends a text message from a terminal or script, such as an alert when a long job finishes.
+
 ### Configuration
 Needs a KEY from the https://textbelt.com service: `svckey = KEY`
 

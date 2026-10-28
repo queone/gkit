@@ -1,7 +1,7 @@
 ## retotal
 Financial TOTALS consolidator and re-tallier.
 
-### Why?
+### Why
 Keeping a running financial summary — a budget, an expense sheet — means editing values and recomputing totals by hand. `retotal` keeps an aligned text summary with computed `TOTALS` and re-tallies it in place after you edit it. Every output file is signed with a one-line recalculation note, and re-tally refuses any file whose signature is missing or altered, so a managed file is never silently mis-totalled. Rows whose spacing drifted during an edit are lined up again and listed so you can check them.
 
 ### Usage

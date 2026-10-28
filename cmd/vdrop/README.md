@@ -1,7 +1,7 @@
 ## vdrop
 Remove a section of a video — drop `START..END` and join the remainder — by driving `ffmpeg`.
 
-### Why?
+### Why
 Cutting a section out of a video with raw `ffmpeg` means splitting the source, re-listing the pieces, and concatenating them — or wrestling with a `filter_complex` graph for a frame-accurate result — then hand-naming the output. `vdrop` takes a start and (optionally) an end, validates the range against the source up front, joins the surrounding parts, names the output for you, and prints a before/after summary. The mental model is simple: **`vdrop` removes the part you don't want.**
 
 ```bash

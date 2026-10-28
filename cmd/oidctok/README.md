@@ -1,7 +1,7 @@
 ## oidctok
 Exchange a GitHub Actions OIDC token for Azure Resource Manager and Microsoft Graph tokens and hand them to later job steps.
 
-### Why?
+### Why
 A workflow that manages Azure should not carry a client secret. With a federated credential on the app registration, GitHub's OIDC token proves which repository and branch is running, and the Microsoft identity platform trades it for real access tokens. `oidctok` does that exchange in one static binary: no Python, no `pip install`, no Azure CLI login.
 
 ```

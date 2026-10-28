@@ -37,6 +37,9 @@ the latter two status-oriented commands are both covered by `repoctl status`.
 Git is required for local operations;
 GitHub CLI is required for scoped clone and list operations.
 
+### Why
+Runs routine Git and GitHub chores across many local repositories in one command, instead of visiting each one.
+
 ### Usage
 
 ```text

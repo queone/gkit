@@ -1,6 +1,9 @@
 ## pgen
 Memorable password generator a la [xkcd.com/936](https://xkcd.com/936/), using [sethvargo/go-diceware](https://github.com/sethvargo/go-diceware).
 
+### Why
+Generates strong passwords that are easy to remember and type, in the style of xkcd 936.
+
 ### Usage
 
 ```text

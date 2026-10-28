@@ -1,7 +1,7 @@
 ## tree
 A lightweight directory tree printing utility.
 
-### Why?
+### Why
 Why yet another tree utility?
 
 - **Availability**: If the official tree utility is not installed or hard to get, you can quickly compile this with Go.

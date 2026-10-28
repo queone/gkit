@@ -2,6 +2,9 @@
 `rn` is a simple CLI utility for batch renaming files in the current directory.  
 It replaces all occurrences of a specified string in filenames with another string.
 
+### Why
+Renames many files by substring in one step, without a shell loop or a regex rename tool.
+
 ### Usage
 
 ```text

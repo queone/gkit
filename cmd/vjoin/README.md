@@ -1,7 +1,7 @@
 ## vjoin
 Join two videos into one normalized MP4 by driving `ffmpeg`.
 
-### Why?
+### Why
 Joining clips with different orientations and dimensions requires a filter graph that normalizes video and audio before concatenation. `vjoin` applies that fixed workflow while preserving the supplied clip order.
 
 ### Usage

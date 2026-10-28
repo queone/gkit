@@ -4,6 +4,9 @@ Find free usernames on any site with a predictable profile URL. Give it a site a
 
 `namehunt` sends one HEAD request per name to a site's check URL and reads the status: 404 means free, any 2xx means taken, anything else is reported as unknown. Free names are a strong hint; only signing up confirms one.
 
+### Why
+Checks many candidate usernames on a site at once, instead of trying each one in a browser.
+
 ### Usage
 
 ```text
