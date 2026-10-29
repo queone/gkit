@@ -84,6 +84,11 @@ Note: these limits borrow from Simplified Technical English (ASD-STE100), and th
 
 - Treat AGENTS.md as the active operating contract for this repository.
 - State "Govna contract loaded." before the first substantive govna-governed action of a session, and only after internalizing AGENTS.md.
+- Run `govna version` once per session, right after the "Govna contract loaded." line.
+- Compare the canon version it prints with `canon_version` in `govna/metadata.txt`.
+- Recommend `govna audit` to the Director when the installed canon version is newer.
+- Place that question at the end of the same response, before any final `Awaiting` line.
+- Skip the question when `govna` is absent, `govna version` fails, either version is unreadable, or the installed canon version is not newer.
 - Treat planning, editing, reviewing, command choice, and implementation work as substantive actions.
 - Check the gate set silently before any primary-repository file change: AC status, explicit authorization, scoped edits, tests in the same pass, and no agent-run commits outside `### Agent Release`.
 - Route ancillary-repository and path changes through `### Primary And Ancillary Scope`.
