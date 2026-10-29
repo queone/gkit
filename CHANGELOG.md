@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.95.2 | AC133 adopt Govna governance files v0.83.1 |
 | 0.95.1 | AC132 adopt Govna governance files v0.83.0 |
 | 0.95.0 | AC131 mdv 0.5.0 renders Mermaid diagrams offline; large files render fast |
 | 0.94.1 | AC130 adopt Govna governance files v0.81.2 |
