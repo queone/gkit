@@ -1,6 +1,7 @@
-// Package update tells a program, at most once per interval, whether a newer
-// release of its Go module exists on the module proxy. It only reports: it
-// prints nothing, runs no subprocess, and installs nothing.
+// Package update tells a program, at most once per interval and once more
+// after an upgrade, whether a newer release of its Go module exists on the
+// module proxy. It only reports: it prints nothing, runs no subprocess, and
+// installs nothing.
 package update
 
 import (
@@ -60,6 +61,7 @@ type Result struct {
 
 type cache struct {
 	Module    string    `json:"module"`
+	Current   string    `json:"current"` // running version that wrote the cache
 	Latest    string    `json:"latest"`
 	CheckedAt time.Time `json:"checked_at"`
 	FailedAt  time.Time `json:"failed_at"`
@@ -148,14 +150,18 @@ func proxyURL(o Options) (base, skip string) {
 }
 
 // readCache returns the cache for module, or an empty cache when the file is
-// missing, corrupt, for another module, or dated after now.
-func readCache(path, module string, now time.Time) cache {
+// missing, corrupt, for another module, dated after now, or written by a
+// version older than current or by no strict version.
+func readCache(path, module, current string, now time.Time) cache {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return cache{}
 	}
 	var c cache
 	if json.Unmarshal(data, &c) != nil || c.Module != module || c.CheckedAt.After(now) {
+		return cache{}
+	}
+	if _, ok := parse(c.Current); !ok || Newer(current, c.Current) {
 		return cache{}
 	}
 	if _, ok := parse(c.Latest); !ok {
@@ -226,7 +232,9 @@ func fetch(o Options, base string) (string, error) {
 // Check reports whether a newer release of o.Module than o.Current exists.
 // Within o.Interval of the last successful check it answers from the cache
 // with no network request. Within one hour of a failed check it skips the
-// request and returns the last good result from the cache.
+// request and returns the last good result from the cache. A cache written by
+// an older version counts as empty, so the first check after an upgrade asks
+// the proxy.
 func Check(o Options) (Result, error) {
 	r := Result{Current: o.Current}
 	if os.Getenv("NO_UPDATE_CHECK") != "" {
@@ -259,7 +267,7 @@ func Check(o Options) (Result, error) {
 	}
 	now := o.Now()
 
-	c := readCache(o.CacheFile, o.Module, now)
+	c := readCache(o.CacheFile, o.Module, o.Current, now)
 	cached := Result{
 		Current:   o.Current,
 		Latest:    c.Latest,
@@ -278,6 +286,7 @@ func Check(o Options) (Result, error) {
 	v, err := fetch(o, base)
 	if err != nil {
 		c.Module = o.Module
+		c.Current = o.Current
 		c.FailedAt = now
 		err = fmt.Errorf("check for update of %s: %w", o.Module, err)
 		if werr := writeCache(o.CacheFile, c); werr != nil {
@@ -291,7 +300,7 @@ func Check(o Options) (Result, error) {
 	r.Latest = v
 	r.Available = Newer(v, o.Current)
 	r.CheckedAt = now
-	if err := writeCache(o.CacheFile, cache{Module: o.Module, Latest: v, CheckedAt: now}); err != nil {
+	if err := writeCache(o.CacheFile, cache{Module: o.Module, Current: o.Current, Latest: v, CheckedAt: now}); err != nil {
 		return r, fmt.Errorf("write update cache: %w", err)
 	}
 	return r, nil

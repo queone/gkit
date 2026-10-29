@@ -241,6 +241,115 @@ func TestCheckTimesOutThenWaitsAnHourKeepingLastGoodVersion(t *testing.T) {
 	}
 }
 
+// readCacheFile decodes the cache file at path.
+func readCacheFile(t *testing.T, path string) cache {
+	t.Helper()
+	var c cache
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &c); err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func TestCheckAfterUpgradeAsksProxyAgain(t *testing.T) {
+	p := newFakeProxy(t, "v0.46.0")
+	o, clk := setup(t, p)
+	o.Current = "v0.46.0"
+	if _, err := Check(o); err != nil {
+		t.Fatal(err)
+	}
+	p.set(`{"Version":"v0.47.0"}`, false)
+	clk.t = clk.t.Add(time.Hour)
+	o.Current = "v0.47.0"
+	r, err := Check(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.FromCache || r.Latest != "v0.47.0" || r.Available {
+		t.Fatalf("result %+v, want fresh v0.47.0 with no update", r)
+	}
+	if n := len(p.requests()); n != 2 {
+		t.Fatalf("proxy saw %d requests, want 2", n)
+	}
+	if c := readCacheFile(t, o.CacheFile); c.Current != "v0.47.0" {
+		t.Fatalf("cache %+v, want current v0.47.0", c)
+	}
+}
+
+func TestCheckAfterUpgradeIgnoresFailureOfOlderVersion(t *testing.T) {
+	p := newFakeProxy(t, "v0.47.0")
+	o, clk := setup(t, p)
+	o.Current = "v0.46.0"
+	p.set("not json", false)
+	if _, err := Check(o); err == nil {
+		t.Fatal("bad reply: want an error")
+	}
+	p.set(`{"Version":"v0.47.0"}`, false)
+	clk.t = clk.t.Add(time.Minute)
+	o.Current = "v0.47.0"
+	r, err := Check(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Skipped != "" || r.FromCache || r.Latest != "v0.47.0" {
+		t.Fatalf("result %+v, want a fresh v0.47.0", r)
+	}
+	if n := len(p.requests()); n != 2 {
+		t.Fatalf("proxy saw %d requests, want 2", n)
+	}
+}
+
+func TestCheckAfterUpgradeKeepsItsOwnFailure(t *testing.T) {
+	p := newFakeProxy(t, "v0.46.0")
+	o, clk := setup(t, p)
+	o.Current = "v0.46.0"
+	if _, err := Check(o); err != nil {
+		t.Fatal(err)
+	}
+	p.set("not json", false)
+	clk.t = clk.t.Add(25 * time.Hour)
+	o.Current = "v0.47.0"
+	if _, err := Check(o); err == nil {
+		t.Fatal("bad reply: want an error")
+	}
+	clk.t = clk.t.Add(30 * time.Minute)
+	r, err := Check(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Skipped != SkippedRecentFailure {
+		t.Fatalf("result %+v, want the recent-failure skip", r)
+	}
+	if n := len(p.requests()); n != 2 {
+		t.Fatalf("proxy saw %d requests, want 2", n)
+	}
+}
+
+func TestCheckUnderOlderVersionReusesNewerCache(t *testing.T) {
+	p := newFakeProxy(t, "v0.47.0")
+	o, clk := setup(t, p)
+	o.Current = "v0.47.0"
+	if _, err := Check(o); err != nil {
+		t.Fatal(err)
+	}
+	clk.t = clk.t.Add(time.Hour)
+	o.Current = "v0.46.0"
+	r, err := Check(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.FromCache || r.Latest != "v0.47.0" || !r.Available || r.Current != "v0.46.0" {
+		t.Fatalf("result %+v, want cached v0.47.0 available to v0.46.0", r)
+	}
+	if n := len(p.requests()); n != 1 {
+		t.Fatalf("proxy saw %d requests, want 1", n)
+	}
+}
+
 func TestNewer(t *testing.T) {
 	for _, tc := range []struct {
 		a, b string
@@ -327,10 +436,14 @@ func TestCheckTreatsUnusableCacheAsStale(t *testing.T) {
 	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	for _, tc := range []struct{ name, content string }{
 		{"corrupt", "not json"},
-		{"other module", fmt.Sprintf(`{"module":"github.com/queone/other","latest":"v1.3.0","checked_at":%q}`,
+		{"other module", fmt.Sprintf(`{"module":"github.com/queone/other","current":"v1.2.0","latest":"v1.3.0","checked_at":%q}`,
 			now.Add(-time.Hour).Format(time.RFC3339))},
-		{"future", fmt.Sprintf(`{"module":"github.com/queone/macfit","latest":"v1.3.0","checked_at":%q}`,
+		{"future", fmt.Sprintf(`{"module":"github.com/queone/macfit","current":"v1.2.0","latest":"v1.3.0","checked_at":%q}`,
 			now.Add(time.Hour).Format(time.RFC3339))},
+		{"no current version", fmt.Sprintf(`{"module":"github.com/queone/macfit","latest":"v1.3.0","checked_at":%q}`,
+			now.Add(-time.Hour).Format(time.RFC3339))},
+		{"current not a release", fmt.Sprintf(`{"module":"github.com/queone/macfit","current":"latest","latest":"v1.3.0","checked_at":%q}`,
+			now.Add(-time.Hour).Format(time.RFC3339))},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := newFakeProxy(t, "v1.3.0")

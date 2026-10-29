@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.96.0 | AC135 update package asks the proxy again after an upgrade |
 | 0.95.3 | AC134 adopt Govna governance files v0.85.0 |
 | 0.95.2 | AC133 adopt Govna governance files v0.83.1 |
 | 0.95.1 | AC132 adopt Govna governance files v0.83.0 |
