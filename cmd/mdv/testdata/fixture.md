@@ -23,3 +23,21 @@ fmt.Println("mdv")
 ![Relative fixture](fixture.svg)
 
 <script>alert("raw HTML must not render")</script>
+
+## Diagram
+
+```mermaid
+flowchart LR
+    Source["Markdown<br/>source"] --> mdv --> Page["Browser<br/>page"]
+```
+
+<details>
+<summary>Diagram inside details</summary>
+
+```mermaid
+sequenceDiagram
+    mdv->>Browser: open page
+    Browser-->>mdv: tab shown
+```
+
+</details>

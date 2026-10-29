@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/queone/gkit/color"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
 )
 
 type fakeFileInfo struct {
@@ -859,7 +862,7 @@ func TestCleanupContinuesAfterAFailedRemoval(t *testing.T) {
 }
 
 func TestProgramIdentityAndStylesheetChecksum(t *testing.T) {
-	if programName != "mdv" || programVersion != "0.4.0" {
+	if programName != "mdv" || programVersion != "0.5.0" {
 		t.Errorf("identity = %s %s", programName, programVersion)
 	}
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(stylesheet)))
@@ -868,10 +871,205 @@ func TestProgramIdentityAndStylesheetChecksum(t *testing.T) {
 	}
 }
 
+// The embedded bundle is the pinned release, and it never ends the inline
+// script element early.
+func TestMermaidScriptChecksumAndInlineSafety(t *testing.T) {
+	got := fmt.Sprintf("%x", sha256.Sum256([]byte(mermaidScript)))
+	if got != mermaidScriptSHA256 {
+		t.Errorf("mermaid SHA-256 = %s, want %s", got, mermaidScriptSHA256)
+	}
+	lower := strings.ToLower(mermaidScript)
+	for _, unsafe := range []string{"<script", "</script"} {
+		if strings.Contains(lower, unsafe) {
+			t.Errorf("mermaid bundle contains %q, so it cannot be inlined", unsafe)
+		}
+	}
+}
+
+func TestReadmeUsageMatchesHelp(t *testing.T) {
+	defer color.SetEnabled(false)()
+	readme, err := os.ReadFile("README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, after, ok := strings.Cut(string(readme), "### Usage\n\n```text\n")
+	if !ok {
+		t.Fatal("README has no ### Usage text block")
+	}
+	block, _, ok := strings.Cut(after, "```\n")
+	if !ok {
+		t.Fatal("README ### Usage text block is not closed")
+	}
+	if block != usage() {
+		t.Errorf("README usage block:\n%s\nwant help output:\n%s", block, usage())
+	}
+	var stdout, stderr bytes.Buffer
+	if code := runCLI([]string{"--version"}, &stdout, &stderr); code != 0 || stdout.String() != "mdv v0.5.0\n" {
+		t.Errorf("--version = %d %q %q", code, stdout.String(), stderr.String())
+	}
+}
+
 // The help screen follows the shared standard: three header lines, then the
 // sections the renderer accepts, with the standard rows left to the renderer.
 func TestHelpDocFollowsTheStandard(t *testing.T) {
 	if err := helpDoc().Check(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRenderMermaidFencesAsDiagrams(t *testing.T) {
+	source := []byte("```mermaid\nflowchart TB\n  A --> B\n```\n\n~~~mermaid title\nflowchart LR\n  C --> D\n~~~\n\n<details>\n<summary>More</summary>\n\n```mermaid\nsequenceDiagram\n  E->>F: hi\n```\n\n</details>\n")
+	body, err := renderMarkdown(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := parseRenderedFragment(t, body)
+	if n := root.Find("code.language-mermaid").Length(); n != 0 {
+		t.Errorf("found %d language-mermaid code blocks:\n%s", n, body)
+	}
+	diagrams := root.Find("pre.mermaid")
+	want := []string{"flowchart TB\n  A --> B\n", "flowchart LR\n  C --> D\n", "sequenceDiagram\n  E->>F: hi\n"}
+	if diagrams.Length() != len(want) {
+		t.Fatalf("found %d diagrams, want %d:\n%s", diagrams.Length(), len(want), body)
+	}
+	diagrams.Each(func(i int, diagram *goquery.Selection) {
+		if got := diagram.Text(); got != want[i] {
+			t.Errorf("diagram %d text = %q, want %q", i, got, want[i])
+		}
+		if diagram.Children().Length() != 0 {
+			t.Errorf("diagram %d has child elements:\n%s", i, body)
+		}
+	})
+	if root.Find("details pre.mermaid").Length() != 1 {
+		t.Errorf("diagram inside details missing:\n%s", body)
+	}
+}
+
+func TestMermaidSourceIsEscaped(t *testing.T) {
+	diagram := "flowchart TB\n  A[\"<script>alert(1)</script>\"] --> B[\"</pre> & more\"]\n"
+	body, err := renderMarkdown([]byte("```mermaid\n" + diagram + "```\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := parseRenderedFragment(t, body)
+	if root.Children().Length() != 1 || root.Find("pre.mermaid").Length() != 1 {
+		t.Fatalf("diagram source added elements:\n%s", body)
+	}
+	if root.Find("script").Length() != 0 {
+		t.Errorf("diagram source produced a script element:\n%s", body)
+	}
+	if got := root.Find("pre.mermaid").Text(); got != diagram {
+		t.Errorf("diagram text = %q, want %q", got, diagram)
+	}
+}
+
+func countScripts(t *testing.T, page []byte) int {
+	t.Helper()
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return doc.Find("script").Length()
+}
+
+func TestPageWithDiagramCarriesMermaid(t *testing.T) {
+	path := writeInput(t, "diagram.md", "")
+	page, err := buildDocument([]byte("# Diagram\n\n```mermaid\nflowchart TB\n  A --> B\n```\n\n<script>alert(\"unsafe\")</script>\n"), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(page)
+	if n := countScripts(t, page); n != 2 {
+		t.Errorf("page has %d script elements, want the bundle and the start-up script", n)
+	}
+	if strings.Contains(got, `alert("unsafe")`) {
+		t.Error("raw script HTML passed through")
+	}
+	bundle := strings.Index(got, "<script>"+mermaidScript+"</script>")
+	diagram := strings.Index(got, mermaidOpenTag)
+	if bundle < 0 || diagram < 0 || bundle < diagram {
+		t.Errorf("bundle at %d must follow the diagram at %d", bundle, diagram)
+	}
+	for _, want := range []string{`securityLevel: "strict"`, `startOnLoad: false`, `"(prefers-color-scheme: dark)"`, `mermaid.run(`} {
+		if !strings.Contains(got[bundle+len(mermaidScript):], want) {
+			t.Errorf("start-up script missing %q", want)
+		}
+	}
+}
+
+func TestPageWithoutDiagramHasNoScript(t *testing.T) {
+	path := writeInput(t, "plain.md", "")
+	fixture, err := os.ReadFile(filepath.Join("testdata", "fixture.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, _, _ := strings.Cut(string(fixture), "```mermaid")
+	for _, source := range []string{plain, "```go\nfmt.Println(1)\n```\n", "```mermaidx\nflowchart TB\n```\n"} {
+		page, err := buildDocument([]byte(source), path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(strings.ToLower(string(page)), "<script") {
+			t.Errorf("page without a diagram has a script:\n%s", source)
+		}
+	}
+}
+
+func TestNonMermaidCodeRendersAsGoldmarkDoes(t *testing.T) {
+	plain := goldmark.New(goldmark.WithExtensions(extension.GFM))
+	for _, source := range []string{
+		"```go\nfmt.Println(\"<b>\")\n```\n",
+		"```\nno info string\n```\n",
+		"    indented code\n",
+		"```mermaidx\nflowchart TB\n```\n",
+		"```Mermaid\nflowchart TB\n```\n",
+	} {
+		var want bytes.Buffer
+		if err := plain.Convert([]byte(source), &want); err != nil {
+			t.Fatal(err)
+		}
+		got, err := renderMarkdown([]byte(source))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != want.String() {
+			t.Errorf("render of %q = %q, want %q", source, got, want.String())
+		}
+	}
+}
+
+func TestRawContainersMatchTagNamesInAnyCase(t *testing.T) {
+	source := []byte("<SCRIPT><details><summary>x</summary></details></Script>\n\n<Style><details></details></STYLE>\n\nafter\n")
+	body, err := renderMarkdown(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := parseRenderedFragment(t, body)
+	if root.Find("details, script, style").Length() != 0 {
+		t.Errorf("mixed-case raw container was rewritten:\n%s", body)
+	}
+	if !strings.Contains(string(body), "after") {
+		t.Errorf("text after the raw containers is missing:\n%s", body)
+	}
+}
+
+// Render time must grow with input size, not with its square: a 1 MiB file
+// rendered in hours before the scan stopped copying the rest of the input.
+func TestLargeInputRendersQuickly(t *testing.T) {
+	chunk := "Node `code` and <br/> breaks, a [link](https://example.com), and **bold** text.\n\n" +
+		"| A | B |\n| - | - |\n| 1 | <b>2</b> |\n\n"
+	source := []byte(strings.Repeat(chunk, (1<<20)/len(chunk)))
+	done := make(chan error, 1)
+	go func() {
+		_, err := renderMarkdown(source)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatalf("rendering %d bytes took over 20s", len(source))
 	}
 }

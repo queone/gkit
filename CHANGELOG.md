@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.95.0 | AC131 mdv 0.5.0 renders Mermaid diagrams offline; large files render fast |
 | 0.94.1 | AC130 adopt Govna governance files v0.81.2 |
 | 0.94.0 | AC129 lslan names hosts via -s, gateway, or mDNS; aligned columns; MAC vendors |
 | 0.93.1 | AC128 every utility README has a Why section; build test enforces it |

@@ -8,7 +8,7 @@ Previews Markdown the way GitHub renders it, without pushing it or running a ser
 ### Usage
 
 ```text
-mdv v0.4.0
+mdv v0.5.0
 View GitHub Flavored Markdown in a browser or write it as HTML
 github.com/queone/gkit/tree/main/cmd/mdv
 
@@ -18,7 +18,7 @@ Usage
 
 Options
   -o, --output PATH  Write the HTML to PATH without opening a browser
-  -v, --version      Print mdv v0.4.0 and exit
+  -v, --version      Print mdv v0.5.0 and exit
   -h, -?, --help     Show this help and exit
 ```
 
@@ -44,11 +44,13 @@ With `-o`, `mdv` writes one FILE to PATH and does not open a browser. `-o` takes
 
 `mdv` supports GitHub Flavored Markdown tables, strikethrough, task lists, and autolinks. It embeds `github-markdown-css`, follows the system light or dark color scheme, and needs no network connection or local server at runtime.
 
+A ` ```mermaid ` code fence renders as a diagram, as it does on GitHub, including inside `<details>`. `mdv` embeds mermaid.js 12.2.0 and runs it with Mermaid's `strict` security level, so diagrams need no network connection. Diagrams follow the light or dark color scheme the system uses when the page opens. A diagram inside a collapsed `<details>` draws when the control first opens. Only pages with a Mermaid fence carry a script; every other page contains none.
+
 `<details>` and `<summary>` are the only supported raw HTML disclosure elements. They are rendered as collapsed-by-default controls, and Markdown—including GFM tables—continues to render inside them. Disclosure attributes are discarded, so an input `open` attribute does not open the control. Other raw HTML elements, disclosure markup outside a `<details>` block, malformed disclosure markup, event-handler and style attributes, and unsafe URLs are omitted or neutralized. Disclosure tags inside code fences and inline code remain code literals.
 
 Relative links and images resolve from the Markdown source's directory. For a symlinked input, they resolve from the target file's directory. Linked resources remain separate files and are not copied into the HTML output.
 
-Raw HTML is omitted. GitHub-specific server features such as Mermaid diagrams, issue references, emoji expansion, and repository-aware links are not supported. Code fences are styled but do not receive syntax highlighting.
+Raw HTML is omitted. GitHub-specific server features such as issue references, emoji expansion, and repository-aware links are not supported. Code fences are styled but do not receive syntax highlighting.
 
 ### Getting Started
 

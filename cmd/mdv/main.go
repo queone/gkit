@@ -17,20 +17,36 @@ import (
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer"
+	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 const (
 	programName    = "mdv"
-	programVersion = "0.4.0"
+	programVersion = "0.5.0"
 
 	// Source: https://raw.githubusercontent.com/sindresorhus/github-markdown-css/v5.9.0/github-markdown.css
 	// SHA-256: 6112686f954db5d3806fb96116d2ab20ad3018469ab1015c587fd8efe7d25cf4
 	stylesheetSHA256 = "6112686f954db5d3806fb96116d2ab20ad3018469ab1015c587fd8efe7d25cf4"
+
+	// Source: https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js
+	// SHA-256: a8a6a6f805b074a8261a2825c86f99c8054acb3b35f50bb7e24a4f9f2c3c3b9f
+	mermaidScriptSHA256 = "a8a6a6f805b074a8261a2825c86f99c8054acb3b35f50bb7e24a4f9f2c3c3b9f"
+
+	// mermaidOpenTag starts every rendered diagram; raw HTML is omitted, so
+	// only a Mermaid fence can put it in the body.
+	mermaidOpenTag = `<pre class="mermaid">`
 )
 
 //go:embed github-markdown.css
 var stylesheet string
+
+//go:embed mermaid.min.js
+var mermaidScript string
 
 var (
 	evaluateSymlinks = filepath.EvalSymlinks
@@ -55,6 +71,7 @@ type documentData struct {
 	BaseURL    template.URL
 	Stylesheet template.CSS
 	Body       template.HTML
+	Mermaid    template.JS
 }
 
 const pageTemplate = `<!doctype html>
@@ -86,11 +103,51 @@ html {
     padding: 15px;
   }
 }
+.markdown-body pre.mermaid[data-processed] {
+  background-color: transparent;
+  text-align: center;
+}
 </style>
 </head>
 <body class="markdown-body">
 {{.Body}}
-</body>
+{{if .Mermaid}}<script>{{.Mermaid}}</script>
+<script>
+(function () {
+  var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({startOnLoad: false, securityLevel: "strict", theme: dark ? "dark" : "default"});
+  // A diagram drawn inside a collapsed details element gets no size, so
+  // draw each one only once every enclosing details element is open.
+  function hidden(node) {
+    for (var el = node.parentElement; el; el = el.parentElement) {
+      if (el.tagName === "DETAILS" && !el.open) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function renderVisible() {
+    var nodes = [];
+    document.querySelectorAll("pre.mermaid:not([data-processed])").forEach(function (node) {
+      if (!hidden(node)) {
+        nodes.push(node);
+      }
+    });
+    if (nodes.length) {
+      mermaid.run({nodes: nodes});
+    }
+  }
+  document.querySelectorAll("details").forEach(function (details) {
+    details.addEventListener("toggle", function () {
+      if (details.open) {
+        renderVisible();
+      }
+    });
+  });
+  renderVisible();
+})();
+</script>
+{{end}}</body>
 </html>
 `
 
@@ -320,14 +377,16 @@ func markdownRawContainerEnd(source string, start int) (int, bool) {
 		}
 		return len(source), true
 	}
-	lower := strings.ToLower(source[start:])
+	if source[start] != '<' {
+		return start, false
+	}
 	for _, name := range []string{"script", "style", "textarea", "title"} {
 		prefix := "<" + name
-		if !strings.HasPrefix(lower, prefix) ||
+		if !hasPrefixFold(source[start:], prefix) ||
 			(start+len(prefix) < len(source) && !isHTMLTagBoundary(source[start+len(prefix)])) {
 			continue
 		}
-		closeStart := strings.Index(lower[len(prefix):], "</"+name)
+		closeStart := indexFold(source[start+len(prefix):], "</"+name)
 		if closeStart < 0 {
 			return len(source), true
 		}
@@ -338,6 +397,28 @@ func markdownRawContainerEnd(source string, start int) (int, bool) {
 		return len(source), true
 	}
 	return start, false
+}
+
+// hasPrefixFold reports whether s starts with the ASCII prefix, ignoring
+// case. It reads only len(prefix) bytes, so scanning stays linear.
+func hasPrefixFold(s, prefix string) bool {
+	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
+}
+
+// indexFold returns the index of the first case-insensitive match of the
+// ASCII needle in s, or -1. The needle must start with a non-letter byte.
+func indexFold(s, needle string) int {
+	for i := 0; i+len(needle) <= len(s); i++ {
+		next := strings.IndexByte(s[i:], needle[0])
+		if next < 0 {
+			return -1
+		}
+		i += next
+		if hasPrefixFold(s[i:], needle) {
+			return i
+		}
+	}
+	return -1
 }
 
 func isHTMLTagBoundary(c byte) bool {
@@ -522,9 +603,68 @@ func stripDisclosureTags(source string) string {
 	return clean.String()
 }
 
+// kindMermaidBlock is the AST kind of a Mermaid fence.
+var kindMermaidBlock = ast.NewNodeKind("MermaidBlock")
+
+// mermaidBlock holds the diagram source of one Mermaid fence.
+type mermaidBlock struct {
+	ast.BaseBlock
+	source []byte
+}
+
+// Kind returns the Mermaid block kind.
+func (n *mermaidBlock) Kind() ast.NodeKind { return kindMermaidBlock }
+
+// Dump prints the node for goldmark's AST debugging.
+func (n *mermaidBlock) Dump(source []byte, level int) { ast.DumpHelper(n, source, level, nil, nil) }
+
+// mermaidTransformer swaps each fence whose info string's first word is
+// mermaid for a mermaidBlock, so every other fence keeps goldmark's rendering.
+type mermaidTransformer struct{}
+
+// Transform replaces the Mermaid fences in doc.
+func (mermaidTransformer) Transform(doc *ast.Document, reader text.Reader, _ parser.Context) {
+	source := reader.Source()
+	var fences []*ast.FencedCodeBlock
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if fence, ok := n.(*ast.FencedCodeBlock); ok && entering && string(fence.Language(source)) == "mermaid" {
+			fences = append(fences, fence)
+		}
+		return ast.WalkContinue, nil
+	})
+	for _, fence := range fences {
+		var diagram bytes.Buffer
+		lines := fence.Lines()
+		for i := 0; i < lines.Len(); i++ {
+			segment := lines.At(i)
+			diagram.Write(segment.Value(source))
+		}
+		fence.Parent().ReplaceChild(fence.Parent(), fence, &mermaidBlock{source: diagram.Bytes()})
+	}
+}
+
+// mermaidRenderer writes a mermaidBlock as the pre element mermaid.js reads.
+type mermaidRenderer struct{}
+
+// RegisterFuncs registers the Mermaid block renderer.
+func (mermaidRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
+	reg.Register(kindMermaidBlock, func(w util.BufWriter, _ []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering {
+			_, _ = w.WriteString(mermaidOpenTag)
+			_, _ = w.WriteString(html.EscapeString(string(n.(*mermaidBlock).source)))
+			_, _ = w.WriteString("</pre>\n")
+		}
+		return ast.WalkSkipChildren, nil
+	})
+}
+
 func renderDisclosureNodes(nodes []disclosureNode) ([]byte, error) {
 	var body bytes.Buffer
-	md := goldmark.New(goldmark.WithExtensions(extension.GFM))
+	md := goldmark.New(
+		goldmark.WithExtensions(extension.GFM),
+		goldmark.WithParserOptions(parser.WithASTTransformers(util.Prioritized(mermaidTransformer{}, 100))),
+		goldmark.WithRendererOptions(renderer.WithNodeRenderers(util.Prioritized(mermaidRenderer{}, 100))),
+	)
 	for _, node := range nodes {
 		if node.details {
 			body.WriteString("<details>\n")
@@ -572,13 +712,18 @@ func buildDocument(source []byte, resolvedInput string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("preparing HTML template: %w; reinstall %s", err, programName)
 	}
-	var page bytes.Buffer
-	if err := tmpl.Execute(&page, documentData{
+	data := documentData{
 		Title:      filepath.Base(resolvedInput),
 		BaseURL:    baseURL,
 		Stylesheet: template.CSS(stylesheet),
 		Body:       template.HTML(body),
-	}); err != nil {
+	}
+	// Only pages with a diagram carry a script.
+	if bytes.Contains(body, []byte(mermaidOpenTag)) {
+		data.Mermaid = template.JS(mermaidScript)
+	}
+	var page bytes.Buffer
+	if err := tmpl.Execute(&page, data); err != nil {
 		return nil, fmt.Errorf("building HTML document: %w; verify the input content", err)
 	}
 	return page.Bytes(), nil
