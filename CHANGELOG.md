@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.94.1 | AC130 adopt Govna governance files v0.81.2 |
 | 0.94.0 | AC129 lslan names hosts via -s, gateway, or mDNS; aligned columns; MAC vendors |
 | 0.93.1 | AC128 every utility README has a Why section; build test enforces it |
 | 0.93.0 | AC127 every gkit utility shows a newer-release notice; plan.md Ideas preamble |
