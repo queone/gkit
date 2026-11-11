@@ -49,6 +49,7 @@ Every emitted audit AC uses these shared explanations:
 | `ambiguity` | Govna cannot safely choose between updating and keeping the file. |
 | `target-has-no-canon` | The file is absent from the selected current canon but specific repository evidence connects it to Govna. |
 | `migration-required` | A required Govna control file is missing and must be added through the AC. |
+| `manual-fix` | The child's CHANGELOG.md breaks the canonical table shape, and only a manual edit that keeps every row can restore it. |
 | `retired-link` | A Govna link that Claude Code no longer needs and the AC deletes. |
 | `force-sync` | This file's governed structure always syncs to canon, regardless of local edits or the preserve list. |
 
@@ -96,6 +97,8 @@ govna-preserve-v1
 ```
 
 Require a final newline. Keep entries nonempty, slash-normalized, unique, and byte-sorted. Reject absolute paths, backslashes, tabs, blank entries, `.` or `..` components, leading or trailing slashes, duplicates, and `govna/preserve.txt` itself. Accept a header-only file as the canonical empty on-disk registry.
+
+Accept an entry that starts with `..` only when it names the `.gitignore` of a child declared in `govna/children.txt`, such as `../mud-engine/.gitignore`. Reject every other such entry, because a child's pointer and build tooling always update.
 
 Add an exact path for a resolved preserve outcome. Remove an exact path for a resolved sync, delete, or canon-backed migration outcome. Preserve unrelated entries. Leave the registry absent or unchanged when its state already satisfies every resolved outcome. Verify registry changes before installing the canon baseline.
 
@@ -153,6 +156,20 @@ Audit does not flag arbitrary consumer-owned governance documents that have none
 
 `govna/metadata.txt` or `govna/canon-baseline.txt` absent from an otherwise govna-adopted target classifies as `migration-required`. Every emitted AC includes `## Migration findings` after `## Out Of Scope`: it lists each migration path and completion action, or `None` when no migration exists. Migration paths also remain under `## In Scope`.
 
+## Markdown identifiers
+
+- Apply these rules only when audit writes an adoption AC for another reason.
+- Check the Markdown text that the repository keeps after the adoption AC with the rules of the Markdown identifier scan.
+- Treat the text from the boundary heading to the end of the file as the kept text of a file that the AC updates from canon.
+- Skip a file that the AC replaces whole with canon or deletes.
+- Attach each finding to its file without changing the file's classification.
+- List each file with findings under `### Bare identifiers to fix`, with each line number and identifier.
+- Add one acceptance test per listed file.
+- Treat the findings of a file that needs a Director choice as actionable only when its resolved action keeps the current text in place.
+- Write no adoption AC for findings alone, for an up-to-date clean result or a version-only update.
+
+Note: a repository that keeps its own `build.sh` runs no Markdown identifier scan, so its clean and version-only audit results stay silent about bare identifiers.
+
 ## Retired link
 
 Govna used to create `CLAUDE.md` as a symbolic link to `AGENTS.md`. Claude Code v2.1.277 or later reads `AGENTS.md` directly, so audit retires that link.
@@ -167,6 +184,30 @@ Audit prints two hints to stderr on every run. The hints leave the exit code, st
 - Print an upgrade hint when `claude --version` reports a version lower than 2.1.277.
 - Skip the upgrade hint when `claude` is absent, fails, exceeds two seconds, or prints an unreadable version.
 - Print a deletable hint when the repository root holds its own regular file or symbolic link named `CLAUDE.md`.
+
+## Child repositories
+
+A CODE parent lists each child repository in optional `govna/children.txt`:
+
+```text
+govna-children-v1
+<parent-relative-path>
+```
+
+- Require the header, a final newline, and nonempty, unique, byte-sorted entries.
+- Require each entry to be a slash-normalized path relative to the parent root, with `..` components only at its start.
+- Reject absolute paths, backslashes, control characters, `.` components, and leading or trailing slashes.
+- Require each entry to resolve to a real directory outside the parent worktree that does not contain the parent.
+- Stop audit before emission when the registry is malformed or a child cannot be read.
+- Stop audit and rm before emission when a DOC repository has the registry.
+- Exclude the registry from rendered canon, canon baselines, ordinary audit drift, and target-only evidence.
+- Compare each child's files with `govna render --child` for the parent's stack.
+- Name each child file by its parent-relative path in the Markdown and JSON file lists.
+- Force-sync a differing or missing child pointer or build tooling file.
+- Give a differing child `.gitignore` the ordinary Director choices.
+- Check only the canonical heading and two-column table shape of a child `CHANGELOG.md`.
+- Classify a child `CHANGELOG.md` with a broken shape as `manual-fix`.
+- Write the orphan note from `govna render --orphan` when the parent drops a child.
 
 ## Canon baseline manifest
 
@@ -208,11 +249,13 @@ Audit writes `govna/ac<N>-audit-<canon-version>.md` only when the repository has
 - **Files needing a Director choice** — `ambiguity` and `target-has-no-canon`.
 - **Retired Govna link** — `retired-link`: the `CLAUDE.md` link that the AC deletes with no Director choice.
 
-The stub carries an edit-detection marker (SHA-256 body hash). Re-running audit against an unedited stub for the same canon version reuses the same AC number. Re-running it against an edited stub fails and directs the Director to delete or rename that generated file before retrying.
+The stub carries an edit-detection marker (SHA-256 body hash). Re-running audit against an unedited stub for the same canon version reuses the same AC number. When audit writes an AC, it replaces each unedited stub for an older canon version: the new stub keeps that stub's AC number when no stub for the current canon exists, and audit deletes the older stub after writing and reports the replacement. An edited older stub, or more than one older stub without a current one, stops audit before it writes anything. Re-running it against an edited stub fails and directs the Director to delete or rename that generated file before retrying.
 
 An audit with no updates or Director choices exits successfully and prints `No Govna updates or Director choices found`, followed by a plain result tally and `No AC was written.` It performs no AC-number allocation, stub inspection, directory creation, or file write. It never deletes, overwrites, or validates an existing audit stub. With `--json`, the complete report remains available and `emitted` is `null`; no additional prose is written.
 
 A check-mode audit (`-c` or `--check`) runs the same comparison and writes nothing. It performs no AC-number allocation, stub inspection, directory creation, or file write. A clean result prints the clean-result line above and exits `0`. An actionable result prints `Govna updates or Director choices found`, followed by a plain result tally and `Run govna audit without --check to write the review AC.`, and exits `3`. With `--json`, the complete report is printed with `emitted` set to `null` and no additional prose. Because check mode emits no AC, it starts no agent-mediated adoption review.
+
+A version-only update writes nothing either. When the only actionable results are `govna/metadata.txt` and `govna/canon-baseline.txt`, `govna/metadata.txt` differs only in `canon_version`, and the recorded baseline differs from the rendered one only in its version line and the `govna/metadata.txt` hash, both audit and check-mode audit print `Only the canon version changed: canon v<new> changes no Govna file in this <profile> repository (recorded v<old>). No AC was written.` and exit `0`. The profile is the CODE stack or `DOC`. Preserved files still count; child drift, a retired link, or a forced update rules a version-only result out. The two stamps keep the last canon version that changed the repository until a real update moves them. With `--json`, `version_only` is `true` and `emitted` is `null`.
 
 ### Agent-mediated review
 

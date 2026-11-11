@@ -63,6 +63,7 @@ Note: prefer wording that is easiest for an LLM to follow, while staying simple 
 - Report each written deliverable with a one-paragraph chat summary plus the file path.
 - Quote at most short, targeted snippets from a written file when discussing a specific change.
 - Paste the literal output in a code block when the Director asks to see a file or command output.
+- Place any summary after the literal output instead of in its place.
 
 ### Plain Language
 
@@ -76,9 +77,32 @@ Note: prefer wording that is easiest for an LLM to follow, while staying simple 
 - Use one term for each concept.
 - Use the active voice.
 - Use the passive voice only when the actor is unknown or unimportant.
+- Keep each sentence that tells the reader to act to 20 words or fewer.
+- Keep every other sentence to 25 words or fewer.
 - Exempt code, commands, paths, identifiers, quoted text, and fixed lines that other AGENTS.md rules require from these limits.
 
 Note: these limits borrow from Simplified Technical English (ASD-STE100), and they supplement `### Plain Language` and `## Review Style` instead of replacing them.
+
+### Chat Format
+
+- Apply these rules to chat replies only.
+- Start each prose sentence on a new line.
+- Keep each prose line to about 120 characters or fewer.
+- Break a longer prose sentence at a clause boundary within the limit, such as after a comma, semicolon, or colon.
+- Break a longer prose sentence at the last space within the limit when no clause boundary fits.
+- Indent each later line of a list item to the item's text.
+- Number the items of each list that the Director may act on, such as questions, options, findings, and decisions.
+- Use the `## Review Style` finding identifiers instead of list numbers wherever Review Style assigns them.
+- Restart list numbers in each reply.
+- Leave narrative bullets unnumbered.
+- Use plain ASCII characters.
+- Show a status as `pending`, `done`, `blocked`, `-`, `[x]`, or `[ ]` instead of a decorative glyph or emoji.
+- Give one step per reply when the Director asks to go step by step.
+- Wait for the Director's result before giving the next step.
+- Extend the `### STE Replies` exemptions to these rules.
+- Exempt tables, headings, and URLs from these rules too.
+
+Note: an agent cannot see the terminal width, so a terminal narrower than 120 columns can still wrap a line inside a phrase. Sentence and clause breaks make each source line easier to read, but they cannot control those extra wraps. A renderer that joins single line breaks reflows the paragraph to the terminal width.
 
 ### Session Entry
 
@@ -86,9 +110,10 @@ Note: these limits borrow from Simplified Technical English (ASD-STE100), and th
 - State "Govna contract loaded." before the first substantive govna-governed action of a session, and only after internalizing AGENTS.md.
 - Run `govna version` once per session, right after the "Govna contract loaded." line.
 - Compare the canon version it prints with `canon_version` in `govna/metadata.txt`.
-- Recommend `govna audit` to the Director when the installed canon version is newer.
+- Run `govna audit --check` once when the installed canon version is newer.
+- Recommend `govna audit` to the Director only when that check exits `3`.
 - Place that question at the end of the same response, before any final `Awaiting` line.
-- Skip the question when `govna` is absent, `govna version` fails, either version is unreadable, or the installed canon version is not newer.
+- Skip the question when `govna` is absent, `govna version` or `govna audit --check` fails, either version is unreadable, the installed canon version is not newer, or the check exits `0`.
 - Treat planning, editing, reviewing, command choice, and implementation work as substantive actions.
 - Check the gate set silently before any primary-repository file change: AC status, explicit authorization, scoped edits, tests in the same pass, and no agent-run commits outside `### Agent Release`.
 - Route ancillary-repository and path changes through `### Primary And Ancillary Scope`.
@@ -232,6 +257,8 @@ Note: this rule does not prohibit batching independent commands.
 - Require an AC for architecture, schema, dependency, security, migration, external-integration, destructive, governance, or release decisions regardless of file count.
 - Preserve explicit authorization, scope, documentation, and same-pass test requirements for direct handling.
 - Treat every non-trivial change as AC-first work unless the Director explicitly overrides it.
+- Keep related straightforward changes together in one AC.
+- Recommend an AC split only when the parts have independent objectives, risks, or release timing, or exceed practical inline capacity.
 - Describe each direct-handled companion change in the release message when the release batch already carries an AC.
 - Draft no retroactive AC for such a companion change.
 - Draft `govna/ac<N>-<slug>.md` before implementation using `govna/ac-template.md`.
@@ -387,12 +414,12 @@ Note: this rule does not prohibit batching independent commands.
 - Treat `release` or `rel` followed by a named batch as Package of that batch plus one agent-run release.
 - Stop before the release when Package fails or needs a Director decision.
 - Run the printed release command with `--yes` appended.
-- Run no other git or GitHub write under the keyword.
+- Run no other git or GitHub write under the keyword except each child release under `### Child Repositories`.
 - Retry nothing after a release failure.
 - Report the failure output and the printed recovery command to the Director.
 - Report Package and the release result in one completion report.
 - Replace `No commit or release command executed.` and `Run below to release:` with the release result in that report.
-- Treat a successful agent-run release as a completed release under `### Completed Release`.
+- Treat a successful agent-run release as a completed release under `### Completed Release` unless `## Project Rules` name a later step that completes a release.
 
 ### Primary And Ancillary Scope
 
@@ -403,6 +430,25 @@ Note: this rule does not prohibit batching independent commands.
 - Report the ancillary repository or path and authorization separately from the primary phase.
 - Prevent ancillary work from satisfying primary-repository scope, tests, validation, or phase gates.
 - Restate the primary repository and paused phase when returning from ancillary work.
+
+### Child Repositories
+
+- Apply these rules when `govna/children.txt` declares a child repository.
+- Treat a declared child named in the active AC's `## In Scope` as primary scope instead of ancillary work.
+- Exclude child files and child commit messages from every bare-identifier allowance in `### AC Mechanics`.
+- Add each declared child as a writable session directory before editing it.
+- Follow `govna/development-cycle.md` `## Child Repositories` for the session procedure.
+- Change child membership only through `govna apply --child` and `govna rm --child`.
+- Record a child's own rules in the parent's `## Project Rules` under a `###` heading named for the child.
+- Build the parent against each child that the active AC changes through the stack's local override during Implement and Ratify validation.
+- Treat a Package request as authorization for each child prep, local-override removal, and parent pin update.
+- Release each changed child before the parent's pin update.
+- Run each child's printed release command with `--yes` appended under `release` or `rel`.
+- Stop before the parent's pin update when a child release fails.
+- Fix a failure after a published child tag forward with a child patch release.
+- Keep every published child tag unchanged.
+- Record each child version change in the parent's `history.md` section.
+- Follow `govna/build-release.md` `## Child Releases` for the two Package stages.
 
 ### Pre-Implementation Verification
 
@@ -521,11 +567,12 @@ Note: the Director triggers those actions; Ratify names what is pending.
 - Limit each self-review heading to one sentence.
 - State the semver reason under `Verified:`.
 - State what changed after the Package evidence under `Red-teamed:`.
-- State the remaining manual check, or that none remains, under `Not checked:`.
+- State the remaining check that needs a Director action or a new Director authorization, or that none remains, under `Not checked:`.
 
 ### Completed Release
 
 - Treat the Director's `shipped` as a completed release.
+- Treat the successful end of a `## Project Rules` step that completes a release as a completed release.
 - Run no git or gh command to confirm a completed release.
 - Acknowledge a completed release in one line.
 - Name the next one to three `plan.md` items after that line.
@@ -590,8 +637,8 @@ Note: the Director triggers those actions; Ratify names what is pending.
 - Name test identifiers, output labels, comments, and errors by behavior.
 - Reserve bare AC and AT identifiers for CHANGELOG rows, commit messages, active `govna/ac<N>-<slug>.md` documents, literal examples in `govna/ac-template.md`, and `Historical:` comments.
 - Reserve bare Class and Round identifiers for CHANGELOG rows, commit messages, and `Historical:` comments.
-- Reserve bare Part identifiers for CHANGELOG rows, commit messages, active `govna/ac<N>-<slug>.md` documents, and `Historical:` comments.
-- Reserve bare IE identifiers for CHANGELOG rows, commit messages, active `govna/ac<N>-<slug>.md` documents, `plan.md`'s own `IE<N>:` bullets, and `Historical:` comments.
+- Reserve bare Part and IE identifiers for CHANGELOG rows, commit messages, active `govna/ac<N>-<slug>.md` documents, and `Historical:` comments.
+- Allow bare IE identifiers anywhere in `plan.md`.
 - Treat every other Markdown documentation file as out of bounds for bare AC, AT, Class, Part, Round, and IE identifiers.
 - Use the `Historical:` prefix only for a relevant shipped-AC comment.
 - Delete an irrelevant shipped-AC reference.

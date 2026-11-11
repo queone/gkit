@@ -263,6 +263,9 @@ build_run() {
   local verbose="$1"
   shift
   local targets=("$@")
+  local child_scoped=0
+  [ "${#targets[@]}" -eq 0 ] || child_scoped=1
+  _build_children "$child_scoped" build.sh || return 1
 
   local discovered_targets=() install_targets=() install_versions=()
   local d target candidate found available
@@ -355,7 +358,7 @@ EOF
   trap '_build_signal_exit 143' TERM
 
   local module_path bin_dir ext
-  module_path=$(go list -m -f '{{.Path}}')
+  module_path=$(GOWORK=off go list -m -f '{{.Path}}')
   bin_dir="$(go env GOPATH)/bin"
   ext="$(go env GOEXE)"
 
@@ -376,6 +379,9 @@ EOF
   fi
   printf '    %s\n' 'No nested-fence issues found.'
 
+  printf '\n'
+  _bare_id_check || return 1
+
   # Test-naming lint — silent on pass; see _lint_test_naming and _collect_test_files.
   local _lint_files=() _lint_path
   [ -f tests/run.sh ] && _lint_files+=('tests/run.sh')
@@ -392,8 +398,14 @@ EOF
   printf '\n%s\n' "$(yel7 '==> Pin the Go toolchain from go.mod')"
   printf '    GOTOOLCHAIN=%s\n' "${GOTOOLCHAIN:-}"
 
-  printf '\n%s\n' "$(yel7 '==> Update go.mod to reflect actual dependencies')"
-  run_streaming grn3 go mod tidy
+  local tidy_child
+  tidy_child=$(_go_workspace_child) || return 1
+  if [ -n "$tidy_child" ]; then
+    printf '\n%s\n' "$(yel7 "==> Skip go mod tidy while go.work names child $tidy_child; the release rebuild runs it")"
+  else
+    printf '\n%s\n' "$(yel7 '==> Update go.mod to reflect actual dependencies')"
+    run_streaming grn3 go mod tidy
+  fi
 
   printf '\n%s\n' "$(yel7 '==> Format Go code according to standard rules')"
   local fmt_out
@@ -1112,10 +1124,14 @@ _rel_run_inner() {
     printf '%s\n' '- git add -A and verify the staged tree'
     printf -- '- git commit -m %s and verify the committed tree\n' "$(_go_quote "$message")"
   fi
-  printf '%s\n' '- validate every utility declaration'
-  printf '%s\n' '- compile each utility once from clean committed HEAD'
-  printf '%s\n' '- validate every compiled utility version and provenance'
-  printf '%s\n' '- atomically install every validated utility and recheck it'
+  if _release_has_utilities; then
+    printf '%s\n' '- validate every utility declaration'
+    printf '%s\n' '- compile each utility once from clean committed HEAD'
+    printf '%s\n' '- validate every compiled utility version and provenance'
+    printf '%s\n' '- atomically install every validated utility and recheck it'
+  else
+    printf '%s\n' '- release the library from its tag; compile and install no utility'
+  fi
   printf '%s\n' "- git tag $tag"
   printf '%s\n' "- git push origin $tag"
   printf '%s\n' "- git ${_rel_push_branch_args[*]}"
@@ -1246,6 +1262,7 @@ _release_validate_prepared() { # $1=tag $2=message
     return 1
   }
   _validate_release_message release "$message" || return 1
+  _children_check_overrides release || return 1
   if git rev-parse -q --verify "refs/tags/$tag" >/dev/null 2>&1; then
     _failure "release: tag $tag already exists"
     return 1
@@ -1294,6 +1311,15 @@ _utility_count_label() { # $1=count -> "1 utility" or "<N> utilities"
   fi
 }
 
+# _release_has_utilities succeeds when cmd/<target>/main.go exists.
+_release_has_utilities() {
+  local d
+  for d in cmd/*/; do
+    [ ! -f "${d}main.go" ] || return 0
+  done
+  return 1
+}
+
 _release_compile_validate_install() { # $1=tag
   local tag="$1" release_version="${1#v}" revision bin_dir ext d target version decls compiled output
   local targets=() versions=()
@@ -1302,8 +1328,8 @@ _release_compile_validate_install() { # $1=tag
     targets+=("$(basename "$d")")
   done
   [ "${#targets[@]}" -gt 0 ] || {
-    _failure 'release: no cmd/<target>/main.go utilities were discovered'
-    return 1
+    printf '\n%s\n' "$(yel7 '==> Release a library with no cmd/<target>/main.go from its tag alone')"
+    return 0
   }
   local sorted
   sorted=$(printf '%s\n' "${targets[@]}" | LC_ALL=C sort)
@@ -1525,10 +1551,14 @@ _prep_run_inner() {
     return 1
   fi
   _validate_release_message prep "$message" || return 1
+  _children_check_overrides prep || return 1
 
   # Phase 2: validate git state and the Go module major version.
   _prep_validate_git_state "$root" "$version" || return 1
   _prep_validate_module_major "$root" "$version" || return 1
+
+  # Phase 2b: scan Markdown for bare AC, AT, and IE identifiers.
+  _bare_id_check || return 1
 
   if [ -n "${GOVNA_PREP_VALIDATION_TOKEN:-}" ]; then
     printf 'prep: validation-token environment evidence is unsupported for Go\n' >&2
@@ -2305,6 +2335,375 @@ EOF
 # ════════════════════════════════════════════════════════════════════════════
 # Dispatch
 # ════════════════════════════════════════════════════════════════════════════
+
+# _go_workspace_file prints the go.work file that `go env GOWORK` would name:
+# $GOWORK when set, nothing when it is off, else the nearest go.work upward.
+_go_workspace_file() {
+  local work="${GOWORK-}" dir
+  case "$work" in
+  off) return 0 ;;
+  '' | auto)
+    dir=$(pwd -P) || return 0
+    while :; do
+      if [ -f "$dir/go.work" ]; then
+        printf '%s\n' "$dir/go.work"
+        return 0
+      fi
+      [ "$dir" != / ] || return 0
+      dir=$(dirname "$dir")
+    done
+    ;;
+  *) [ ! -f "$work" ] || printf '%s\n' "$work" ;;
+  esac
+}
+
+# _go_workspace_uses prints each directory that a go.work file uses.
+_go_workspace_uses() { # $1=go.work path
+  awk -v dir="$(dirname "$1")" '
+    /^[[:space:]]*\/\// { next }
+    /^[[:space:]]*use[[:space:]]*\(/ { block = 1; next }
+    block && /^[[:space:]]*\)/ { block = 0; next }
+    { path = "" }
+    block { path = $1 }
+    !block && $1 == "use" { path = $2 }
+    path != "" {
+      gsub(/"/, "", path)
+      if (path !~ /^\//) path = dir "/" path
+      print path
+    }
+  ' "$1"
+}
+
+# _go_workspace_child prints the first declared child that the go.work
+# workspace uses, or nothing.
+_go_workspace_child() {
+  local children work path entry
+  children=$(_children_dirs) || return 1
+  [ -n "$children" ] || return 0
+  work=$(_go_workspace_file)
+  [ -n "$work" ] || return 0
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    entry=$(_children_owner "$children" "$path")
+    if [ -n "$entry" ]; then
+      printf '%s\n' "$entry"
+      return 0
+    fi
+  done <<EOF
+$(_go_workspace_uses "$work")
+EOF
+}
+
+# _child_override_candidates prints "<override><TAB><path>" for each Go local
+# override: go.mod replace directives with a filesystem path, and go.work uses.
+_child_override_candidates() {
+  local work path
+  if [ -f go.mod ]; then
+    awk '
+      /^[[:space:]]*\/\// { next }
+      /^[[:space:]]*replace[[:space:]]*\(/ { block = 1; next }
+      block && /^[[:space:]]*\)/ { block = 0; next }
+      (block || $1 == "replace") && index($0, "=>") {
+        target = substr($0, index($0, "=>") + 2)
+        sub(/^[[:space:]]+/, "", target)
+        split(target, parts, /[[:space:]]+/)
+        path = parts[1]
+        gsub(/"/, "", path)
+        if (path ~ /^(\.\.?(\/|$)|\/)/) print "go.mod replace\t" path
+      }
+    ' go.mod
+  fi
+  work=$(_go_workspace_file)
+  [ -n "$work" ] || return 0
+  while IFS= read -r path; do
+    [ -z "$path" ] || printf 'go.work use\t%s\n' "$path"
+  done <<EOF
+$(_go_workspace_uses "$work")
+EOF
+}
+
+# _child_override_recovery names the Go pin update that replaces an override.
+_child_override_recovery() { # $1=child entry
+  local module
+  module=$(awk '$1 == "module" { print $2; exit }' "$1/go.mod" 2>/dev/null)
+  [ -n "$module" ] || module='<module>'
+  printf 'remove the override, then move the pin with go mod edit -dropreplace=%s when a replace exists and go get %s@<tag>' "$module" "$module"
+}
+
+# --- child repositories (identical in every CODE stack build script) ---
+
+# _children_fail prints one child-build failure with its recovery action.
+_children_fail() {
+  printf 'build: %s\n' "$1" >&2
+}
+
+# _children_validate checks govna/children.txt: the govna-children-v1 header,
+# a final newline, and unique, byte-sorted, slash-normalized relative paths.
+_children_validate() { # $1=registry
+  local registry="$1" first=1 previous='' entry rest part named
+  if [ ! -s "$registry" ] || [ -n "$(tail -c 1 "$registry")" ]; then
+    _children_fail "$registry: require the govna-children-v1 header and a final newline"
+    return 1
+  fi
+  while IFS= read -r entry; do
+    if [ "$first" -eq 1 ]; then
+      first=0
+      [ "$entry" = govna-children-v1 ] || {
+        _children_fail "$registry: first line must be govna-children-v1"
+        return 1
+      }
+      continue
+    fi
+    case "$entry" in
+    '' | /* | */ | *\\* | *[[:cntrl:]]*)
+      _children_fail "$registry: entry '$entry' must be a nonempty relative path without a backslash, a control character, or a leading or trailing slash"
+      return 1
+      ;;
+    esac
+    named=0
+    rest="$entry/"
+    while [ -n "$rest" ]; do
+      part="${rest%%/*}"
+      rest="${rest#*/}"
+      case "$part" in
+      '' | .)
+        _children_fail "$registry: entry '$entry' contains an empty or '.' component"
+        return 1
+        ;;
+      ..)
+        [ "$named" -eq 0 ] || {
+          _children_fail "$registry: entry '$entry' contains '..' after a directory name"
+          return 1
+        }
+        ;;
+      *) named=1 ;;
+      esac
+    done
+    [ "$named" -eq 1 ] || {
+      _children_fail "$registry: entry '$entry' names no directory"
+      return 1
+    }
+    if [ -n "$previous" ] && ! [ "$previous" \< "$entry" ]; then
+      _children_fail "$registry: entries must be unique and byte-sorted"
+      return 1
+    fi
+    previous="$entry"
+  done <"$registry"
+}
+
+# _children_run_build runs one child repository's build.sh from its root.
+_children_run_build() { # $1=child directory
+  (cd "$1" && ./build.sh)
+}
+
+# _build_children runs each declared child repository's build.sh before the
+# parent build. $1=1 for a scoped build; the remaining arguments name the
+# stack's build tooling, which must match the child's copy byte for byte.
+_build_children() { # $1=scoped $2...=tooling paths
+  local scoped="$1"
+  shift
+  local registry='govna/children.txt'
+  [ -e "$registry" ] || return 0
+  _children_validate "$registry" || return 1
+  if [ "$scoped" -eq 1 ]; then
+    printf '%s\n' "$(yel7 '==> Skip child repository builds for a scoped build')"
+    return 0
+  fi
+  local parent child entry file first=1 entries=()
+  parent=$(pwd -P) || return 1
+  while IFS= read -r entry; do
+    if [ "$first" -eq 1 ]; then
+      first=0
+      continue
+    fi
+    entries+=("$entry")
+  done <"$registry"
+  [ "${#entries[@]}" -gt 0 ] || return 0
+  for entry in "${entries[@]}"; do
+    if [ ! -e "$entry" ] && [ ! -L "$entry" ]; then
+      _children_fail "child $entry is missing; clone the child repository at $entry, run a scoped build, which skips children, or remove it with govna rm --child"
+      return 1
+    fi
+    child=$(cd "$entry" 2>/dev/null && pwd -P) || {
+      _children_fail "child $entry is not a directory; restore the child repository or remove it with govna rm --child"
+      return 1
+    }
+    case "$child/" in "$parent/"*)
+      _children_fail "child $entry is inside this repository; keep a child repository outside its parent"
+      return 1
+      ;;
+    esac
+    case "$parent/" in "$child/"*)
+      _children_fail "child $entry contains this repository; declare a separate repository beside the parent"
+      return 1
+      ;;
+    esac
+    for file in "$@"; do
+      cmp -s "$file" "$child/$file" || {
+        _children_fail "child $entry: $file differs from this repository's copy; run govna audit here and apply its child updates"
+        return 1
+      }
+    done
+    printf '%s\n' "$(yel7 "==> Build child repository $entry")"
+    _children_run_build "$child" || {
+      _children_fail "child $entry: build failed; fix the child repository and rerun ./build.sh"
+      return 1
+    }
+    printf '\n'
+  done
+}
+
+# _children_dirs prints "<entry><TAB><directory>" for each declared child
+# directory that exists, after validating govna/children.txt.
+_children_dirs() {
+  local registry='govna/children.txt' entry dir first=1
+  [ -e "$registry" ] || return 0
+  _children_validate "$registry" || return 1
+  while IFS= read -r entry; do
+    if [ "$first" -eq 1 ]; then
+      first=0
+      continue
+    fi
+    dir=$(cd "$entry" 2>/dev/null && pwd -P) || continue
+    printf '%s\t%s\n' "$entry" "$dir"
+  done <"$registry"
+}
+
+# _children_owner prints the declared child entry whose directory holds path.
+_children_owner() { # $1=_children_dirs output $2=path
+  local resolved entry dir
+  resolved=$(cd "$2" 2>/dev/null && pwd -P) || return 0
+  while IFS="$(printf '\t')" read -r entry dir; do
+    [ -n "$entry" ] || continue
+    case "$resolved/" in "$dir/"*)
+      printf '%s\n' "$entry"
+      return 0
+      ;;
+    esac
+  done <<EOF
+$1
+EOF
+}
+
+# _children_check_overrides stops prep or release when a local override from
+# this stack's _child_override_candidates hook resolves to a declared child.
+_children_check_overrides() { # $1=prep|release
+  local label="$1" children candidates kind path entry found=0
+  children=$(_children_dirs) || return 1
+  [ -n "$children" ] || return 0
+  candidates=$(_child_override_candidates) || return 1
+  while IFS="$(printf '\t')" read -r kind path; do
+    [ -n "$kind" ] || continue
+    entry=$(_children_owner "$children" "$path")
+    [ -n "$entry" ] || continue
+    printf '%s: %s %s builds against declared child %s; %s\n' "$label" "$kind" "$path" "$entry" "$(_child_override_recovery "$entry")" >&2
+    found=1
+  done <<EOF
+$candidates
+EOF
+  [ "$found" -eq 0 ]
+}
+
+# --- end child repositories ---
+
+# --- bare identifier scan (identical in every build script) ---
+# Flags bare AC, AT, and IE identifiers in Markdown outside the places that
+# AGENTS.md ### AC Mechanics allows. A child repository gets no allowance, as
+# its parent's AGENTS.md requires. Class, Part, and Round numbers are not
+# scanned because canon defines no written form for them.
+
+# _bare_id_is_child succeeds when AGENTS.md is the Govna child pointer.
+_bare_id_is_child() {
+  [ -f AGENTS.md ] && LC_ALL=C grep -q '^This repository is a Govna child repository\.' AGENTS.md
+}
+
+# _bare_id_list_files prints each tracked or unignored *.md path, NUL-delimited.
+# Outside a Git work tree it lists every *.md file under the current directory.
+_bare_id_list_files() {
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git ls-files -z --cached --others --exclude-standard -- '*.md'
+  else
+    find . \( -name .git -o -name node_modules -o -name vendor \) -prune -o \
+      -name '*.md' -type f -print0
+  fi
+}
+
+# _bare_id_scan prints one "<path>:<line>: bare identifier <ID>; ..." line per
+# finding in the current repository and fails only when a file cannot be read.
+_bare_id_scan() {
+  local child=0 rel ac_doc='^govna/ac[0-9]+-[^/]+\.md$' files=()
+  if _bare_id_is_child; then child=1; fi
+  while IFS= read -r -d '' rel; do
+    rel="${rel#./}"
+    [ -f "$rel" ] || continue
+    case "$rel" in tests/fixtures/* | testdata/* | */testdata/*) continue ;; esac
+    if [ "$child" -eq 0 ]; then
+      [ "$rel" != CHANGELOG.md ] || continue
+      if [[ "$rel" =~ $ac_doc ]]; then continue; fi
+    fi
+    files+=("./$rel")
+  done < <(_bare_id_list_files)
+  [ "${#files[@]}" -gt 0 ] || return 0
+  LC_ALL=C awk -v child="$child" '
+    function strip_historical(s,   out, i, rest, j) {
+      out = ""
+      while ((i = index(s, "<!--")) > 0) {
+        rest = substr(s, i + 4)
+        j = index(rest, "-->")
+        if (j > 0 && rest ~ /^[ \t]*Historical:/) {
+          out = out substr(s, 1, i - 1) " "
+          s = substr(rest, j + 3)
+        } else {
+          out = out substr(s, 1, i + 3)
+          s = rest
+        }
+      }
+      return out s
+    }
+    {
+      path = FILENAME
+      sub(/^\.\//, "", path)
+      line = $0
+      template = 0
+      plan = 0
+      if (!child) {
+        line = strip_historical(line)
+        template = (path == "govna/ac-template.md")
+        plan = (path == "plan.md")
+      }
+      rest = line
+      last = ""
+      while (match(rest, /(AC|AT|IE)[0-9]+/)) {
+        before = (RSTART > 1) ? substr(rest, RSTART - 1, 1) : last
+        after = substr(rest, RSTART + RLENGTH, 1)
+        id = substr(rest, RSTART, RLENGTH)
+        last = substr(id, length(id), 1)
+        rest = substr(rest, RSTART + RLENGTH)
+        if (before ~ /[A-Za-z0-9_]/ || after ~ /[A-Za-z0-9_]/) continue
+        if (template && id !~ /^IE/) continue
+        if (plan && id ~ /^IE/) continue
+        printf "%s:%d: bare identifier %s; replace it with plain words or a placeholder such as AC<N>, or move it to a place AGENTS.md ### AC Mechanics allows\n", path, FNR, id
+      }
+    }' "${files[@]}"
+}
+
+# _bare_id_check runs the scan as one build or prep step and fails on a finding.
+_bare_id_check() {
+  local findings count
+  printf '%s\n' "$(yel7 '==> Check markdown for bare AC, AT, and IE identifiers')"
+  findings=$(_bare_id_scan) || {
+    printf 'bare identifier scan: reading Markdown failed; make every listed Markdown file readable and retry\n' >&2
+    return 1
+  }
+  if [ -n "$findings" ]; then
+    printf '%s\n' "$findings" | sed 's/^/    /'
+    count=$(printf '%s\n' "$findings" | LC_ALL=C wc -l | tr -d ' ')
+    printf 'bare identifier scan found %s issue(s)\n' "$count" >&2
+    return 1
+  fi
+  printf '    %s\n' 'No bare AC, AT, or IE identifiers found.'
+}
+# --- end bare identifier scan ---
 
 main() {
   _color_init

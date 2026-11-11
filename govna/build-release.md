@@ -92,19 +92,20 @@ Note: the operator flow has two steps.
 
 1. **Validate inputs.** Require strict stable SemVer and one non-empty, single-line, table-safe message of no more than 80 bytes.
 2. **Validate git state.** Inside a git work tree, target tag does not exist yet, HEAD is not at the latest tag with a clean working tree. Go accepts a repository with no commits.
-3. **Process version targets.**
+3. **Scan Markdown identifiers.** Run the scan in `govna/code-stacks.md` `## Markdown Identifier Check` and stop on any finding before any write, including under `--dry-run` or `-n`.
+4. **Process version targets.**
    - Detect every version target.
    - Validate every version target.
    - Follow this repository's Project Practices.
    - Follow the stack build implementation.
    - Reject missing, malformed, duplicate, or unsafe targets before any write.
    - Reject a bumped utility's README whose `### Usage` block cannot match the help probe.
-4. **Guard CHANGELOG shape and idempotency.**
+5. **Guard CHANGELOG shape and idempotency.**
    - Detect the root `CHANGELOG.md` target.
    - Require the canonical heading and two-column table.
    - Reject an existing row for the target version before any write.
-5. **Parse AC refs.** Scan the release message for `AC[0-9]+`; require one matching AC file for every unique reference after the Operator verifies exact release-batch equality. Accept a message without AC references.
-6. **Apply writes.**
+6. **Parse AC refs.** Scan the release message for `AC[0-9]+`; require one matching AC file for every unique reference after the Operator verifies exact release-batch equality. Accept a message without AC references.
+7. **Apply writes.**
    - Apply idempotent version bumps.
    - Rewrite each bumped utility's README `### Usage` version line.
    - Insert the CHANGELOG row under `| Unreleased | |`.
@@ -112,7 +113,7 @@ Note: the operator flow has two steps.
    - Sweep matching AC-pointer IE lines from `plan.md`.
    - Skip writes under `--dry-run` or `-n`.
    - Leave already-swept lines unchanged on rerun.
-7. **Verify and report.** Reject results outside the planned paths, verify every planned transformation, and print one shell-safe two-argument release command.
+8. **Verify and report.** Reject results outside the planned paths, verify every planned transformation, and print one shell-safe two-argument release command.
 
 CHANGELOG row shape (enforced by prep's insertion code and by convention):
 
@@ -127,6 +128,27 @@ CHANGELOG row shape (enforced by prep's insertion code and by convention):
 - Versions are unprefixed (`0.29.0`, not `v0.29.0`).
 - Do not backfill historical tags or invent alternative shapes (Keep-a-Changelog, sectioned `## vX.Y.Z`, etc.).
 
+## Child Releases
+
+- Apply this section when `govna/children.txt` declares a child.
+- Treat a child as changed when its working tree or commits differ from its latest tag, or when it has no tag.
+- Run stage 1 when any declared child is changed.
+- Choose each changed child's version by semver from that child's own changes.
+- Write each child release message in plain words without AC identifiers.
+- Run each changed child's prep in that child.
+- End plain Package stage 1 by presenting each child's release command.
+- Start the stage 1 report with the plain line `Package paused for child releases.`.
+- Continue to stage 2 after the child releases under `release` or `rel`.
+- Run stage 2 when no declared child is changed.
+- Remove each local override that resolves to a declared child.
+- Move each child pin to that child's latest tag with the stack's command in `govna/code-stacks.md`.
+- Run the full build only after every override is removed and every pin is moved.
+- Write the `history.md` section after that full build passes.
+- Run the parent's prep after the `history.md` section.
+- List each child release before the parent's release in the Package completion report.
+- List every `go.mod` change beyond the child pin lines in a Go parent's Package completion report.
+- State the fix-forward recovery in every report of a failure after a published child tag.
+
 ## Release History Format
 
 - Apply this format to every `history.md` section that Package writes.
@@ -138,6 +160,12 @@ CHANGELOG row shape (enforced by prep's insertion code and by convention):
 - Write condensed Simplified Technical English.
 - Keep one fact per bullet.
 - Keep each bullet to at most 25 words.
+- Keep each line of a release section to about 120 characters or fewer.
+- Break a longer bullet at a clause boundary within the limit, such as after a comma, semicolon, or colon.
+- Break a longer bullet at the last space within the limit when no clause boundary fits.
+- Keep each path, URL, identifier, command, and exact quoted output unbroken and unchanged.
+- Let a line pass the limit only when a path, URL, identifier, command, or exact quoted output cannot fit within it.
+- Indent each later line of a bullet by two spaces.
 - Start at the first release after adoption.
 - Skip back-filling earlier releases.
 

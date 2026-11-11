@@ -31,14 +31,19 @@ This file defines Operator and Director ownership. `AGENTS.md` is authoritative.
 - Search for stale references after renames, moves, or deletions.
 - Check that current evidence shows `./build.sh` passed when the change touches code or build-relevant files.
 - Run each acceptance test in the active AC when its current disposition is unavailable.
+- Run a check before reporting instead of listing it under `Not checked` when current authorization allows it.
 - State why an unexercised acceptance test was only reasoned about when its labels do not explain it.
 
 - Report each of `Verified`, `Red-teamed`, and `Not checked` that has items as a distinct completion section.
+- List under `Not checked` only a check that needs a Director action or a new Director authorization.
+- Name that Director action or authorization in each `Not checked` item.
 - Keep each independently useful self-review item distinct.
 - Place a sole self-review item on its heading line.
 - Use terse flat bullets for multiple self-review items.
 - Omit a self-review section that has no items.
 - Treat implementation without self-review evidence as incomplete.
+
+Note: checks the Operator runs itself include a read-only command, a file inspection, or a render check that current authorization covers.
 
 ### Acceptance criteria (AC) handling
 
