@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.96.2 | plan lschan Wi-Fi channel recommender; keep its CoreWLAN test in spikes/lschan |
 | 0.96.1 | AC136 adopt Govna governance files v0.96.0 |
 | 0.96.0 | AC135 update package asks the proxy again after an upgrade |
 | 0.95.3 | AC134 adopt Govna governance files v0.85.0 |
