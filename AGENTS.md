@@ -262,7 +262,7 @@ Note: this rule does not prohibit batching independent commands.
 - Describe each direct-handled companion change in the release message when the release batch already carries an AC.
 - Draft no retroactive AC for such a companion change.
 - Draft `govna/ac<N>-<slug>.md` before implementation using `govna/ac-template.md`.
-- Define scope, out-of-scope, and acceptance tests in the AC.
+- Size each AC to its change by the rules in `govna/ac-template.md`.
 
 ### Four-Phase Workflow
 
@@ -275,7 +275,7 @@ Note: this rule does not prohibit batching independent commands.
 - Enter Audit automatically when Draft completes the active AC with populated scope and acceptance tests.
 - Keep an unscoped stub paused until the Director scopes it.
 - Start each governed AC cycle in Audit when the AC is ready for adversarial review.
-- Challenge the AC, repository behavior, referenced documentation, scope, edge cases, omissions, and testability during Audit.
+- Challenge the AC, repository behavior, referenced documentation, scope, edge cases, omissions, testability, and restated or oversized AC text during Audit.
 - Keep Audit non-mutating.
 - Pause after Audit until the Director requests Refine unless integrated audit adoption or eligible automatic Refine entry applies.
 - Enter Refine automatically when Audit completes with only advancement-eligible findings.
