@@ -12,6 +12,9 @@ Govna publishes updated files. A repository uses `govna audit` to separate safe 
    - Surface updates through audit.
    - Hard-fail incoherent canon for maintainer correction.
 4. **Prior-canon check.** Build the prior canon from the latest release tag in the upgrade test, so a canon version bump rotates no committed fixture.
+5. **Stub rules.**
+   - Keep rules out of the `plan.md` and `arch.md` stubs.
+   - Place each such rule in a synced canon file.
 
 ## Candidate-canon review
 

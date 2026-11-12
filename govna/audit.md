@@ -72,7 +72,7 @@ Audit reads every governed path through a contained handle on the resolved repos
 
 ## Expected-divergence registry
 
-`plan.md` and `arch.md` are registered as expected per-repo divergence — canon ships them as content stubs, and every adopting repo is expected to carry repo-specific content in their place. Divergence here never routes to review.
+`plan.md` and `arch.md` are registered as expected per-repo divergence — canon ships them as content stubs, and every adopting repo is expected to carry repo-specific content in their place. Divergence here never routes to review. `## IE spacing` names the one exception for `plan.md`.
 
 ## Mixed-content boundary registry
 
@@ -170,6 +170,20 @@ Audit does not flag arbitrary consumer-owned governance documents that have none
 
 Note: a repository that keeps its own `build.sh` runs no Markdown identifier scan, so its clean and version-only audit results stay silent about bare identifiers.
 
+## IE spacing
+
+- Apply these rules to the root `plan.md` when audit classifies it as an expected local difference.
+- Treat an IE item as a `- IE<N>: ` line plus the indented lines that continue it.
+- Treat two IE items as adjacent when only blank lines separate them.
+- Flag `plan.md` when any adjacent pair lacks exactly one blank line between them.
+- Keep the flagged file's classification unchanged.
+- Treat the flag as work that writes an adoption AC on its own.
+- Exit `3` from check mode for the flag on its own.
+- Set `ie_spacing` to `true` on the flagged file in the JSON report.
+- Name the flag in the plain result tally.
+- List the flagged file under `### IE items to space` instead of `## Out Of Scope`.
+- Add one acceptance test that checks the file's line order and IE spacing.
+
 ## Retired link
 
 Govna used to create `CLAUDE.md` as a symbolic link to `AGENTS.md`. Claude Code v2.1.277 or later reads `AGENTS.md` directly, so audit retires that link.
@@ -241,13 +255,14 @@ Audit skips target comparison when any coherence rule fails. The error names the
 
 ## Emitted AC stub
 
-Audit writes `govna/ac<N>-audit-<canon-version>.md` only when the repository has files ready to update, required control files to add, files needing a Director choice, or a retired Govna link to delete. The canon version identifies the embedded governance-file version; `N` follows the monotonic AC-numbering rule. Clear-sync, missing-target, migration-required, ambiguity, target-has-no-canon, retired-link, and format-defining forced-sync results require work. Match, expected-divergence, and ordinary preserve results do not. The generated AC follows `govna/ac-template.md` and groups every non-`match` file as follows:
+Audit writes `govna/ac<N>-audit-<canon-version>.md` only when the repository has files ready to update, required control files to add, files needing a Director choice, a retired Govna link to delete, or `plan.md` IE items to space. The canon version identifies the embedded governance-file version; `N` follows the monotonic AC-numbering rule. Clear-sync, missing-target, migration-required, ambiguity, target-has-no-canon, retired-link, and format-defining forced-sync results require work. Match, expected-divergence, and ordinary preserve results do not. The generated AC follows `govna/ac-template.md` and groups every non-`match` file as follows:
 
 - **Files ready to update** — `clear-sync`, `missing-in-target`, and any format-defining file forced to sync.
 - **Required control files** — `migration-required` items under `## Migration findings`.
 - **Out of scope** — files that stay unchanged: `preserve` and `expected-divergence`.
 - **Files needing a Director choice** — `ambiguity` and `target-has-no-canon`.
 - **Retired Govna link** — `retired-link`: the `CLAUDE.md` link that the AC deletes with no Director choice.
+- **IE items to space** — a `plan.md` flagged under `## IE spacing`.
 
 The stub carries an edit-detection marker (SHA-256 body hash). Re-running audit against an unedited stub for the same canon version reuses the same AC number. When audit writes an AC, it replaces each unedited stub for an older canon version: the new stub keeps that stub's AC number when no stub for the current canon exists, and audit deletes the older stub after writing and reports the replacement. An edited older stub, or more than one older stub without a current one, stops audit before it writes anything. Re-running it against an edited stub fails and directs the Director to delete or rename that generated file before retrying.
 
@@ -322,6 +337,8 @@ Pass `--json` to print a machine-readable report (`header`: invocation, canon SH
 - Apply mixed-content items by hunk-merge.
 - Replace canon-zone content above each registered boundary heading.
 - Use the boundary registered in `## Mixed-content boundary registry` for each mixed-content item.
+- Put exactly one blank line between each pair of adjacent IE items in a `plan.md` listed under `### IE items to space`.
+- Keep every other `plan.md` line, each IE item's text, and their order.
 - Run the chosen repository command after all selected sync, migration, and deletion work.
 - Verify each resolved sync target against its applicable rendered canon region.
 - Verify each migration source is absent unless the Director explicitly preserves it.

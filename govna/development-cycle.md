@@ -61,6 +61,7 @@ The lifecycle makes recurring programming checkpoints and their settled context 
 ## Notes
 
 - Keep roadmap decisions and follow-on `IE<N>:` items in `plan.md`.
+- Separate `plan.md` IE items with one blank line.
 - Keep architecture in `arch.md`.
 - Remove an IE when rejected, retired, or shipped through its AC pointer.
 - Keep ACs in `govna/ac<N>-<slug>.md`.

@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.96.4 | AC138 adopt Govna governance files v0.98.0; space plan.md IE items |
 | 0.96.3 | AC137 adopt Govna governance files v0.97.0 |
 | 0.96.2 | plan lschan Wi-Fi channel recommender; keep its CoreWLAN test in spikes/lschan |
 | 0.96.1 | AC136 adopt Govna governance files v0.96.0 |
