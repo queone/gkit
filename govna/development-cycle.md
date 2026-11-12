@@ -69,7 +69,6 @@ The lifecycle makes recurring programming checkpoints and their settled context 
 - Write an AC-pointer IE as `- IE<N>: <one-liner> → govna/ac<N>-<slug>.md`.
 - Convert an idea IE to an AC-pointer IE when the Director sends it to Draft.
 - Keep the IE number through that conversion.
-- Keep historical records out of `plan.md`.
 - Keep architecture in `arch.md`.
 - Remove an IE when rejected, retired, or shipped through its AC pointer.
 - Keep ACs in `govna/ac<N>-<slug>.md`.
