@@ -17,3 +17,5 @@ Ideas captured for future reference. [`govna/development-cycle.md`](govna/develo
 - IE11: Scan Wi-Fi on Linux in lschan, which reads scans only through macOS CoreWLAN, with a Linux source such as `nmcli` or nl80211.
 
 - IE12: Make lschan a periodic recommender: run it on a schedule, such as from a per-user launchd agent, log every scan, and recommend router settings for least interference, covering channel, channel width, and band. Base each recommendation on scans across hours and days, so a busy hour or one neighbor's channel change does not move it, and recommend a change only when it beats the current setup by a clear margin and holds over days. Test first whether CoreWLAN scans from a launchd agent; macwifi-cli reports that its scans fail from a system-wide launchd daemon. Open decision: whether the first lschan version already recommends width and band, or only channel.
+
+- IE13: Add a Bluetooth equivalent of lschan that shows how crowded nearby Bluetooth traffic is. Open decision: what it measures and recommends, because Bluetooth hops across channels on its own and gives the user no channel to choose.
