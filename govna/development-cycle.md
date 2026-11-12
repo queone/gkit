@@ -62,6 +62,14 @@ The lifecycle makes recurring programming checkpoints and their settled context 
 
 - Keep roadmap decisions and follow-on `IE<N>:` items in `plan.md`.
 - Separate `plan.md` IE items with one blank line.
+- Start each IE item with `- IE<N>: `.
+- Number IE items sequentially.
+- Write an idea IE as `- IE<N>: <one-liner>`.
+- Hold an idea IE for Director discussion and the AC-ceremony evaluation in `AGENTS.md` `### AC-First Workflow`.
+- Write an AC-pointer IE as `- IE<N>: <one-liner> → govna/ac<N>-<slug>.md`.
+- Convert an idea IE to an AC-pointer IE when the Director sends it to Draft.
+- Keep the IE number through that conversion.
+- Keep historical records out of `plan.md`.
 - Keep architecture in `arch.md`.
 - Remove an IE when rejected, retired, or shipped through its AC pointer.
 - Keep ACs in `govna/ac<N>-<slug>.md`.
