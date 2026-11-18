@@ -3,6 +3,7 @@
 | Version | Summary |
 |---------|---------|
 | Unreleased | |
+| 0.96.7 | AC141 adopt Govna governance files v0.108.0 |
 | 0.96.6 | AC140 adopt Govna governance files v0.99.1; plan Bluetooth lschan idea |
 | 0.96.5 | AC139 adopt Govna governance files v0.99.0; trim plan.md IE preamble |
 | 0.96.4 | AC138 adopt Govna governance files v0.98.0; space plan.md IE items |

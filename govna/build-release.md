@@ -8,17 +8,6 @@
 
 Use self-contained `build.sh` for build, release prep, and release work without external govna tools.
 
-### Build Presentation
-
-- Reuse the canonical build color policy and palette across supported CODE stacks.
-- Color phase headings, command previews, status values, failures, prep output, and release output by semantic role.
-- Emit plain output when stdout is not a terminal.
-- Emit plain output when `NO_COLOR` is set.
-- Emit plain output when `TERM=dumb`.
-- Require a 256-color-capable terminal before emitting ANSI sequences.
-- Preserve plain-text content and output streams when color is disabled.
-- Keep self-contained build scripts compatible with Bash 3.2.
-
 ## Minimum Validation
 
 - Require formatting, static checks, automated tests, and behavior-aligned docs to pass.
@@ -59,7 +48,7 @@ Run `./build.sh` without targets for repository-wide validation. Follow the appl
 
 - Apply this checklist only to an explicit Director Package instruction for an established Ratified release batch or direct batch.
 
-Note: the operator flow has two steps.
+Note: the operator flow has two steps. Prep stops on a bare AC, AT, or IE identifier that `AGENTS.md` `### AC Mechanics` does not allow.
 
 1. **Run prep.**
    - Classify the AC scope under semver.
@@ -69,10 +58,7 @@ Note: the operator flow has two steps.
    - Exclude every AC reference outside the established release batch.
    - Rerun applicable validation before prep when Package evidence is missing or stale.
    - Run the stack-defined `./build.sh prep vX.Y.Z "message"` invocation.
-   - Pass current validation evidence with `--validation-token` or `-t` when supported.
    - Keep Go prep free of canonical build, Go build, and Go dependency commands.
-   - Reserve validation-token evidence for Rust prep.
-   - Refresh validation-token evidence for Rust prep.
    - Use `--dry-run` or `-n` to inspect without writes.
 
    Before running prep, satisfy this repository's declared version-target contract and keep repository/package and independently versioned utility declarations aligned as required by its Project Practices.
@@ -86,36 +72,7 @@ Note: the operator flow has two steps.
 - Place the exact release command immediately after that line.
 - Add nothing after the release command.
 
-### Appendix: what prep does
-
-`./build.sh prep` performs release bookkeeping in every CODE stack. Go and Terraform prep perform bookkeeping only. Rust prep adds a fallback pre-change full build when validation evidence is missing or stale and one post-change full build after its writes. Swift prep runs the canonical build before its writes and again with installation after them unless `-B` skips both. Every stack follows these bookkeeping phases:
-
-1. **Validate inputs.** Require strict stable SemVer and one non-empty, single-line, table-safe message of no more than 80 bytes.
-2. **Validate git state.** Inside a git work tree, target tag does not exist yet, HEAD is not at the latest tag with a clean working tree. Go accepts a repository with no commits.
-3. **Scan Markdown identifiers.** Run the scan in `govna/code-stacks.md` `## Markdown Identifier Check` and stop on any finding before any write, including under `--dry-run` or `-n`.
-4. **Process version targets.**
-   - Detect every version target.
-   - Validate every version target.
-   - Follow this repository's Project Practices.
-   - Follow the stack build implementation.
-   - Reject missing, malformed, duplicate, or unsafe targets before any write.
-   - Reject a bumped utility's README whose `### Usage` block cannot match the help probe.
-5. **Guard CHANGELOG shape and idempotency.**
-   - Detect the root `CHANGELOG.md` target.
-   - Require the canonical heading and two-column table.
-   - Reject an existing row for the target version before any write.
-6. **Parse AC refs.** Scan the release message for `AC[0-9]+`; require one matching AC file for every unique reference after the Operator verifies exact release-batch equality. Accept a message without AC references.
-7. **Apply writes.**
-   - Apply idempotent version bumps.
-   - Rewrite each bumped utility's README `### Usage` version line.
-   - Insert the CHANGELOG row under `| Unreleased | |`.
-   - Delete each released AC file whole.
-   - Sweep matching AC-pointer IE lines from `plan.md`.
-   - Skip writes under `--dry-run` or `-n`.
-   - Leave already-swept lines unchanged on rerun.
-8. **Verify and report.** Reject results outside the planned paths, verify every planned transformation, and print one shell-safe two-argument release command.
-
-CHANGELOG row shape (enforced by prep's insertion code and by convention):
+## CHANGELOG Conventions
 
 - Use a `# Changelog` heading.
 - Follow it with the two-column `| Version | Summary |` table.
@@ -127,27 +84,6 @@ CHANGELOG row shape (enforced by prep's insertion code and by convention):
 - Lead summaries with the AC reference when one exists.
 - Versions are unprefixed (`0.29.0`, not `v0.29.0`).
 - Do not backfill historical tags or invent alternative shapes (Keep-a-Changelog, sectioned `## vX.Y.Z`, etc.).
-
-## Child Releases
-
-- Apply this section when `govna/children.txt` declares a child.
-- Treat a child as changed when its working tree or commits differ from its latest tag, or when it has no tag.
-- Run stage 1 when any declared child is changed.
-- Choose each changed child's version by semver from that child's own changes.
-- Write each child release message in plain words without AC identifiers.
-- Run each changed child's prep in that child.
-- End plain Package stage 1 by presenting each child's release command.
-- Start the stage 1 report with the plain line `Package paused for child releases.`.
-- Continue to stage 2 after the child releases under `release` or `rel`.
-- Run stage 2 when no declared child is changed.
-- Remove each local override that resolves to a declared child.
-- Move each child pin to that child's latest tag with the stack's command in `govna/code-stacks.md`.
-- Run the full build only after every override is removed and every pin is moved.
-- Write the `history.md` section after that full build passes.
-- Run the parent's prep after the `history.md` section.
-- List each child release before the parent's release in the Package completion report.
-- List every `go.mod` change beyond the child pin lines in a Go parent's Package completion report.
-- State the fix-forward recovery in every report of a failure after a published child tag.
 
 ## Release History Format
 

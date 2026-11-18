@@ -5,7 +5,6 @@ This file defines Operator and Director ownership. `AGENTS.md` is authoritative.
 ## Assignment
 
 - Treat the person in the session as the Director.
-- Keep the two-role model closed until first-class delegated review exists.
 
 ## Operator Rules
 
@@ -13,7 +12,6 @@ This file defines Operator and Director ownership. `AGENTS.md` is authoritative.
 
 - Own authorized edits, mechanical repository work, tests, and reference integrity.
 - Follow validation and Package rules in `AGENTS.md` and `govna/build-release.md`.
-- Execute a release command only under `AGENTS.md` `### Agent Release`.
 
 ### Review and verification
 
@@ -68,7 +66,3 @@ Note: checks the Operator runs itself include a read-only command, a file inspec
 - Do not set backlog priority.
 - Do not approve the roadmap.
 - Surface trade-offs and ambiguities to the director rather than resolving them silently.
-
-## Caveat
-
-This model assumes the Operator can hold both creation and review across long horizons without colluding with itself. If standards slip or obvious issues are missed, do not reshuffle roles — give the Operator better tools (persistent docs, checklists, contract docs) and tighter scope.

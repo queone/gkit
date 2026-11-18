@@ -8,6 +8,9 @@ An AC records settled intent, scope, and proof once so later review, implementat
 
 Size each section to the change: a small fix needs a few lines, not every prompt below.
 State each requirement once, in the section that owns it.
+Replace the wording a change makes obsolete in every section that carries it.
+Keep a reason only where it explains a constraint, a rejected alternative, or a non-obvious test.
+Leave discussion history out.
 Replace each section's instruction lines with its content.
 
 # AC<N> Title
